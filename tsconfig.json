@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "allowSyntheticDefaultImports": true,
+        "alwaysStrict": true,
+        "allowJs": true,
+        "target": "es6",
+        "module": "ESNext",
+        "moduleResolution": "node",
+        "outDir": "dist",
+        "declaration": true,
+        "declarationDir": "dist/types",
+        "noResolve": false,
+        "noImplicitAny": true,
+        "removeComments": true,
+        "sourceMap": true,
+        "strict": true,
+        "resolveJsonModule": true,
+        "types": [
+            "node",
+            "jest"
+        ],
+        "useDefineForClassFields": true
+    },
+    "include": [
+        "src/**/*",
+        "./declaration.d.ts",
+        "jest.config.ts"
+    ],
+    "exclude": []
+  }

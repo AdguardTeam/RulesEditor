@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "allowSyntheticDefaultImports": true,
+        "alwaysStrict": true,
+        "target": "ESNext",
+        "noResolve": false,
+        "noImplicitAny": true,
+        "strict": true,
+        "resolveJsonModule": true,
+        "types": [
+            "node"
+        ],
+        "useDefineForClassFields": true
+    },
+    "include": [
+        "scripts/**/*",
+    ],
+    "exclude": []
+  }

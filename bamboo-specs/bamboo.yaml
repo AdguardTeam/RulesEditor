@@ -1,0 +1,142 @@
+---
+version: 2
+plan:
+  project-key: AJL
+  key: RULESEDITOR
+  name: AdGuard Rules Editor
+variables:
+  dockerNode: adguard/node-ssh:18.13--0
+  name: rules-editor
+
+stages:
+  - Test:
+      manual: 'false'
+      final: 'false'
+      jobs:
+        - Test
+  - Build:
+      manual: 'false'
+      final: 'false'
+      jobs:
+        - Build
+  - Deploy:
+      manual: 'false'
+      final: 'true'
+      jobs:
+        - Deploy
+
+Test:
+  docker:
+    image: ${bamboo.dockerNode}
+    volumes:
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
+  key: TEST
+  other:
+      clean-working-dir: true
+  tasks:
+    - checkout:
+        force-clean-build: 'true'
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            set -x
+            set -e
+
+            # Fix mixed logs
+            exec 2>&1
+
+            yarn install ${bamboo.varsYarn}
+
+            yarn lint
+            yarn test
+
+  requirements:
+    - adg-docker: 'true'
+
+Build:
+  docker:
+    image: ${bamboo.dockerNode}
+    volumes:
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
+  key: BUILD
+  other:
+      clean-working-dir: true
+  tasks:
+    - checkout:
+        force-clean-build: 'true'
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            set -x
+            set -e
+
+            # Fix mixed logs
+            exec 2>&1
+
+            yarn install ${bamboo.varsYarn}
+            yarn build
+            yarn pack --filename rulesEditor.tgz
+            rm -rf node_modules
+  artifacts:
+    - name: rulesEditor.tgz
+      location: ./
+      pattern: rulesEditor.tgz
+      shared: true
+      required: true
+
+Deploy:
+  docker:
+    image: ${bamboo.dockerNode}
+    volumes:
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
+  key: BUILD
+  other:
+      clean-working-dir: true
+  tasks:
+    - checkout:
+        force-clean-build: 'true'
+    - script:
+        interpreter: SHELL
+        scripts:
+          - |-
+            set -e
+            set -x
+
+            # Fix mixed logs
+            exec 2>&1
+
+            ls -alt
+
+            export NPM_TOKEN=${bamboo.npmSecretToken}
+            echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+            npm publish rulesEditor.tgz --access public
+
+branches:
+  create: for-pull-request
+  delete:
+    after-deleted-days: '1'
+    after-inactive-days: '5'
+  link-to-jira: 'true'
+
+# run only the "Test" stage
+# in any branch except for "master"
+branch-overrides:
+  -
+    ^(master.+|(?!master).*)$:
+      stages:
+        - Test:
+            - Test
+
+notifications:
+  - events:
+      - plan-status-changed
+    recipients:
+      - webhook:
+          name: Build webhook
+          url: http://prod.jirahub.service.eu.consul/v1/webhook/bamboo
+
+labels: []
+other:
+  concurrent-build-plugin: system-default
