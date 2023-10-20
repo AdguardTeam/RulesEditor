@@ -91,7 +91,7 @@ Deploy:
     image: ${bamboo.dockerNode}
     volumes:
       ${system.YARN_DIR}: ${bamboo.cacheYarn}
-  key: BUILD
+  key: DEPLOY
   other:
       clean-working-dir: true
   tasks:
