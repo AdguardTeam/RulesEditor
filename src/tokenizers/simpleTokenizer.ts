@@ -29,7 +29,7 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
         while (pattern.startsWith('|')) {
             pattern = pattern.slice(1);
         }
-        const [keyword, modificators] = ruleRaw.split(pattern);
+        const [keyword, modifiers] = ruleRaw.split(pattern);
 
         const tokenized = [] as RuleTokens;
 
@@ -40,15 +40,15 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
 
         const { options } = NetworkRule.parseRuleText(ruleRaw);
 
-        if (!options && !modificators) {
+        if (!options && !modifiers) {
             return tokenized;
         }
-        if (!options && modificators) {
-            tokenized.push({ token: Token.Keyword, str: modificators });
+        if (!options && modifiers) {
+            tokenized.push({ token: Token.Keyword, str: modifiers });
             return tokenized;
         }
-        if (options && modificators && modificators.replace(options, '').length > 0) {
-            tokenized.push({ token: Token.Keyword, str: modificators.replace(options, '') });
+        if (options && modifiers && modifiers.replace(options, '').length > 0) {
+            tokenized.push({ token: Token.Keyword, str: modifiers.replace(options, '') });
 
             // all,domain=~example.com
             const splitOptions = options.split(',');

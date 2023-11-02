@@ -28,6 +28,7 @@
     },
     "rules": {
         "@typescript-eslint/explicit-module-boundary-types": 0,
+        "@typescript-eslint/strict-boolean-expressions": 0,
         "@typescript-eslint/explicit-function-return-type": [0, { "allowExpressions": true }],
         "@typescript-eslint/indent": ["error", 4],
         "@typescript-eslint/interface-name-prefix": [0, { "prefixWithI": "never" }],
@@ -39,7 +40,6 @@
         "@typescript-eslint/no-non-null-assertion": 0,
         "arrow-body-style": "off",
         "consistent-return": 0,
-        "@typescript-eslint/strict-boolean-expressions": "error",
         "curly": [2, "all"],
         "default-case": 0,
         "import/no-cycle": 0,
@@ -72,13 +72,45 @@
             }
         ],
         "@typescript-eslint/consistent-type-imports": 1,
-        "jsdoc/require-jsdoc": [1, { "require": { "ClassDeclaration": true, "ClassExpression": true, "MethodDefinition": true } }],
         "@typescript-eslint/explicit-member-accessibility": [1, {
             "accessibility": "explicit",
             "overrides": {
                 "constructors": "off"
             }
-        }]
+        }],
+        // types described in ts
+        "jsdoc/require-param-type": "off",
+        "jsdoc/no-undefined-types": "off",
+        "jsdoc/require-returns-type": "off",
+        "jsdoc/tag-lines": "off",
+        "jsdoc/require-throws": "error",
+        "jsdoc/check-tag-names": ["error", {
+            "definedTags": ["jest-environment"]
+        }],
+        "jsdoc/require-jsdoc": [
+            "error",
+            {
+                "contexts": [
+                    "ClassDeclaration",
+                    "ClassProperty",
+                    "FunctionDeclaration",
+                    "MethodDefinition"
+                ]
+            }
+        ],
+        "jsdoc/require-description": [
+            "error",
+            {
+                "contexts": [
+                    "ClassDeclaration",
+                    "ClassProperty",
+                    "FunctionDeclaration",
+                    "MethodDefinition"
+                ]
+            }
+        ],
+        "jsdoc/require-description-complete-sentence": ["error"],
+        "jsdoc/require-returns": ["error"]
     },
     "extends": [
         "airbnb-base",

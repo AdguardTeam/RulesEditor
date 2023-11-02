@@ -2,7 +2,7 @@
 
 This project provides a convenient text editor with support for filter rule syntaxes. It's built upon the [AdGuard VSCode extension](https://github.com/AdguardTeam/VscodeAdblockSyntax), [CodeMirror 5](https://codemirror.net/5/), and [codemirror-textmate](https://github.com/zikaari/codemirror-textmate). Since JavaScript does not support all RegExp capabilities (such as lookbehind) that are utilized within tmLanguage, this project leverages WebAssembly [onigasm](https://github.com/zikaari/onigasm) - a port of the Oniguruma regex library, via codemirror-textmate.
 
-Additionally, it provides tokenizers for splitting a filter rule into tokenized parts, which aids in highlighting individual segments of a single rule.
+Additionally, it provides tokenizers for splitting a filter rule into tokenized parts, which aids in highlighting individual segments of a single rule and RulesBuilder class that can help users to create simple rules.
 
 ## Installation
 ```sh
@@ -171,3 +171,78 @@ yarn loadGrammar
 ```
 
 The AdGuard syntax has a dependency on the source.js grammar. Here, js.tmLanguage.json is used, based on [TypeScript-tmLanguage](https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
+
+
+## `RulesBuilder`
+The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a particular rule type, check the validity of rule domains, and validate completed rules. It simplifies the process of creating user rules without the need to worry about grammar.
+
+### Usage
+
+```typescript
+    import { RulesBuilder, ContentTypeModifiers, DomainModifiers } from '@adguard/rules-editor';
+    
+    const rule = RulesBuilder.getRuleByType('block');
+    rule.setDomain('example.org');
+    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setHighPriority(true);
+    rule.setDomainModifiers(DomainModifiers.onlyListed, [
+        'example.com',
+        'example.ru'
+    ]);
+    const result = '||example.org^$stylesheet,script,domain=example.com|example.ru,important'
+    expect(rule.buildRule()).toEqual(result);
+
+```
+
+### API
+```typescript 
+    class RulesBuilder {
+        // getRuleByType - Return correct rule builder for each type of creating rule
+        static getRuleByType(type: 'block'): RequestRule;
+        static getRuleByType(type: 'unblock'): RequestRule;
+        static getRuleByType(type: 'noFiltering'): NoFilteringRule;
+        static getRuleByType(type: 'custom'): CustomRule;
+        static getRuleByType(type: 'comment'): Comment;
+    }
+
+    class Comment implements BasicRule {
+        // Set comment text
+        setText(text: string): void;
+        // Build comment from current text
+        buildRule(): string;
+    }
+
+    class CustomRule implements BasicRule {
+        // Set custom rule
+        setRule(rule: string): void;
+        // Return rule as it is
+        buildRule(): string;
+    }
+
+    class NoFilteringRule implements BasicRule {
+        // Set rule domain
+        setDomain(domain: string): void;
+        getDomain(): string;
+        // Set modifiers, which exceptions should be used for this rule
+        setContentType(modifiers: ExceptionModifiers[]): void;
+        // Set rule priority
+        setHighPriority(priority: boolean): void;
+        // Transform rule to string
+        buildRule(): string;
+    }
+
+    class RequestRule implements BasicRule {
+        // Set rule domain
+        setDomain(domain: string): void;
+        getDomain(): string;
+        // Set modifiers, which content should be blocked for this rule
+        setContentType(modifiers: ContentTypeModifiers[]): void;
+        // Set on which domains this rule should be used
+        setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
+        // Set rule priority
+        setHighPriority(priority: boolean): void;
+        // Transform rule to string
+        buildRule(): string;
+    }
+}
+```

@@ -24,6 +24,7 @@
     "include": [
         "src/**/*",
         "./declaration.d.ts",
+        "test/*",
         "jest.config.ts"
     ],
     "exclude": []

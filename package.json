@@ -1,6 +1,6 @@
 {
   "name": "@adguard/rules-editor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "User rules text editor based on Codemirror and AdGuard textmate highlight",
   "main": "dist/index.js",
   "types": "dist/types",
@@ -18,6 +18,7 @@
     "@adguard/tsurlfilter": "^2.1.12",
     "codemirror": "^5.65.15",
     "codemirror-textmate": "^1.1.0",
+    "is-valid-domain": "^0.1.6",
     "onigasm": "^2.2.5",
     "path-browserify": "^1.0.1",
     "util": "^0.12.5"
