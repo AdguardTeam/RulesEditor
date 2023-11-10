@@ -23,6 +23,14 @@ export class Comment implements BasicRule {
     }
 
     /**
+     * Get comment text.
+     * @returns Comment text.
+     */
+    public getText() {
+        return this.text;
+    }
+
+    /**
      * Set hadHashtag property, defines that initial rule had a hashtag.
      * @param hadHashtag - Boolean.
      */

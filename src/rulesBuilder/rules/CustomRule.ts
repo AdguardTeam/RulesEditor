@@ -18,6 +18,14 @@ export class CustomRule implements BasicRule {
     }
 
     /**
+     * Getter for comment.
+     * @returns Rule text.
+     */
+    public getRule() {
+        return this.rule;
+    }
+
+    /**
      * Build rule from current setup.
      * @returns String - rule string.
      */

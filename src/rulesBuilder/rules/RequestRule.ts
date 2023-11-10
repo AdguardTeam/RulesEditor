@@ -92,6 +92,38 @@ export class RequestRule implements BasicRule {
     }
 
     /**
+     * Getter for blocking content type.
+     * @returns Data.
+     */
+    public getContentType() {
+        return this.contentModifiers;
+    }
+
+    /**
+     * Getter for domain modifiers.
+     * @returns Data.
+     */
+    public getDomainModifiers() {
+        return this.domainModifier;
+    }
+
+    /**
+     * Getter for domain modifiers.
+     * @returns Data.
+     */
+    public getDomainModifiersDomains() {
+        return this.domainModifierDomains;
+    }
+
+    /**
+     * Getter for rule priority.
+     * @returns Data.
+     */
+    public getHighPriority() {
+        return this.important;
+    }
+
+    /**
      * Build rule from current setup.
      * @returns String - rule string.
      */
@@ -149,7 +181,10 @@ export class RequestRule implements BasicRule {
         const modifiers = options || '';
 
         if (domain.endsWith('^')) {
-            domain = domain.substring(0, -1);
+            domain = domain.slice(0, -1);
+        }
+        if (domain.startsWith('||')) {
+            domain = domain.slice(2);
         }
         rule.setDomain(domain);
 

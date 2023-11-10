@@ -46,11 +46,27 @@ export class NoFilteringRule implements BasicRule {
     }
 
     /**
+     * Getter for blocking content type.
+     * @returns Modifiers - Content type modifiers.
+     */
+    public getContentType() {
+        return this.exceptionModifiers;
+    }
+
+    /**
      * Setter for rule priority.
      * @param priority - Boolean.
      */
     public setHighPriority(priority: boolean): void {
         this.important = priority;
+    }
+
+    /**
+     * Getter for rule priority.
+     * @returns Priority.
+     */
+    public getHighPriority() {
+        return this.important;
     }
 
     /**
@@ -101,7 +117,10 @@ export class NoFilteringRule implements BasicRule {
         const modifiers = options || '';
 
         if (domain.endsWith('^')) {
-            domain = domain.substring(0, -1);
+            domain = domain.slice(0, -1);
+        }
+        if (domain.startsWith('||')) {
+            domain = domain.slice(2);
         }
         rule.setDomain(domain);
 

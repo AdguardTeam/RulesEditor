@@ -1,14 +1,16 @@
-import isValidDomain from 'is-valid-domain';
 import { CosmeticRule, NetworkRule, HostRule, RuleFactory } from '@adguard/tsurlfilter';
 
 import type { BasicRule } from './rules/utils';
-import { ContentTypeModifiers, ExceptionModifiers, domainMatch, important, thirdParty, domainModifier } from './rules/utils';
+import { ContentTypeModifiers, domainMatch, important, thirdParty, domainModifier, noFilteringModifiers } from './rules/utils';
 import { RequestRule } from './rules/RequestRule';
 import { NoFilteringRule } from './rules/NoFilteringRule';
 import { Comment } from './rules/Comment';
 import { CustomRule } from './rules/CustomRule';
 
-type RuleType = 'block' | 'unblock' | 'noFiltering' | 'custom' | 'comment';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const isValidDomain = require('is-valid-domain');
+
+export type RuleType = 'block' | 'unblock' | 'noFiltering' | 'custom' | 'comment';
 
 type DomainValidationOptions = Parameters<typeof isValidDomain>[1];
 
@@ -96,8 +98,9 @@ export class RulesBuilder {
         const allowedDomainModifiers = new Set([ContentTypeModifiers.webpages,
             domainModifier,
             thirdParty,
+            important,
         ]);
-        const exceptionModifiers = new Set<string>(Object.values(ExceptionModifiers));
+        const exceptionModifiers = new Set<string>([...noFilteringModifiers, important]);
 
         const rule = RuleFactory.createRule(rawRule, 0, false, false, false, true);
 
@@ -107,11 +110,11 @@ export class RulesBuilder {
                 return 'custom';
             }
             const groups = domainMatch.exec(pattern);
-            if (!groups || groups?.length !== 1) {
+            if (!groups || groups?.length !== 2) {
                 return 'custom';
             }
 
-            if (!isValidDomain(groups[0], { subdomain: true, wildcard: true })) {
+            if (!isValidDomain(groups[1], { subdomain: true, wildcard: true })) {
                 return 'custom';
             }
 
@@ -119,15 +122,8 @@ export class RulesBuilder {
                 return rule.isAllowlist() ? 'unblock' : 'block';
             }
 
-            if (rule.isAllowlist()) {
-                const modifiersArr = options.split(',');
-                let onlyExceptionRulesModifiers = true;
-
-                modifiersArr.forEach((m) => {
-                    onlyExceptionRulesModifiers = onlyExceptionRulesModifiers && exceptionModifiers.has(m);
-                });
-
-                return onlyExceptionRulesModifiers ? 'noFiltering' : 'custom';
+            if (rule.isAllowlist() && options.split(',').every((m) => exceptionModifiers.has(m))) {
+                return 'noFiltering';
             }
 
             const modifiersArr = options.split(',');

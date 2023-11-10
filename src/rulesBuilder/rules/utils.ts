@@ -34,6 +34,14 @@ export enum ExceptionModifiers {
     userscripts = 'extension',
 }
 
+export const noFilteringModifiers = [
+    'extension',
+    'jsinject',
+    'elemhide',
+    'content',
+    'urlblock',
+];
+
 export const important = 'important';
 export const domainModifier = 'domain';
 export const thirdParty = 'third-party';

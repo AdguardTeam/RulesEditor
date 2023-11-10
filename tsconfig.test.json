@@ -12,6 +12,7 @@
         "noResolve": false,
         "noImplicitAny": true,
         "removeComments": true,
+        "esModuleInterop": true,
         "sourceMap": true,
         "strict": true,
         "resolveJsonModule": true,
@@ -22,8 +23,9 @@
         "useDefineForClassFields": true
     },
     "include": [
-        "src/**/*",
-        "./declaration.d.ts"
+        "test/**/*",
+        "./declaration.d.ts",
+        "jest.config.ts"
     ],
     "exclude": []
   }
