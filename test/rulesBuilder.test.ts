@@ -339,3 +339,102 @@ test('Rule type: ! Some comment', () => {
     const result = 'comment';
     expect(rule).toEqual(result);
 });
+
+// DNS rules
+
+test('RulesBuilder: ||example.org^', () => {
+    const rule = RulesBuilder.getDnsRule(true);
+    rule.setDomain('example.org');
+    rule.setIsIncludingSubdomains(true);
+    const result = '||example.org^';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RuleParser: ||example.org^', () => {
+    const rule = RulesBuilder.getRuleFromRuleString('||example.org^', true);
+    const result = '||example.org^';
+    expect(rule?.buildRule()).toEqual(result);
+});
+
+test('Rule type: ||example.org^', () => {
+    const rule = RulesBuilder.getRuleType('||example.org^', true);
+    const result = 'block';
+    expect(rule).toEqual(result);
+});
+
+test('RulesBuilder: |example.org^', () => {
+    const rule = RulesBuilder.getDnsRule(true);
+    rule.setDomain('example.org');
+    const result = '|example.org^';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RuleParser: |example.org^', () => {
+    const rule = RulesBuilder.getRuleFromRuleString('|example.org^', true);
+    const result = '|example.org^';
+    expect(rule?.buildRule()).toEqual(result);
+});
+
+test('Rule type: |example.org^', () => {
+    const rule = RulesBuilder.getRuleType('|example.org^', true);
+    const result = 'block';
+    expect(rule).toEqual(result);
+});
+
+test('RulesBuilder: @@||example.org^', () => {
+    const rule = RulesBuilder.getDnsRule(false);
+    rule.setDomain('example.org');
+    rule.setIsIncludingSubdomains(true);
+    const result = '@@||example.org^';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RuleParser: @@||example.org^', () => {
+    const rule = RulesBuilder.getRuleFromRuleString('@@||example.org^', true);
+    const result = '@@||example.org^';
+    expect(rule?.buildRule()).toEqual(result);
+});
+
+test('Rule type: @@||example.org^', () => {
+    const rule = RulesBuilder.getRuleType('@@||example.org^', true);
+    const result = 'unblock';
+    expect(rule).toEqual(result);
+});
+
+test('RulesBuilder: @@|example.org^', () => {
+    const rule = RulesBuilder.getDnsRule(false);
+    rule.setDomain('example.org');
+    const result = '@@|example.org^';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RuleParser: @@|example.org^', () => {
+    const rule = RulesBuilder.getRuleFromRuleString('@@|example.org^', true);
+    const result = '@@|example.org^';
+    expect(rule?.buildRule()).toEqual(result);
+});
+
+test('Rule type: @@|example.org^', () => {
+    const rule = RulesBuilder.getRuleType('@@|example.org^', true);
+    const result = 'unblock';
+    expect(rule).toEqual(result);
+});
+
+test('RulesBuilder: 127.0.0.1 example.org', () => {
+    const rule = RulesBuilder.getRuleByType('custom');
+    rule.setRule('127.0.0.1 example.org');
+    const result = '127.0.0.1 example.org';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RuleParser: 127.0.0.1 example.org', () => {
+    const rule = RulesBuilder.getRuleFromRuleString('127.0.0.1 example.org', true);
+    const result = '127.0.0.1 example.org';
+    expect(rule?.buildRule()).toEqual(result);
+});
+
+test('Rule type: 127.0.0.1 example.org', () => {
+    const rule = RulesBuilder.getRuleType('127.0.0.1 example.org', true);
+    const result = 'custom';
+    expect(rule).toEqual(result);
+});

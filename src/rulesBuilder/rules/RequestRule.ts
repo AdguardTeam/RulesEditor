@@ -23,9 +23,9 @@ export class RequestRule implements BasicRule {
     private contentModifiers: ContentTypeModifiers[] = [];
 
     /**
-     * Shows if this is a block or unblock rule.
+     * Shows if this is a isBlockingRule or unblock rule.
      */
-    private block: boolean;
+    private isBlockingRule: boolean;
 
     /**
      * Shows where apply this rule.
@@ -44,10 +44,10 @@ export class RequestRule implements BasicRule {
 
     /**
      * Constructor.
-     * @param block Defines if this RequestRule will be blocking rule or unblocking.
+     * @param isBlockingRule Defines if this RequestRule will be blocking rule or unblocking.
      */
-    public constructor(block: boolean) {
-        this.block = block;
+    public constructor(isBlockingRule: boolean) {
+        this.isBlockingRule = isBlockingRule;
     }
 
     /**
@@ -129,7 +129,7 @@ export class RequestRule implements BasicRule {
      */
     public buildRule(): string {
         let rule = '';
-        if (this.block) {
+        if (this.isBlockingRule) {
             rule = '||';
         } else {
             rule = '@@||';
@@ -173,8 +173,8 @@ export class RequestRule implements BasicRule {
      * @param rawRule - Rule string.
      * @returns RequestRule instance.
      */
-    public static fromRule(rawRule: string, block: boolean): RequestRule {
-        const rule = new RequestRule(block);
+    public static fromRule(rawRule: string, isBlockingRule: boolean): RequestRule {
+        const rule = new RequestRule(isBlockingRule);
         const { options, pattern } = NetworkRule.parseRuleText(rawRule);
 
         let domain = pattern || '';

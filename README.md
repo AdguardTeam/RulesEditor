@@ -203,6 +203,7 @@ The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a
         static getRuleByType(type: 'noFiltering'): NoFilteringRule;
         static getRuleByType(type: 'custom'): CustomRule;
         static getRuleByType(type: 'comment'): Comment;
+        static getDnsRule(isBlockingRule: boolean): DNSRule;
     }
 
     class Comment implements BasicRule {
@@ -241,6 +242,18 @@ The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a
         setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
         // Set rule priority
         setHighPriority(priority: boolean): void;
+        // Transform rule to string
+        buildRule(): string;
+    }
+
+    class DNSRule implements BasicRule {
+        // Set rule domain
+        setDomain(domain: string): void;
+        getDomain(): string;
+        // Set if rule should include subdomains
+        setIsIncludingSubdomains(includingSubdomains: boolean): void;
+        // Get if rule includes subdomains
+        getIsIncludingSubdomains(): boolean;
         // Transform rule to string
         buildRule(): string;
     }

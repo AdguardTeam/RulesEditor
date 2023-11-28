@@ -46,4 +46,4 @@ export const important = 'important';
 export const domainModifier = 'domain';
 export const thirdParty = 'third-party';
 
-export const domainMatch = /^@?@?\|\|([\d\w.-]*)[/\d\w-]*\^/;
+export const domainMatch = /^@?@?\|?\|([\d\w.-]*)[/\d\w-]*\^/;

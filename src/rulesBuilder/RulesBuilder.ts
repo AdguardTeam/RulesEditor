@@ -6,6 +6,7 @@ import { RequestRule } from './rules/RequestRule';
 import { NoFilteringRule } from './rules/NoFilteringRule';
 import { Comment } from './rules/Comment';
 import { CustomRule } from './rules/CustomRule';
+import { DNSRule } from './rules/DNSRule';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const isValidDomain = require('is-valid-domain');
@@ -59,6 +60,15 @@ export class RulesBuilder {
     }
 
     /**
+     * Retunrs new DNS isBlockingRule or unblock rule.
+     * @param isBlockingRule - Block rule or not.
+     * @returns DNSRule instance.
+     */
+    public static getDnsRule(isBlockingRule: boolean): DNSRule {
+        return new DNSRule(isBlockingRule);
+    }
+
+    /**
      * Simple validator for domain.
      * @param ruleBuilder - Instance of RequestRule or NoFilteringRule builder.
      * @param opts - Validation parameters, check is-valid-domain library function.
@@ -88,9 +98,10 @@ export class RulesBuilder {
     /**
      * Defines rule type from raw rule string.
      * @param rawRule - Rule string.
+     * @param isDnsRule - Mode for dns rules.
      * @returns RuleType or null if failed to detect the rule type.
      */
-    public static getRuleType(rawRule: string): RuleType | null {
+    public static getRuleType(rawRule: string, isDnsRule?: boolean): RuleType | null {
         if (RuleFactory.isComment(rawRule)) {
             return 'comment';
         }
@@ -103,6 +114,31 @@ export class RulesBuilder {
         const exceptionModifiers = new Set<string>([...noFilteringModifiers, important]);
 
         const rule = RuleFactory.createRule(rawRule, 0, false, false, false, true);
+
+        if (isDnsRule) {
+            if (rule instanceof NetworkRule) {
+                const { options, pattern } = NetworkRule.parseRuleText(rawRule);
+                if (typeof pattern !== 'string' || options) {
+                    return 'custom';
+                }
+                const groups = domainMatch.exec(pattern);
+                if (!groups || groups?.length !== 2) {
+                    return 'custom';
+                }
+
+                if (!isValidDomain(groups[1], { subdomain: true, wildcard: true })) {
+                    return 'custom';
+                }
+
+                return rule.isAllowlist() ? 'unblock' : 'block';
+            }
+
+            if (rule instanceof HostRule) {
+                return 'custom';
+            }
+
+            return null;
+        }
 
         if (rule instanceof NetworkRule) {
             const { options, pattern } = NetworkRule.parseRuleText(rawRule);
@@ -156,9 +192,22 @@ export class RulesBuilder {
     /**
      * Returns specific rule builder depending on passed rule, return null if passed rule is incorrect.
      * @param rawRule - Rule string.
+     * @param isDnsRule - Mode for dns rules.
      * @returns One of rule builder instance.
      */
-    public static getRuleFromRuleString(rawRule: string) {
+    public static getRuleFromRuleString(rawRule: string, isDnsRule?: boolean) {
+        if (isDnsRule) {
+            switch (RulesBuilder.getRuleType(rawRule, isDnsRule)) {
+                case 'block':
+                    return DNSRule.fromRule(rawRule, true);
+                case 'unblock':
+                    return DNSRule.fromRule(rawRule, false);
+                case 'custom':
+                    return CustomRule.fromRule(rawRule);
+                default:
+                    return null;
+            }
+        }
         switch (RulesBuilder.getRuleType(rawRule)) {
             case 'block':
                 return RequestRule.fromRule(rawRule, true);
