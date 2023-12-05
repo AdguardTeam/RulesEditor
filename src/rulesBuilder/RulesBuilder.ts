@@ -13,6 +13,8 @@ const isValidDomain = require('is-valid-domain');
 
 export type RuleType = 'block' | 'unblock' | 'noFiltering' | 'custom' | 'comment';
 
+export type DnsRuleType = Exclude<RuleType, 'noFiltering'>;
+
 type DomainValidationOptions = Parameters<typeof isValidDomain>[1];
 
 /**
@@ -204,6 +206,8 @@ export class RulesBuilder {
                     return DNSRule.fromRule(rawRule, false);
                 case 'custom':
                     return CustomRule.fromRule(rawRule);
+                case 'comment':
+                    return Comment.fromRule(rawRule);
                 default:
                     return null;
             }
