@@ -55,8 +55,8 @@ export class Comment implements BasicRule {
         const comment = new Comment();
         if (rawRule.startsWith('#')) {
             comment.setHadHashtag(true);
-            comment.setText(rawRule.slice(1).trim());
         }
+        comment.setText(rawRule.slice(1).trim());
         return comment;
     }
 }
