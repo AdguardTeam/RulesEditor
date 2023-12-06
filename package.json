@@ -1,6 +1,6 @@
 {
   "name": "@adguard/rules-editor",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "User rules text editor based on Codemirror and AdGuard textmate highlight",
   "main": "dist/index.js",
   "types": "dist/types",

@@ -101,7 +101,7 @@ export class RulesBuilder {
      * @param opts - Validation parameters, check is-valid-domain library function.
      * @returns Boolean - if domain is valid.
      */
-    public static validateDomain(ruleBuilder: RequestRule | NoFilteringRule, opts?: DomainValidationOptions) {
+    public static validateDomain(ruleBuilder: RequestRule | NoFilteringRule | DNSRule, opts?: DomainValidationOptions) {
         return isValidDomain(ruleBuilder.getDomain(), opts);
     }
 
@@ -123,12 +123,20 @@ export class RulesBuilder {
     }
 
     /**
+     * Defines rule type from raw rule string for basic user rules.
+     */
+    public static getRuleType(rawRule: string, isDnsRule?: undefined | false): RuleType | null;
+    /**
+     * Defines rule type from raw rule string for dns user rules.
+     */
+    public static getRuleType(rawRule: string, isDnsRule: true): DnsRuleType | null;
+    /**
      * Defines rule type from raw rule string.
      * @param rawRule - Rule string.
      * @param isDnsRule - Mode for dns rules.
      * @returns RuleType or null if failed to detect the rule type.
      */
-    public static getRuleType(rawRule: string, isDnsRule?: boolean): RuleType | null {
+    public static getRuleType(rawRule: string, isDnsRule?: boolean): DnsRuleType | RuleType | null {
         if (RuleFactory.isComment(rawRule)) {
             return 'comment';
         }
