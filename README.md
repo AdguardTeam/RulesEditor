@@ -203,7 +203,10 @@ The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a
         static getRuleByType(type: 'noFiltering'): NoFilteringRule;
         static getRuleByType(type: 'custom'): CustomRule;
         static getRuleByType(type: 'comment'): Comment;
-        static getDnsRule(isBlockingRule: boolean): DNSRule;
+        static getDnsRuleByType(type: 'block'): DNSRule;
+        static getDnsRuleByType(type: 'unblock'): DNSRule;
+        static getDnsRuleByType(type: 'custom'): CustomRule;
+        static getDnsRuleByType(type: 'comment'): Comment;
     }
 
     class Comment implements BasicRule {

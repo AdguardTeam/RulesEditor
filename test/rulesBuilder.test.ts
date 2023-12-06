@@ -343,7 +343,7 @@ test('Rule type: ! Some comment', () => {
 // DNS rules
 
 test('RulesBuilder: ||example.org^', () => {
-    const rule = RulesBuilder.getDnsRule(true);
+    const rule = RulesBuilder.getDnsRuleByType('block');
     rule.setDomain('example.org');
     rule.setIsIncludingSubdomains(true);
     const result = '||example.org^';
@@ -363,7 +363,7 @@ test('Rule type: ||example.org^', () => {
 });
 
 test('RulesBuilder: |example.org^', () => {
-    const rule = RulesBuilder.getDnsRule(true);
+    const rule = RulesBuilder.getDnsRuleByType('block');
     rule.setDomain('example.org');
     const result = '|example.org^';
     expect(rule.buildRule()).toEqual(result);
@@ -382,7 +382,7 @@ test('Rule type: |example.org^', () => {
 });
 
 test('RulesBuilder: @@||example.org^', () => {
-    const rule = RulesBuilder.getDnsRule(false);
+    const rule = RulesBuilder.getDnsRuleByType('unblock');
     rule.setDomain('example.org');
     rule.setIsIncludingSubdomains(true);
     const result = '@@||example.org^';
@@ -402,7 +402,7 @@ test('Rule type: @@||example.org^', () => {
 });
 
 test('RulesBuilder: @@|example.org^', () => {
-    const rule = RulesBuilder.getDnsRule(false);
+    const rule = RulesBuilder.getDnsRuleByType('unblock');
     rule.setDomain('example.org');
     const result = '@@|example.org^';
     expect(rule.buildRule()).toEqual(result);

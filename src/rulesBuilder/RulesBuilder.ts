@@ -62,12 +62,37 @@ export class RulesBuilder {
     }
 
     /**
-     * Retunrs new DNS isBlockingRule or unblock rule.
+     * Returns rule builder for block dns rule.
+     */
+    public static getDnsRuleByType(type: 'block'): DNSRule;
+    /**
+     * Returns rule builder for unblock dns rule.
+     */
+    public static getDnsRuleByType(type: 'unblock'): DNSRule;
+    /**
+     * Returns rule builder for custom rule.
+     */
+    public static getDnsRuleByType(type: 'custom'): CustomRule;
+    /**
+     * Returns rule builder for comment.
+     */
+    public static getDnsRuleByType(type: 'comment'): Comment;
+    /**
+     * Returns new DNS isBlockingRule or unblock rule.
      * @param isBlockingRule - Block rule or not.
      * @returns DNSRule instance.
      */
-    public static getDnsRule(isBlockingRule: boolean): DNSRule {
-        return new DNSRule(isBlockingRule);
+    public static getDnsRuleByType(type: DnsRuleType): BasicRule {
+        switch (type) {
+            case 'block':
+                return new DNSRule(true);
+            case 'unblock':
+                return new DNSRule(false);
+            case 'custom':
+                return new CustomRule();
+            case 'comment':
+                return new Comment();
+        }
     }
 
     /**
