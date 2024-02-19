@@ -1,6 +1,6 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
 import type { BasicRule } from './utils';
-import { important, ExceptionModifiers } from './utils';
+import { important, ExceptionModifiers, noFilteringModifiers, noFilteringUrlsModifiers } from './utils';
 
 /**
  * Rule builder for disable filtering rules.
@@ -88,8 +88,9 @@ export class NoFilteringRule implements BasicRule {
                 return;
             }
             if (ex === ExceptionModifiers.urls) {
-                modifiers.add('content');
-                modifiers.add('urlblock');
+                noFilteringUrlsModifiers.forEach((el) => {
+                    modifiers.add(el);
+                });
                 return;
             }
             modifiers.add(ex);
@@ -126,13 +127,29 @@ export class NoFilteringRule implements BasicRule {
 
         const setModifiers: ExceptionModifiers[] = [];
 
-        modifiers.split(',').forEach((m) => {
-            if (m === important) {
-                rule.setHighPriority(true);
-            } else {
-                setModifiers.push(m as ExceptionModifiers);
+        const ruleModifiersArr = modifiers.split(',');
+        const ruleModifiersSet = new Set(ruleModifiersArr);
+
+        if (ruleModifiersSet.has(important)) {
+            rule.setHighPriority(true);
+        }
+
+        if (noFilteringModifiers.every((el) => ruleModifiersSet.has(el))) {
+            setModifiers.push(ExceptionModifiers.filtering);
+            rule.setContentType(setModifiers);
+
+            return rule;
+        }
+        if (noFilteringUrlsModifiers.every((el) => ruleModifiersSet.has(el))) {
+            setModifiers.push(ExceptionModifiers.urls);
+        }
+
+        ruleModifiersArr.forEach((el) => {
+            if (!noFilteringUrlsModifiers.includes(el) && el !== important) {
+                setModifiers.push(el as ExceptionModifiers);
             }
         });
+
         rule.setContentType(setModifiers);
 
         return rule;

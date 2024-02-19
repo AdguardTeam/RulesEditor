@@ -34,6 +34,7 @@ export enum ExceptionModifiers {
     userscripts = 'extension',
 }
 
+// All modifiers that are used in disable filtering rules
 export const noFilteringModifiers = [
     'extension',
     'jsinject',
@@ -41,6 +42,9 @@ export const noFilteringModifiers = [
     'content',
     'urlblock',
 ];
+
+// Modifiers that are used when ExceptionModifiers.urls is used
+export const noFilteringUrlsModifiers = ['content', 'urlblock'];
 
 export const important = 'important';
 export const domainModifier = 'domain';

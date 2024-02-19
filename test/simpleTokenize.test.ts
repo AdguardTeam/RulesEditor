@@ -54,6 +54,16 @@ test('Rule: /example.org/', () => {
     expect(simpleTokenizer(rule)).toEqual(result);
 });
 
+test('Rule: @@||example.org^', () => {
+    const rule = '@@||example.org^';
+    const result = [
+        { token: 'keyword', str: '@@||' },
+        { token: null, str: 'example.org' },
+        { token: 'keyword', str: '^' },
+    ];
+    expect(simpleTokenizer(rule)).toEqual(result);
+});
+
 test('Rule: !comment', () => {
     const rule = '!comment';
     const result = [{ token: 'comment', str: '!comment' }];

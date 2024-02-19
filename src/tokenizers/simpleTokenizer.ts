@@ -36,7 +36,13 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
         if (keyword) {
             tokenized.push({ token: Token.Keyword, str: keyword });
         }
-        tokenized.push({ token: null, str: pattern });
+        if (pattern.endsWith('^')) {
+            pattern = pattern.slice(0, -1);
+            tokenized.push({ token: null, str: pattern });
+            tokenized.push({ token: Token.Keyword, str: '^' });
+        } else {
+            tokenized.push({ token: null, str: pattern });
+        }
 
         const { options } = NetworkRule.parseRuleText(ruleRaw);
 
