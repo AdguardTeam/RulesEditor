@@ -2,16 +2,17 @@ import { NetworkRule } from '@adguard/tsurlfilter';
 import type { BasicRule } from './utils';
 import {
     DomainModifiers,
-    ContentTypeModifiers,
+    BlockContentTypeModifiers,
     important,
     domainModifier,
     thirdParty,
+    blockRuleBeginning,
 } from './utils';
 
 /**
  * Rule builder for blocking and unblocking request rules.
  */
-export class RequestRule implements BasicRule {
+export class BlockRequestRule implements BasicRule {
     /**
      * Rule's domain.
      */
@@ -20,12 +21,7 @@ export class RequestRule implements BasicRule {
     /**
      * Array of content type modifiers.
      */
-    private contentModifiers: ContentTypeModifiers[] = [];
-
-    /**
-     * Shows if this is a isBlockingRule or unblock rule.
-     */
-    private isBlockingRule: boolean;
+    private contentModifiers: BlockContentTypeModifiers[] = [];
 
     /**
      * Shows where apply this rule.
@@ -41,14 +37,6 @@ export class RequestRule implements BasicRule {
      * Shows if rule should have important modifier.
      */
     private important: boolean = false;
-
-    /**
-     * Constructor.
-     * @param isBlockingRule Defines if this RequestRule will be blocking rule or unblocking.
-     */
-    public constructor(isBlockingRule: boolean) {
-        this.isBlockingRule = isBlockingRule;
-    }
 
     /**
      * Setter for domain.
@@ -70,7 +58,7 @@ export class RequestRule implements BasicRule {
      * Setter for blocking content type.
      * @param modifiers - Content type modifiers.
      */
-    public setContentType(modifiers: ContentTypeModifiers[]) {
+    public setContentType(modifiers: BlockContentTypeModifiers[]) {
         this.contentModifiers = modifiers;
     }
 
@@ -128,14 +116,7 @@ export class RequestRule implements BasicRule {
      * @returns String - rule string.
      */
     public buildRule(): string {
-        let rule = '';
-        if (this.isBlockingRule) {
-            rule = '||';
-        } else {
-            rule = '@@||';
-        }
-
-        rule = `${rule}${this.domain}^`;
+        let rule = `||${this.domain}^`;
 
         if (this.contentModifiers.length === 0 && this.domainModifier === DomainModifiers.all) {
             return rule;
@@ -145,7 +126,7 @@ export class RequestRule implements BasicRule {
 
         switch (this.domainModifier) {
             case DomainModifiers.onlyThis:
-                modifiers.add(ContentTypeModifiers.webpages);
+                modifiers.add(BlockContentTypeModifiers.webpages);
                 modifiers.add(`${domainModifier}=${this.domain}`);
                 break;
             case DomainModifiers.allOther:
@@ -173,8 +154,8 @@ export class RequestRule implements BasicRule {
      * @param rawRule - Rule string.
      * @returns RequestRule instance.
      */
-    public static fromRule(rawRule: string, isBlockingRule: boolean): RequestRule {
-        const rule = new RequestRule(isBlockingRule);
+    public static fromRule(rawRule: string): BlockRequestRule {
+        const rule = new BlockRequestRule();
         const { options, pattern } = NetworkRule.parseRuleText(rawRule);
 
         let domain = pattern || '';
@@ -183,13 +164,13 @@ export class RequestRule implements BasicRule {
         if (domain.endsWith('^')) {
             domain = domain.slice(0, -1);
         }
-        if (domain.startsWith('||')) {
+        if (domain.startsWith(blockRuleBeginning)) {
             domain = domain.slice(2);
         }
         rule.setDomain(domain);
 
-        const allowedContentModifiers = new Set<string>(Object.values(ContentTypeModifiers));
-        const setModifiers: ContentTypeModifiers[] = [];
+        const allowedContentModifiers = new Set<string>(Object.values(BlockContentTypeModifiers));
+        const setModifiers: BlockContentTypeModifiers[] = [];
 
         let ruleDomainModifier = '';
 
@@ -198,7 +179,7 @@ export class RequestRule implements BasicRule {
                 rule.setHighPriority(true);
             }
             if (allowedContentModifiers.has(m)) {
-                setModifiers.push(m as ContentTypeModifiers);
+                setModifiers.push(m as BlockContentTypeModifiers);
             }
             if (m.includes(domainModifier)) {
                 ruleDomainModifier = m;
@@ -209,7 +190,7 @@ export class RequestRule implements BasicRule {
 
         let domainSetup: DomainModifiers = DomainModifiers.all;
 
-        if (modifiers.includes(ContentTypeModifiers.webpages) && modifiers.includes(`${domainModifier}=${domain}`)) {
+        if (modifiers.includes(BlockContentTypeModifiers.webpages) && modifiers.includes(`${domainModifier}=${domain}`)) {
             domainSetup = DomainModifiers.onlyThis;
         }
 

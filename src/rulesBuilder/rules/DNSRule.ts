@@ -1,5 +1,6 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
 import type { BasicRule } from './utils';
+import { unblockRuleBeginning, blockRuleBeginning } from './utils';
 
 /**
  * Rule builder for blocking and unblocking request rules.
@@ -67,9 +68,9 @@ export class DNSRule implements BasicRule {
     public buildRule(): string {
         let rule = '';
         if (this.isBlockingRule) {
-            rule = this.isIncludingSubdomains ? '||' : '|';
+            rule = this.isIncludingSubdomains ? blockRuleBeginning : '|';
         } else {
-            rule = this.isIncludingSubdomains ? '@@||' : '@@|';
+            rule = this.isIncludingSubdomains ? unblockRuleBeginning : '@@|';
         }
 
         rule = `${rule}${this.domain}^`;
@@ -88,7 +89,7 @@ export class DNSRule implements BasicRule {
 
         let domain = pattern || '';
 
-        if (domain.startsWith('||')) {
+        if (domain.startsWith(blockRuleBeginning)) {
             rule.setIsIncludingSubdomains(true);
         }
 

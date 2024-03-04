@@ -1,11 +1,11 @@
 import { RulesBuilder } from '../src/rulesBuilder/RulesBuilder';
-import { ContentTypeModifiers, ExceptionModifiers, DomainModifiers } from '../src/rulesBuilder/rules/utils';
+import { BlockContentTypeModifiers, UnblockContentTypeModifier, ExceptionSelectModifiers, DomainModifiers } from '../src/rulesBuilder/rules/utils';
 
 // Block rules
 test('RulesBuilder: ||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([BlockContentTypeModifiers.css, BlockContentTypeModifiers.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.onlyListed, [
         'example.com',
@@ -30,7 +30,7 @@ test('Rule type: ||example.org^', () => {
 test('RulesBuilder: ||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([BlockContentTypeModifiers.css, BlockContentTypeModifiers.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.allExceptListed, [
         'example.com',
@@ -55,7 +55,7 @@ test('Rule type: ||example.org^$stylesheet,script,domain=~example.com|~example.r
 test('RulesBuilder: ||example.org^$document,domain=example.org,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.webpages]);
+    rule.setContentType([BlockContentTypeModifiers.webpages]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.onlyThis);
     const result = '||example.org^$document,domain=example.org,important';
@@ -77,7 +77,7 @@ test('Rule type: ||example.org^$document,domain=example.org,important', () => {
 test('RulesBuilder: ||example.org^$all,third-party,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.all]);
+    rule.setContentType([BlockContentTypeModifiers.all]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.allOther);
     const result = '||example.org^$all,third-party,important';
@@ -99,7 +99,7 @@ test('Rule type: ||example.org^$all,third-party,important', () => {
 test('RulesBuilder: ||example.org^$stylesheet,script,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([BlockContentTypeModifiers.css, BlockContentTypeModifiers.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.all);
     const result = '||example.org^$stylesheet,script,important';
@@ -122,7 +122,7 @@ test('Rule type: ||example.org^$stylesheet,script,important', () => {
 test('RulesBuilder: @@||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('unblock');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([UnblockContentTypeModifier.css, UnblockContentTypeModifier.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.onlyListed, [
         'example.com',
@@ -147,7 +147,7 @@ test('Rule type: @@||example.org^$stylesheet,script,domain=example.com|example.r
 test('RulesBuilder: @@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('unblock');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([UnblockContentTypeModifier.css, UnblockContentTypeModifier.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.allExceptListed, [
         'example.com',
@@ -172,7 +172,7 @@ test('Rule type: @@||example.org^$stylesheet,script,domain=~example.com|~example
 test('RulesBuilder: @@||example.org^$document,domain=example.org,important', () => {
     const rule = RulesBuilder.getRuleByType('unblock');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.webpages]);
+    rule.setContentType([UnblockContentTypeModifier.webpages]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.onlyThis);
     const result = '@@||example.org^$document,domain=example.org,important';
@@ -215,7 +215,7 @@ test('Rule type: @@||example.org^$third-party,important', () => {
 test('RulesBuilder: @@||example.org^$stylesheet,script,important', () => {
     const rule = RulesBuilder.getRuleByType('unblock');
     rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
+    rule.setContentType([UnblockContentTypeModifier.css, UnblockContentTypeModifier.scripts]);
     rule.setHighPriority(true);
     rule.setDomainModifiers(DomainModifiers.all);
     const result = '@@||example.org^$stylesheet,script,important';
@@ -239,7 +239,7 @@ test('Rule type: @@||example.org^$stylesheet,script,important', () => {
 test('RulesBuilder: @@||example.org^$extension,jsinject,elemhide,content,urlblock,important', () => {
     const rule = RulesBuilder.getRuleByType('noFiltering');
     rule.setDomain('example.org');
-    rule.setContentType([ExceptionModifiers.filtering]);
+    rule.setContentType([ExceptionSelectModifiers.filtering]);
     rule.setHighPriority(true);
     const result = '@@||example.org^$extension,jsinject,elemhide,content,urlblock,important';
     expect(rule.buildRule()).toEqual(result);
@@ -260,7 +260,7 @@ test('Rule type: @@||example.org^$extension,jsinject,elemhide,content,urlblock,i
 test('RulesBuilder: @@||example.org^$content,urlblock,extension,important', () => {
     const rule = RulesBuilder.getRuleByType('noFiltering');
     rule.setDomain('example.org');
-    rule.setContentType([ExceptionModifiers.urls, ExceptionModifiers.userscripts]);
+    rule.setContentType([ExceptionSelectModifiers.urls, ExceptionSelectModifiers.userscripts]);
     rule.setHighPriority(true);
     const result = '@@||example.org^$content,urlblock,extension,important';
     expect(rule.buildRule()).toEqual(result);
@@ -281,7 +281,7 @@ test('Rule type: @@||example.org^$content,urlblock,extension,important', () => {
 test('RulesBuilder: @@||example.org^$jsinject', () => {
     const rule = RulesBuilder.getRuleByType('noFiltering');
     rule.setDomain('example.org');
-    rule.setContentType([ExceptionModifiers.jsAndScriplets]);
+    rule.setContentType([ExceptionSelectModifiers.jsAndScriplets]);
     const result = '@@||example.org^$jsinject';
     expect(rule.buildRule()).toEqual(result);
 });

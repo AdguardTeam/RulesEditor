@@ -1,6 +1,6 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
-import type { BasicRule } from './utils';
-import { important, ExceptionModifiers, noFilteringModifiers, noFilteringUrlsModifiers } from './utils';
+import type { BasicRule, ExceptionsModifiers } from './utils';
+import { important, ExceptionSelectModifiers, noFilteringModifiers, noFilteringUrlsModifiers, unblockRuleBeginning, blockRuleBeginning } from './utils';
 
 /**
  * Rule builder for disable filtering rules.
@@ -14,7 +14,7 @@ export class NoFilteringRule implements BasicRule {
     /**
      * Exception modifiers array.
      */
-    private exceptionModifiers: ExceptionModifiers[] = [];
+    private exceptionModifiers: ExceptionSelectModifiers[] = [];
 
     /**
      * Shows if rule should have important modifier.
@@ -41,7 +41,7 @@ export class NoFilteringRule implements BasicRule {
      * Setter for blocking content type.
      * @param modifiers - Content type modifiers.
      */
-    public setContentType(modifiers: ExceptionModifiers[]) {
+    public setContentType(modifiers: ExceptionSelectModifiers[]) {
         this.exceptionModifiers = modifiers;
     }
 
@@ -74,12 +74,12 @@ export class NoFilteringRule implements BasicRule {
      * @returns String - rule string.
      */
     public buildRule(): string {
-        let rule = `@@||${this.domain}^`;
+        let rule = `${unblockRuleBeginning}${this.domain}^`;
 
         const modifiers: Set<string> = new Set();
 
         this.exceptionModifiers.forEach((ex) => {
-            if (ex === ExceptionModifiers.filtering) {
+            if (ex === ExceptionSelectModifiers.filtering) {
                 modifiers.add('extension');
                 modifiers.add('jsinject');
                 modifiers.add('elemhide');
@@ -87,7 +87,7 @@ export class NoFilteringRule implements BasicRule {
                 modifiers.add('urlblock');
                 return;
             }
-            if (ex === ExceptionModifiers.urls) {
+            if (ex === ExceptionSelectModifiers.urls) {
                 noFilteringUrlsModifiers.forEach((el) => {
                     modifiers.add(el);
                 });
@@ -120,12 +120,12 @@ export class NoFilteringRule implements BasicRule {
         if (domain.endsWith('^')) {
             domain = domain.slice(0, -1);
         }
-        if (domain.startsWith('||')) {
+        if (domain.startsWith(blockRuleBeginning)) {
             domain = domain.slice(2);
         }
         rule.setDomain(domain);
 
-        const setModifiers: ExceptionModifiers[] = [];
+        const setModifiers: ExceptionSelectModifiers[] = [];
 
         const ruleModifiersArr = modifiers.split(',');
         const ruleModifiersSet = new Set(ruleModifiersArr);
@@ -135,18 +135,18 @@ export class NoFilteringRule implements BasicRule {
         }
 
         if (noFilteringModifiers.every((el) => ruleModifiersSet.has(el))) {
-            setModifiers.push(ExceptionModifiers.filtering);
+            setModifiers.push(ExceptionSelectModifiers.filtering);
             rule.setContentType(setModifiers);
 
             return rule;
         }
         if (noFilteringUrlsModifiers.every((el) => ruleModifiersSet.has(el))) {
-            setModifiers.push(ExceptionModifiers.urls);
+            setModifiers.push(ExceptionSelectModifiers.urls);
         }
 
         ruleModifiersArr.forEach((el) => {
-            if (!noFilteringUrlsModifiers.includes(el) && el !== important) {
-                setModifiers.push(el as ExceptionModifiers);
+            if (!noFilteringUrlsModifiers.includes(el as ExceptionsModifiers) && el !== important) {
+                setModifiers.push(el as ExceptionSelectModifiers);
             }
         });
 

@@ -198,8 +198,8 @@ The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a
 ```typescript 
     class RulesBuilder {
         // getRuleByType - Return correct rule builder for each type of creating rule
-        static getRuleByType(type: 'block'): RequestRule;
-        static getRuleByType(type: 'unblock'): RequestRule;
+        static getRuleByType(type: 'block'): BlockRequestRule;
+        static getRuleByType(type: 'unblock'): UnblockRequestRule;
         static getRuleByType(type: 'noFiltering'): NoFilteringRule;
         static getRuleByType(type: 'custom'): CustomRule;
         static getRuleByType(type: 'comment'): Comment;
@@ -228,19 +228,33 @@ The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a
         setDomain(domain: string): void;
         getDomain(): string;
         // Set modifiers, which exceptions should be used for this rule
-        setContentType(modifiers: ExceptionModifiers[]): void;
+        setContentType(modifiers: ExceptionSelectModifiers[]): void;
         // Set rule priority
         setHighPriority(priority: boolean): void;
         // Transform rule to string
         buildRule(): string;
     }
 
-    class RequestRule implements BasicRule {
+    class BlockRequestRule implements BasicRule {
         // Set rule domain
         setDomain(domain: string): void;
         getDomain(): string;
         // Set modifiers, which content should be blocked for this rule
-        setContentType(modifiers: ContentTypeModifiers[]): void;
+        setContentType(modifiers: BlockContentTypeModifiers[]): void;
+        // Set on which domains this rule should be used
+        setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
+        // Set rule priority
+        setHighPriority(priority: boolean): void;
+        // Transform rule to string
+        buildRule(): string;
+    }
+
+    class UnblockRequestRule implements BasicRule {
+        // Set rule domain
+        setDomain(domain: string): void;
+        getDomain(): string;
+        // Set modifiers, which content should be blocked for this rule
+        setContentType(modifiers: UnblockContentTypeModifiers[]): void;
         // Set on which domains this rule should be used
         setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
         // Set rule priority

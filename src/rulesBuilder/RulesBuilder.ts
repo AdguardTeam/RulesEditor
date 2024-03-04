@@ -1,8 +1,9 @@
 import { CosmeticRule, NetworkRule, HostRule, RuleFactory } from '@adguard/tsurlfilter';
 
 import type { BasicRule } from './rules/utils';
-import { ContentTypeModifiers, domainMatch, important, thirdParty, domainModifier, noFilteringModifiers } from './rules/utils';
-import { RequestRule } from './rules/RequestRule';
+import { BlockContentTypeModifiers, domainMatch, important, thirdParty, domainModifier, noFilteringModifiers } from './rules/utils';
+import { BlockRequestRule } from './rules/BlockRequestRule';
+import { UnblockRequestRule } from './rules/UnblockRequestRule';
 import { NoFilteringRule } from './rules/NoFilteringRule';
 import { Comment } from './rules/Comment';
 import { CustomRule } from './rules/CustomRule';
@@ -25,11 +26,11 @@ export class RulesBuilder {
     /**
      * Returns rule builder for block request rule.
      */
-    public static getRuleByType(type: 'block'): RequestRule;
+    public static getRuleByType(type: 'block'): BlockRequestRule;
     /**
      * Returns rule builder for unblock request rule.
      */
-    public static getRuleByType(type: 'unblock'): RequestRule;
+    public static getRuleByType(type: 'unblock'): UnblockRequestRule;
     /**
      * Returns rule builder for disable filtering rule.
      */
@@ -49,9 +50,9 @@ export class RulesBuilder {
     public static getRuleByType(type: RuleType): BasicRule {
         switch (type) {
             case 'block':
-                return new RequestRule(true);
+                return new BlockRequestRule();
             case 'unblock':
-                return new RequestRule(false);
+                return new UnblockRequestRule();
             case 'noFiltering':
                 return new NoFilteringRule();
             case 'custom':
@@ -101,7 +102,8 @@ export class RulesBuilder {
      * @param opts - Validation parameters, check is-valid-domain library function.
      * @returns Boolean - if domain is valid.
      */
-    public static validateDomain(ruleBuilder: RequestRule | NoFilteringRule | DNSRule, opts?: DomainValidationOptions) {
+    public static validateDomain(ruleBuilder:
+    BlockRequestRule | UnblockRequestRule | NoFilteringRule | DNSRule, opts?: DomainValidationOptions) {
         return isValidDomain(ruleBuilder.getDomain(), opts);
     }
 
@@ -123,14 +125,6 @@ export class RulesBuilder {
     }
 
     /**
-     * Defines rule type from raw rule string for basic user rules.
-     */
-    public static getRuleType(rawRule: string, isDnsRule?: undefined | false): RuleType | null;
-    /**
-     * Defines rule type from raw rule string for dns user rules.
-     */
-    public static getRuleType(rawRule: string, isDnsRule: true): DnsRuleType | null;
-    /**
      * Defines rule type from raw rule string.
      * @param rawRule - Rule string.
      * @param isDnsRule - Mode for dns rules.
@@ -140,8 +134,8 @@ export class RulesBuilder {
         if (RuleFactory.isComment(rawRule)) {
             return 'comment';
         }
-        const requestContentTypeModifiers = new Set<string>(Object.values(ContentTypeModifiers));
-        const allowedDomainModifiers = new Set([ContentTypeModifiers.webpages,
+        const requestContentTypeModifiers = new Set<string>(Object.values(BlockContentTypeModifiers));
+        const allowedDomainModifiers = new Set([BlockContentTypeModifiers.webpages,
             domainModifier,
             thirdParty,
             important,
@@ -247,9 +241,9 @@ export class RulesBuilder {
         }
         switch (RulesBuilder.getRuleType(rawRule)) {
             case 'block':
-                return RequestRule.fromRule(rawRule, true);
+                return BlockRequestRule.fromRule(rawRule);
             case 'unblock':
-                return RequestRule.fromRule(rawRule, false);
+                return UnblockRequestRule.fromRule(rawRule);
             case 'noFiltering':
                 return NoFilteringRule.fromRule(rawRule);
             case 'custom':
