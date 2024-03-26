@@ -100,7 +100,9 @@ export class NoFilteringRule implements BasicRule {
             modifiers.add(important);
         }
 
-        rule = `${rule}$${Array.from(modifiers).join(',')}`;
+        if (modifiers.size > 0) {
+            rule = `${rule}$${Array.from(modifiers).join(',')}`;
+        }
 
         return rule;
     }

@@ -118,10 +118,6 @@ export class BlockRequestRule implements BasicRule {
     public buildRule(): string {
         let rule = `||${this.domain}^`;
 
-        if (this.contentModifiers.length === 0 && this.domainModifier === DomainModifiers.all) {
-            return rule;
-        }
-
         const modifiers = new Set<string>(this.contentModifiers);
 
         switch (this.domainModifier) {
@@ -144,7 +140,9 @@ export class BlockRequestRule implements BasicRule {
             modifiers.add(important);
         }
 
-        rule = `${rule}$${Array.from(modifiers).join(',')}`;
+        if (modifiers.size > 0) {
+            rule = `${rule}$${Array.from(modifiers).join(',')}`;
+        }
 
         return rule;
     }

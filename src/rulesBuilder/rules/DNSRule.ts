@@ -14,7 +14,7 @@ export class DNSRule implements BasicRule {
     /**
      * Shows if this is a isBlockingRule or unblock rule.
      */
-    private isBlockingRule: boolean;
+    public readonly isBlockingRule: boolean;
 
     /**
      * Include isIncludingSubdomains.

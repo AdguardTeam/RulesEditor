@@ -2,6 +2,14 @@ import { RulesBuilder } from '../src/rulesBuilder/RulesBuilder';
 import { BlockContentTypeModifiers, UnblockContentTypeModifier, ExceptionSelectModifiers, DomainModifiers } from '../src/rulesBuilder/rules/utils';
 
 // Block rules
+test('RulesBuilder: ||example.org^$important', () => {
+    const rule = RulesBuilder.getRuleByType('block');
+    rule.setDomain('example.org');
+    rule.setHighPriority(true);
+    const result = '||example.org^$important';
+    expect(rule.buildRule()).toEqual(result);
+});
+
 test('RulesBuilder: ||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('block');
     rule.setDomain('example.org');
@@ -119,6 +127,14 @@ test('Rule type: ||example.org^$stylesheet,script,important', () => {
 });
 
 // Unblock rules
+test('RulesBuilder: @@||example.org^$important', () => {
+    const rule = RulesBuilder.getRuleByType('unblock');
+    rule.setDomain('example.org');
+    rule.setHighPriority(true);
+    const result = '@@||example.org^$important';
+    expect(rule.buildRule()).toEqual(result);
+});
+
 test('RulesBuilder: @@||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
     const rule = RulesBuilder.getRuleByType('unblock');
     rule.setDomain('example.org');
@@ -235,6 +251,21 @@ test('Rule type: @@||example.org^$stylesheet,script,important', () => {
 });
 
 // Disable filtering
+
+test('RulesBuilder: @@||example.org^', () => {
+    const rule = RulesBuilder.getRuleByType('noFiltering');
+    rule.setDomain('example.org');
+    const result = '@@||example.org^';
+    expect(rule.buildRule()).toEqual(result);
+});
+
+test('RulesBuilder: @@||example.org^$important', () => {
+    const rule = RulesBuilder.getRuleByType('noFiltering');
+    rule.setDomain('example.org');
+    rule.setHighPriority(true);
+    const result = '@@||example.org^$important';
+    expect(rule.buildRule()).toEqual(result);
+});
 
 test('RulesBuilder: @@||example.org^$extension,jsinject,elemhide,content,urlblock,important', () => {
     const rule = RulesBuilder.getRuleByType('noFiltering');
