@@ -64,10 +64,20 @@ test('Rule: @@||example.org^', () => {
     expect(simpleTokenizer(rule)).toEqual(result);
 });
 
-test('Rule: !comment', () => {
-    const rule = '!comment';
-    const result = [{ token: 'comment', str: '!comment' }];
-    expect(simpleTokenizer(rule)).toEqual(result);
+test('rule is comment token', () => {
+    expect(simpleTokenizer('!comment')).toEqual([{ token: 'comment', str: '!comment' }]);
+    expect(simpleTokenizer('!')).toEqual([{ token: 'comment', str: '!' }]);
+    expect(simpleTokenizer('!!')).toEqual([{ token: 'comment', str: '!!' }]);
+    expect(simpleTokenizer('! comment')).toEqual([{ token: 'comment', str: '! comment' }]);
+    expect(simpleTokenizer('!#comment')).toEqual([{ token: 'comment', str: '!#comment' }]);
+    expect(simpleTokenizer('!+comment')).toEqual([{ token: 'comment', str: '!+comment' }]);
+    expect(simpleTokenizer('! #########################')).toEqual([{ token: 'comment', str: '! #########################' }]);
+    expect(simpleTokenizer('#')).toEqual([{ token: 'comment', str: '#' }]);
+    expect(simpleTokenizer('# #')).toEqual([{ token: 'comment', str: '# #' }]);
+    expect(simpleTokenizer('#comment')).toEqual([{ token: 'comment', str: '#comment' }]);
+    expect(simpleTokenizer('# comment')).toEqual([{ token: 'comment', str: '# comment' }]);
+    expect(simpleTokenizer('#+comment')).toEqual([{ token: 'comment', str: '#+comment' }]);
+    expect(simpleTokenizer('# ########################')).toEqual([{ token: 'comment', str: '# ########################' }]);
 });
 
 test('Rule: ||example.com/assets/Cookie.$stylesheet,script', () => {
@@ -80,4 +90,19 @@ test('Rule: ||example.com/assets/Cookie.$stylesheet,script', () => {
         { token: 'keyword', str: 'script' },
     ];
     expect(simpleTokenizer(rule)).toEqual(result);
+});
+
+test('invalid token', () => {
+    expect(simpleTokenizer(' !')).toEqual([{ token: null, str: ' !' }]);
+    expect(simpleTokenizer('  !')).toEqual([{ token: null, str: '  !' }]);
+    expect(simpleTokenizer('#########################')).toEqual([{ token: null, str: '#########################' }]);
+    expect(simpleTokenizer('##')).toEqual([{ token: null, str: '##' }]);
+    expect(simpleTokenizer(' #')).toEqual([{ token: null, str: ' #' }]);
+    expect(simpleTokenizer('  ##')).toEqual([{ token: null, str: '  ##' }]);
+    expect(simpleTokenizer('#########################')).toEqual([{ token: null, str: '#########################' }]);
+    expect(simpleTokenizer('$$$$$')).toEqual([{ token: null, str: '$$$$$' }]);
+    expect(simpleTokenizer('$ $')).toEqual([{ token: null, str: '$ $' }]);
+    expect(simpleTokenizer('$ $$$ $$$')).toEqual([{ token: null, str: '$ $$$ $$$' }]);
+    expect(simpleTokenizer('$$$$$$$$$$$$$$')).toEqual([{ token: null, str: '$$$$$$$$$$$$$$' }]);
+    expect(simpleTokenizer('$$$##$$$$$$$$$$$$$')).toEqual([{ token: null, str: '$$$##$$$$$$$$$$$$$' }]);
 });

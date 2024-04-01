@@ -80,13 +80,19 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
     }
     if (rule instanceof CosmeticRule) {
         const [, marker] = findCosmeticRuleMarker(ruleRaw);
-        const tokens = ruleRaw.split(marker!);
+        const [beforeMarket, ...afterMarker] = ruleRaw.split(marker!);
+
+        if (afterMarker.length > 1) {
+            return [{ token: null, str: ruleRaw }];
+        }
+
         return [
-            { token: Token.String, str: tokens[0] },
+            { token: Token.String, str: beforeMarket },
             { token: Token.Keyword, str: marker! },
-            { token: Token.Def, str: tokens[1] },
+            { token: Token.Def, str: afterMarker[0] },
         ];
     }
+
     if (rule instanceof HostRule) {
         return [{ token: null, str: ruleRaw }];
     }
