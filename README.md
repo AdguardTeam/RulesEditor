@@ -94,12 +94,17 @@ const split = () => {
     wasm: any,
     theme?: ITextmateThemePlus, // import type { ITextmateThemePlus } from 'codemirror-textmate';
     conf?: CodeMirror.EditorConfiguration
+    callbacks?: {
+        toggleRule?: (editor: CodeMirror.Editor) => void,
+        onSave?: () => void,
+    },
 ):  Promise<CodeMirror.EditorFromTextArea>
 ```
 - `element` - Textarea element in your HTML
 - `wasm` - WebAssembly module provided by onigasm
 - `theme` - Usually a JSON object with a theme for syntax and editor highlighting
 - `conf` - Configuration for extended initialization of CodeMirror. You can find further information regarding the configuration options in the [CodeMirror documentation](https://codemirror.net/5/doc/manual.html#option_extraKeys), which offers a wide range of diverse configuration capabilities.
+- `callbacks` - Config for hotkeys callbacks: onSave - Ctrl+S, toggleRule - Ctrl+/
 
 Returns an editor instance for interaction: `CodeMirror.EditorFromTextArea`.
 You can utilize this instance to define different event handlers as well as execute various commands by referring to the [events](https://codemirror.net/5/doc/manual.html#events) and [commands](https://codemirror.net/5/doc/manual.html#commands) sections in the CodeMirror documentation.
