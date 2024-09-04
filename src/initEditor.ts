@@ -10,7 +10,6 @@ import { initGrammar } from './lib/initGrammar';
 import 'codemirror/addon/search/searchcursor';
 import 'codemirror/addon/search/search';
 import 'codemirror/addon/dialog/dialog';
-import 'codemirror/addon/dialog/dialog.css';
 // Enabling comment functionality
 import './commands/comment';
 // Enabling move/copy lines up and down functionality
