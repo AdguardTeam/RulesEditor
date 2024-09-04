@@ -50,15 +50,15 @@ export async function initEditor(
     const editor = CodeMirror.fromTextArea(element, config);
 
     editor.setOption('extraKeys', {
-        'Ctrl-/': (editorInstance) => {
+        'Mod-/': (editorInstance) => {
             callbacks?.toggleRule?.(editorInstance);
         },
-        'Ctrl-H': 'replace',
+        'Mod-H': 'replace',
         'Alt-Up': 'moveLineUp',
         'Alt-Down': 'moveLineDown',
         'Shift-Alt-Up': 'copyLineUp',
         'Shift-Alt-Down': 'copyLineDown',
-        'Ctrl-S': () => callbacks?.onSave?.(),
+        'Mod-S': () => callbacks?.onSave?.(),
     });
 
     editor.on('gutterClick', (editorInstance, line) => {
