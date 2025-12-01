@@ -24,6 +24,10 @@ type DomainValidationOptions = Parameters<typeof isValidDomain>[1];
  */
 export class RulesBuilder {
     /**
+     * Basic rule builder implementation.
+     */
+    public static getRuleByType(type: RuleType): BasicRule;
+    /**
      * Returns rule builder for block request rule.
      */
     public static getRuleByType(type: 'block'): BlockRequestRule;
@@ -62,6 +66,10 @@ export class RulesBuilder {
         }
     }
 
+    /**
+     * Basic DNS rule builder implementation.
+     */
+    public static getDnsRuleByType(type: DnsRuleType): BasicRule;
     /**
      * Returns rule builder for block dns rule.
      */
