@@ -99,77 +99,35 @@ export const configureHotKeys = (options: {
     };
 
     /**
-     * Function to move selected lines up.
+     * Function to move selected line up.
      * @param cm - CodeMirror instance.
      */
     const moveLineUp = (cm: CodeMirror.Editor) => {
-        // Get all current selections in the editor
-        const ranges = cm.listSelections();
-        // Array to store line indices that need to be moved
-        const linesToMove: number[] = [];
-        // Initial position for movement (before the first line)
-        let at = cm.firstLine() - 1;
-        // Array to store new cursor positions after movement
-        const newSels: { anchor: any; head: any }[] = [];
+        const cursorLine = cm.getCursor().line;
 
-        // Process each selection
-        for (let i = 0; i < ranges.length; i++) {
-            const range = ranges[i];
-            // Get the starting line of the selection (minus 1, since we're moving up)
-            const from = range.from().line - 1;
-            // Get the ending line of the selection
-            let to = range.to().line;
-
-            // Create a new cursor position after movement
-            newSels.push({
-                anchor: { line: (range.anchor.line - 1), ch: (range.anchor.ch) },
-                head: { line: (range.head.line - 1), ch: (range.head.ch) },
-            });
-
-            // If the cursor is at the beginning of the line and the selection is not empty, decrease to
-            if (range.to().ch === 0 && !range.empty()) { --to; }
-
-            // Add the range of lines to move or update the existing one
-            if (from > at) {
-                linesToMove.push(from, to);
-            } else if (linesToMove.length) {
-                linesToMove[linesToMove.length - 1] = to;
-            }
-            at = to;
+        if (cursorLine === 0) {
+            return;
         }
-
         // Perform the line movement operation as a single operation
         cm.operation(() => {
-            // Process each pair of indices (start and end of range)
-            for (let i = 0; i < linesToMove.length; i += 2) {
-                const from = linesToMove[i];
-                const to = linesToMove[i + 1];
-                // Get the text of the line located at the position above the one being moved
-                const line = cm.getLine(from);
-                const info = cm.lineInfo(from);
-                const shouldMark = RulesBuilder.getRuleType(info.text) !== 'comment' && info.gutterMarkers;
+            const bottomLineIndex = cursorLine;
+            const topLineIndex = cursorLine - 1; // line above cursor
+            
+            const movingUpLine = cm.getLine(bottomLineIndex);
+            const movingUpLineInfo = cm.lineInfo(bottomLineIndex);
+            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment' && movingUpLineInfo.gutterMarkers;
 
-                // Remove the line above the one being moved
-                cm.replaceRange('', { line: from, ch: 0 }, { line: from + 1, ch: 0 }, '+swapLine');
+            const movingDownLine = cm.getLine(topLineIndex);
+            const movingDownLineInfo = cm.lineInfo(topLineIndex);
+            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment' && movingDownLineInfo.gutterMarkers;
 
-                // Insert the deleted line at the new position
-                if (to > cm.lastLine()) {
-                    // If moving beyond the last line, add to the end
-                    cm.replaceRange('\n' + line, { line: cm.lastLine(), ch: 0 }, undefined, '+swapLine');
-                    if (shouldMark) {
-                        cm.setGutterMarker(cm.lastLine() + 1, 'breakpoints', makeMarker());
-                    }
-                } else {
-                    cm.replaceRange(line + '\n', { line: to, ch: 0 }, undefined, '+swapLine');
-                    if (shouldMark) {
-                        cm.setGutterMarker(to, 'breakpoints', makeMarker());
-                    }
-                }
-            }
+            cm.replaceRange(movingDownLine, { line: bottomLineIndex, ch: 0 }, { line: bottomLineIndex, ch: movingUpLine.length }, '+swapLine');
+            cm.setGutterMarker(bottomLineIndex, 'breakpoints', shouldMarkMovingDownLine ? makeMarker() : null);
 
-            // Set new cursor positions
-            cm.setSelections(newSels);
-            // Scroll the editor to show the cursor
+            cm.replaceRange(movingUpLine, { line: topLineIndex, ch: 0 }, { line: topLineIndex, ch: movingDownLine.length }, '+swapLine');
+            cm.setGutterMarker(topLineIndex, 'breakpoints', shouldMarkMovingUpLine ? makeMarker() : null);
+
+            cm.setCursor({ ...cm.getCursor(), line: topLineIndex });
             cm.scrollIntoView(null);
         });
     };
@@ -200,46 +158,37 @@ export const configureHotKeys = (options: {
     };
 
     /**
-     * Function to move selected lines down.
+     * Function to move selected line down.
      * @param cm - CodeMirror instance.
      */
     const moveLineDown = (cm: CodeMirror.Editor) => {
-        const ranges = cm.listSelections();
-        const linesToMove: number[] = [];
-        let at = cm.lastLine() + 1;
-        for (let i = ranges.length - 1; i >= 0; i--) {
-            const range = ranges[i];
-            let from = range.to().line + 1;
-            const to = range.from().line;
-            if (range.to().ch === 0 && !range.empty()) {
-                from--;
-            }
-            if (from < at) {
-                linesToMove.push(from, to);
-            } else if (linesToMove.length) {
-                linesToMove[linesToMove.length - 1] = to;
-            }
-            at = to;
+        const cursorLine = cm.getCursor().line;
+        if (cursorLine === cm.lastLine()) {
+            return;
         }
         cm.operation(() => {
-            for (let i = linesToMove.length - 2; i >= 0; i -= 2) {
-                const from = linesToMove[i]; // line below
-                const to = linesToMove[i + 1]; // line to move
-                const line = cm.getLine(from);
+            const bottomLineIndex = cursorLine + 1; // line below cursor
+            const topLineIndex = cursorLine;
 
-                const info = cm.lineInfo(from);
-                const shouldMark = RulesBuilder.getRuleType(info.text) !== 'comment' && info.gutterMarkers;
+            const movingUpLine = cm.getLine(bottomLineIndex);
+            const movingUpLineInfo = cm.lineInfo(bottomLineIndex);
+            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment' && movingUpLineInfo.gutterMarkers;
 
-                if (from === cm.lastLine()) {
-                    cm.replaceRange('', { line: (from - 1), ch: 0 }, { line: from, ch: 0 }, '+swapLine');
-                } else {
-                    cm.replaceRange('', { line: from, ch: 0 }, { line: from + 1, ch: 0 }, '+swapLine');
-                }
-                cm.replaceRange(line + '\n', { line: to, ch: 0 }, undefined, '+swapLine'); // put line which was below to the line above
-                if (shouldMark) {
-                    cm.setGutterMarker(to, 'breakpoints', makeMarker());
-                }
+            let movingDownLine = cm.getLine(topLineIndex);
+            const isLastLine = bottomLineIndex === cm.lastLine();
+            if (isLastLine) {
+                movingDownLine = movingDownLine.replace('\n', '');
             }
+            const movingDownLineInfo = cm.lineInfo(topLineIndex);
+            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment' && movingDownLineInfo.gutterMarkers;
+
+            cm.replaceRange(movingDownLine, { line: bottomLineIndex, ch: 0 }, { line: bottomLineIndex, ch: movingUpLine.length }, '+swapLine');
+            cm.setGutterMarker(bottomLineIndex, 'breakpoints', shouldMarkMovingDownLine ? makeMarker() : null);
+
+            cm.replaceRange(movingUpLine, { line: topLineIndex, ch: 0 }, { line: topLineIndex, ch: movingDownLine.length }, '+swapLine');
+            cm.setGutterMarker(topLineIndex, 'breakpoints', shouldMarkMovingUpLine ? makeMarker() : null);
+
+            cm.setCursor({ ...cm.getCursor(), line: bottomLineIndex });
             cm.scrollIntoView(null);
         });
     };
