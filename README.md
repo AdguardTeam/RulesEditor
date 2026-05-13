@@ -1,283 +1,256 @@
 # AdGuard Rules Editor
 
-This project provides a convenient text editor with support for filter rule syntaxes. It's built upon the [AdGuard VSCode extension](https://github.com/AdguardTeam/VscodeAdblockSyntax), [CodeMirror 5](https://codemirror.net/5/), and [codemirror-textmate](https://github.com/zikaari/codemirror-textmate). Since JavaScript does not support all RegExp capabilities (such as lookbehind) that are utilized within tmLanguage, this project leverages WebAssembly [onigasm](https://github.com/zikaari/onigasm) - a port of the Oniguruma regex library, via codemirror-textmate.
-
-Additionally, it provides tokenizers for splitting a filter rule into tokenized parts, which aids in highlighting individual segments of a single rule and RulesBuilder class that can help users to create simple rules.
+A browser-based library for editing and tokenizing AdGuard filter rules.
+It provides a CodeMirror 5 text editor with TextMate syntax highlighting
+(via WebAssembly Oniguruma), two tokenizers for custom rule rendering,
+and a `RulesBuilder` for programmatic rule construction.
 
 ## Installation
+
 ```sh
-yarn add @adguard/rules-editor
+pnpm add @adguard/rules-editor
 ```
 
-## Usage
+## Key Concepts
 
-### Text Editor
+- **Editor** — a CodeMirror 5 instance with adblock syntax highlighting,
+  powered by WASM-based Oniguruma regex via `onigasm`.
+- **Full tokenizer** — splits a rule into highlighted segments using WASM;
+  highest precision.
+- **Simple tokenizer** — regex-based tokenizer without WASM; slightly
+  less precise but no async setup required.
+- **RulesBuilder** — factory class that constructs filter rules (block,
+  unblock, no-filtering, DNS, comment, custom) via a builder pattern.
+- **Token** — an enum of token types (`keyword`, `operator`, `string`,
+  `comment`, etc.) shared by both tokenizers.
+
+## Quick Start
+
+### Editor
 
 ```js
 import { initEditor } from '@adguard/rules-editor';
-// wasm is reexported from the onigasm library
 import wasm from '@adguard/rules-editor/dist/onigasm.wasm';
-// css is reexported from codemirror
 import '@adguard/rules-editor/dist/codemirror.css';
 
-// Add a textarea element into your HTML with an id
-const load = async () => {
-    const textarea = document.getElementById('textarea');
-    const editor = await initEditor(textarea, wasm);
-    editor.setValue(rule);
-};
+const textarea = document.getElementById('textarea');
+const editor = await initEditor(textarea, wasm, {
+    hotkeys: { mode: 'mac' },
+});
+editor.setValue('||example.org^');
 ```
 
+### Tokenizing a Rule
 
-### CodeMirror Tokenizer with WebAssembly
 ```typescript
-import { getFullTokenizer } from '@adguard/rules-editor';
-// wasm is reexported from the onigasm library
+import { getFullTokenizer, simpleTokenizer } from '@adguard/rules-editor';
 import wasm from '@adguard/rules-editor/dist/onigasm.wasm';
 
+// WASM-based (async init, higher precision)
+const tokenize = await getFullTokenizer(wasm);
+const tokens = tokenize('||example.org^$important');
 
-const convertTokenToCssClass = (token: string) => {
-    switch (token) {
-        case 'keyword':
-            return 'class_keyword';
-        ...
-    }
-}
-
-// Example with React
-const rule = 'any filter rule';
-const split = async () => {
-    const tokenizer = await getFullTokenizer(wasm);
-    return tokenizer(rule).map(({ token, str }) => (
-        <span key={str} className={convertTokenToCssClass(token)}>
-            {str}
-        </span>
-    ));
-};
-
-
+// Simple (sync, no WASM)
+const tokens2 = simpleTokenizer('||example.org^$important');
 ```
-### Simple Tokenizer without WebAssembly
+
+### Building a Rule
+
 ```typescript
-import { simpleTokenizer } from '@adguard/rules-editor';
-// wasm is reexported from the onigasm library
-import wasm from '@adguard/rules-editor/dist/onigasm.wasm';
+import { RulesBuilder, BlockContentTypeModifiers, DomainModifiers } from '@adguard/rules-editor';
 
+const rule = RulesBuilder.getRuleByType('block');
+rule.setDomain('example.org');
+rule.setContentType([BlockContentTypeModifiers.css, BlockContentTypeModifiers.scripts]);
+rule.setHighPriority(true);
+rule.setDomainModifiers(DomainModifiers.onlyListed, ['example.com', 'example.ru']);
 
-const convertTokenToCssClass = (token: string) => {
-    switch (token) {
-        case 'keyword':
-            return 'class_keyword';
-        ...
-    }
-}
-
-// Example with React
-const rule = 'any filter rule';
-const split = () => {
-    return simpleTokenizer(rule).map(({ token, str }) => (
-        <span key={str} className={convertTokenToCssClass(token)}>
-            {str}
-        </span>
-    ));
-};
+rule.buildRule();
+// => '||example.org^$stylesheet,script,domain=example.com|example.ru,important'
 ```
-
 
 ## API
 
 ### `initEditor`
 
 ```typescript
- async initEditor(
+async function initEditor(
     element: HTMLTextAreaElement,
     wasm: any,
-    theme?: ITextmateThemePlus, // import type { ITextmateThemePlus } from 'codemirror-textmate';
-    conf?: CodeMirror.EditorConfiguration
-    callbacks?: {
-        toggleRule?: (editor: CodeMirror.Editor) => void,
-        onSave?: () => void,
+    conf: {
+        withBreakpoints?: boolean;
+        onChange?: (editor: CodeMirror.Editor, makeMarker: () => HTMLDivElement) => void;
+        hotkeys: {
+            mode: 'windows' | 'mac';
+            markerColor?: string;
+            markerHTML?: string;
+            toggleRule?: (editor: CodeMirror.Editor) => void;
+            onSave?: (editor: CodeMirror.Editor) => void;
+        };
+        editor?: CodeMirror.EditorConfiguration;
+        theme?: ITextmateThemePlus;
     },
-):  Promise<CodeMirror.EditorFromTextArea>
-```
-- `element` - Textarea element in your HTML
-- `wasm` - WebAssembly module provided by onigasm
-- `theme` - Usually a JSON object with a theme for syntax and editor highlighting
-- `conf` - Configuration for extended initialization of CodeMirror. You can find further information regarding the configuration options in the [CodeMirror documentation](https://codemirror.net/5/doc/manual.html#option_extraKeys), which offers a wide range of diverse configuration capabilities.
-- `callbacks` - Config for hotkeys callbacks: onSave - Ctrl+S, toggleRule - Ctrl+/
-
-Returns an editor instance for interaction: `CodeMirror.EditorFromTextArea`.
-You can utilize this instance to define different event handlers as well as execute various commands by referring to the [events](https://codemirror.net/5/doc/manual.html#events) and [commands](https://codemirror.net/5/doc/manual.html#commands) sections in the CodeMirror documentation.
-
-### Tokenizers
-
-The library offers two different types of tokenizers: the first one is obtained from the `getFullTokenizer` function, and the second  `simpleTokenizer` function. These tokenizers have varying levels of precision, as the `simpleTokenizer` function does not utilize WebAssembly.
-
-For example:
-
-For rule `@@|https://example.org/unified/someJsFile.js$domain=domain.one.com|domaintwo.com|domainthree.com`
-
-`simpleTokenizer` result:
-```js
-    [
-        { token: 'keyword', str: '@@|' },
-        { token: null, str: 'https://example.org/unified/someJsFile.js' },
-        { token: 'keyword', str: '$domain' },
-        { token: 'operator', str: '=' },
-        { token: 'string', str: 'domain.one.com|domaintwo.com|domainthree.com' },
-    ]
-```
-Tokenizer received from `getFullTokenizer` result:
-```js
-    [
-        { token: 'keyword', str: '@@|' },
-        { token: null, str: 'https://example.org/unified/someJsFile.js' },
-        { token: 'keyword', str: '$domain' },
-        { token: 'operator', str: '=' },
-        { token: 'string', str: 'domain.one.com' },
-        { token: 'operator', str: '|' },
-        { token: 'string', str: 'domaintwo.com' },
-        { token: 'operator', str: '|' },
-        { token: 'string', str: 'domainthree.com' }
-    ]
+): Promise<EditorFromTextArea>
 ```
 
-If you prefer not to use WebAssembly but still want to highlight your rules with slightly less precision, you can utilize the `simpleTokenizer` function.
+| Parameter | Description |
+| --- | --- |
+| `element` | Textarea element to attach the editor to |
+| `wasm` | WASM binary (re-exported from onigasm) |
+| `conf.hotkeys.mode` | OS mode for hotkey mapping (`'windows'` or `'mac'`) |
+| `conf.hotkeys.toggleRule` | Callback for Ctrl/Cmd+/ (toggle rule) |
+| `conf.hotkeys.onSave` | Callback for Ctrl/Cmd+S |
+| `conf.editor` | Extra [CodeMirror config](https://codemirror.net/5/doc/manual.html#option_extraKeys) |
+| `conf.theme` | Theme object for syntax highlighting |
+| `conf.withBreakpoints` | Enable breakpoint gutter |
+| `conf.onChange` | Editor change callback |
+
+Returns a `CodeMirror.EditorFromTextArea` instance. See CodeMirror docs
+for [events](https://codemirror.net/5/doc/manual.html#events) and
+[commands](https://codemirror.net/5/doc/manual.html#commands).
 
 ### `getFullTokenizer`
+
 ```typescript
-async getFullTokenizer(
+async function getFullTokenizer(
     wasm: any,
-    theme?: ITextmateThemePlus
-): Promise<(rule: string) => RuleTokens | { str: string, token: string | null }[]>
+    theme?: ITextmateThemePlus,
+): Promise<(rule: string) => RuleTokens>
 ```
-- `wasm` - WebAssembly module provided by onigasm
-- `theme` - Usually a JSON object with a theme for syntax highlighting, same as for the editor
 
-Returns a function that can tokenize a filter rule.
-Important Note: When a theme is passed as an argument to the function, the `token` field in the returned result will contain the name of the CSS class associated with that token in accordance with your theme.
-
+Returns a tokenizer function. When `theme` is provided, the `token`
+field contains CSS class names from that theme instead of generic token
+names.
 
 ### `simpleTokenizer`
-```typescript
-simpleTokenizer(rule: string): RuleTokens
-```
-- `rule` - filter rule
-
-The function returns a tokenized rule, with the same tokens and return type as the tokenizer obtained from the `getFullTokenizer` function.
-Because it does not utilize WebAssembly, the outcome is not as precise as the tokenizer obtained from `getFullTokenizer`.
-
-
-## Grammars
-
-Highlighting for filter rules utilizes a textmate file from the [AdGuard VSCode extension](https://github.com/AdguardTeam/VscodeAdblockSyntax/blob/master/syntaxes/adblock.yaml-tmlanguage). A script is provided for updating it to the latest version:
-```sh
-yarn loadGrammar 
-```
-
-The AdGuard syntax has a dependency on the source.js grammar. Here, js.tmLanguage.json is used, based on [TypeScript-tmLanguage](https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
-
-
-## `RulesBuilder`
-The `RulesBuilder` class offers static methods to acquire the RulesBuilder for a particular rule type, check the validity of rule domains, and validate completed rules. It simplifies the process of creating user rules without the need to worry about grammar.
-
-### Usage
 
 ```typescript
-    import { RulesBuilder, ContentTypeModifiers, DomainModifiers } from '@adguard/rules-editor';
-    
-    const rule = RulesBuilder.getRuleByType('block');
-    rule.setDomain('example.org');
-    rule.setContentType([ContentTypeModifiers.css, ContentTypeModifiers.scripts]);
-    rule.setHighPriority(true);
-    rule.setDomainModifiers(DomainModifiers.onlyListed, [
-        'example.com',
-        'example.ru'
-    ]);
-    const result = '||example.org^$stylesheet,script,domain=example.com|example.ru,important'
-    expect(rule.buildRule()).toEqual(result);
-
+function simpleTokenizer(rule: string): RuleTokens
 ```
 
-### API
-```typescript 
-    class RulesBuilder {
-        // getRuleByType - Return correct rule builder for each type of creating rule
-        static getRuleByType(type: 'block'): BlockRequestRule;
-        static getRuleByType(type: 'unblock'): UnblockRequestRule;
-        static getRuleByType(type: 'noFiltering'): NoFilteringRule;
-        static getRuleByType(type: 'custom'): CustomRule;
-        static getRuleByType(type: 'comment'): Comment;
-        static getDnsRuleByType(type: 'block'): DNSRule;
-        static getDnsRuleByType(type: 'unblock'): DNSRule;
-        static getDnsRuleByType(type: 'custom'): CustomRule;
-        static getDnsRuleByType(type: 'comment'): Comment;
-    }
+Synchronous tokenizer. Same `RuleTokens` return type as the full
+tokenizer, but with slightly less granular splitting.
 
-    class Comment implements BasicRule {
-        // Set comment text
-        setText(text: string): void;
-        // Build comment from current text
-        buildRule(): string;
-    }
+### Tokenizer Comparison
 
-    class CustomRule implements BasicRule {
-        // Set custom rule
-        setRule(rule: string): void;
-        // Return rule as it is
-        buildRule(): string;
-    }
+For `@@|https://example.org/file.js$domain=a.com|b.com`:
 
-    class NoFilteringRule implements BasicRule {
-        // Set rule domain
-        setDomain(domain: string): void;
-        getDomain(): string;
-        // Set modifiers, which exceptions should be used for this rule
-        setContentType(modifiers: ExceptionSelectModifiers[]): void;
-        // Set rule priority
-        setHighPriority(priority: boolean): void;
-        // Transform rule to string
-        buildRule(): string;
-    }
+| Tokenizer | Behavior |
+| --- | --- |
+| `simpleTokenizer` | Domain list as single `string` token |
+| `getFullTokenizer` | Domain list split per domain with `operator` separators |
 
-    class BlockRequestRule implements BasicRule {
-        // Set rule domain
-        setDomain(domain: string): void;
-        getDomain(): string;
-        // Set modifiers, which content should be blocked for this rule
-        setContentType(modifiers: BlockContentTypeModifiers[]): void;
-        // Set on which domains this rule should be used
-        setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
-        // Set rule priority
-        setHighPriority(priority: boolean): void;
-        // Transform rule to string
-        buildRule(): string;
-    }
+### `RulesBuilder`
 
-    class UnblockRequestRule implements BasicRule {
-        // Set rule domain
-        setDomain(domain: string): void;
-        getDomain(): string;
-        // Set modifiers, which content should be blocked for this rule
-        setContentType(modifiers: UnblockContentTypeModifiers[]): void;
-        // Set on which domains this rule should be used
-        setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void;
-        // Set rule priority
-        setHighPriority(priority: boolean): void;
-        // Transform rule to string
-        buildRule(): string;
-    }
+```typescript
+class RulesBuilder {
+    static getRuleByType(type: 'block'): BlockRequestRule;
+    static getRuleByType(type: 'unblock'): UnblockRequestRule;
+    static getRuleByType(type: 'noFiltering'): NoFilteringRule;
+    static getRuleByType(type: 'custom'): CustomRule;
+    static getRuleByType(type: 'comment'): Comment;
 
-    class DNSRule implements BasicRule {
-        // Set rule domain
-        setDomain(domain: string): void;
-        getDomain(): string;
-        // Set if rule should include subdomains
-        setIsIncludingSubdomains(includingSubdomains: boolean): void;
-        // Get if rule includes subdomains
-        getIsIncludingSubdomains(): boolean;
-        // Transform rule to string
-        buildRule(): string;
-    }
+    static getDnsRuleByType(type: 'block'): DNSRule;
+    static getDnsRuleByType(type: 'unblock'): DNSRule;
+    static getDnsRuleByType(type: 'custom'): CustomRule;
+    static getDnsRuleByType(type: 'comment'): Comment;
+
+    static isDomainValid(domain: string): boolean;
+    static isRuleValid(rule: string): boolean;
+    static getRuleType(rule: string): RuleType | null;
+    static getRuleFromRuleString(rule: string): BasicRule | null;
 }
 ```
+
+**Rule types:** `'block'` | `'unblock'` | `'noFiltering'` | `'custom'`
+| `'comment'`
+
+**Common builder methods:**
+
+| Method | Description |
+| --- | --- |
+| `setDomain(domain)` | Set rule domain |
+| `setContentType(modifiers[])` | Set content type modifiers |
+| `setDomainModifiers(modifier, domains?)` | Set domain scope |
+| `setHighPriority(priority)` | Add `$important` modifier |
+| `buildRule()` | Build the rule string |
+
+**DNS rule** additionally has `setIsIncludingSubdomains(bool)`.
+
+**Per-class differences:**
+
+- **Comment** — `setText(text)` / `buildRule()`
+- **CustomRule** — `setRule(rule)` / `buildRule()` (returns rule as-is)
+- **NoFilteringRule** — `setDomain`, `getDomain`, `setContentType`
+  (accepts `ExceptionSelectModifiers[]`), `setHighPriority`, `buildRule`
+- **UnblockRequestRule** — same as BlockRequestRule but accepts
+  `UnblockContentTypeModifier[]`
+- **DNSRule** — `setDomain`, `getDomain`,
+  `setIsIncludingSubdomains(bool)`, `getIsIncludingSubdomains()`,
+  `buildRule`
+
+### Editor Helpers
+
+```typescript
+// Extract rules with enabled/disabled state from editor
+function getRulesFromEditor(
+    editor: CodeMirror.Editor,
+): { enabled: boolean; rule: string }[] | string;
+
+// Set editor content with gutter markers for enabled rules
+function setEditorValue(
+    editor: CodeMirror.Editor,
+    value: { enabled: boolean; rule: string }[],
+    markerOptions: { color?: string; innerHTML?: string },
+): void;
+
+// Disable syntax highlighting when editor exceeds 1000 lines
+function configureEditorMode(editor: CodeMirror.Editor): void;
+```
+
+### WASM Re-export
+
+The library re-exports the onigasm WASM binary for convenience:
+
+```typescript
+import { wasm } from '@adguard/rules-editor';
+```
+
+### Rendering Tokens (React Example)
+
+```tsx
+import { simpleTokenizer } from '@adguard/rules-editor';
+
+function HighlightedRule({ rule }: { rule: string }) {
+    return (
+        <>
+            {simpleTokenizer(rule).map(({ token, str }, i) => (
+                <span key={i} className={token ?? 'plain'}>
+                    {str}
+                </span>
+            ))}
+        </>
+    );
+}
+```
+
+### Helper Exports
+
+```typescript
+// Content type modifiers
+export { BlockContentTypeModifiers, UnblockContentTypeModifier } from './rulesBuilder/rules/utils';
+// Domain scope modifiers
+export { DomainModifiers } from './rulesBuilder/rules/utils';
+// Exception modifiers for noFiltering rules
+export { ExceptionSelectModifiers } from './rulesBuilder/rules/utils';
+// Rule type enums
+export { RuleType, DnsRuleType } from './rulesBuilder/RulesBuilder';
+// Token enum and RuleTokens type
+export type { RuleTokens } from './lib/utils';
+```
+
+## Documentation
+
+- [Development](DEVELOPMENT.md)
+- [LLM agent rules](AGENTS.md)
+- [Changelog](CHANGELOG.md)

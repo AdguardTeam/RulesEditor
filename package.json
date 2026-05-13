@@ -12,7 +12,7 @@
     "lint": "eslint ./src/index.ts",
     "test": "jest",
     "prepare": "husky install",
-    "increment": "yarn version --patch --no-git-tag-version"
+    "increment": "pnpm version patch --no-git-tag-version"
   },
   "dependencies": {
     "@adguard/tsurlfilter": "^2.1.12",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.5",
     "@types/js-yaml": "^4.0.7",
+    "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^6.7.4",
     "copy-webpack-plugin": "^11.0.0",
