@@ -12,7 +12,7 @@
     "lint": "eslint ./src/index.ts",
     "test": "jest",
     "prepare": "husky install",
-    "increment": "pnpm version patch --no-git-tag-version"
+    "increment": "yarn version --patch --no-git-tag-version"
   },
   "dependencies": {
     "@adguard/tsurlfilter": "^2.1.12",

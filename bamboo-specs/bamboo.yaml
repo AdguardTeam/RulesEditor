@@ -5,7 +5,7 @@ plan:
   key: RULESEDITOR
   name: AdGuard Rules Editor
 variables:
-  dockerNode: adguard/node-ssh:22.17--0
+  dockerNode: adguard/node-ssh:18.13--0
   name: rules-editor
 
 stages:
@@ -29,7 +29,7 @@ Test:
   docker:
     image: ${bamboo.dockerNode}
     volumes:
-      ${system.PNPM_DIR}: ${bamboo.cachePnpm}
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
   key: TEST
   other:
       clean-working-dir: true
@@ -46,10 +46,10 @@ Test:
             # Fix mixed logs
             exec 2>&1
 
-            pnpm install --frozen-lockfile
+            yarn install ${bamboo.varsYarn}
 
-            pnpm lint
-            pnpm test
+            yarn lint
+            yarn test
 
   requirements:
     - adg-docker: 'true'
@@ -58,7 +58,7 @@ Build:
   docker:
     image: ${bamboo.dockerNode}
     volumes:
-      ${system.PNPM_DIR}: ${bamboo.cachePnpm}
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
   key: BUILD
   other:
       clean-working-dir: true
@@ -75,10 +75,9 @@ Build:
             # Fix mixed logs
             exec 2>&1
 
-            pnpm install --frozen-lockfile
-            pnpm build
-            pnpm pack --pack-destination .
-            mv adguard-rules-editor-*.tgz rulesEditor.tgz
+            yarn install ${bamboo.varsYarn}
+            yarn build
+            yarn pack --filename rulesEditor.tgz
             rm -rf node_modules
   artifacts:
     - name: rulesEditor.tgz
@@ -91,7 +90,7 @@ Deploy:
   docker:
     image: ${bamboo.dockerNode}
     volumes:
-      ${system.PNPM_DIR}: ${bamboo.cachePnpm}
+      ${system.YARN_DIR}: ${bamboo.cacheYarn}
   key: DEPLOY
   other:
       clean-working-dir: true
