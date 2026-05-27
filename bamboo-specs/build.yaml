@@ -61,3 +61,4 @@ branches:
 labels: []
 other:
   concurrent-build-plugin: system-default
+  label-builds: false
