@@ -2,6 +2,7 @@ export { getFullTokenizer } from './tokenizers/getFullTokenizer';
 export { default as wasm } from 'onigasm/lib/onigasm.wasm';
 export { initEditor, EditorFromTextArea, getRulesFromEditor, setEditorValue, configureEditorMode } from './initEditor';
 export { simpleTokenizer } from './tokenizers/simpleTokenizer';
+export { normalizeTokens, Token } from './lib/utils';
 export type { RuleTokens } from './lib/utils';
 export { RulesBuilder, RuleType, DnsRuleType } from './rulesBuilder/RulesBuilder';
 export { BlockContentTypeModifiers, UnblockContentTypeModifier, DomainModifiers, ExceptionSelectModifiers } from './rulesBuilder/rules/utils';
