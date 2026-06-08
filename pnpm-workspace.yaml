@@ -3,3 +3,8 @@
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@adguard/*'
+# AG-54318
+# Pin @adguard/scriptlets to 1.11.27 to avoid regex patterns introduced in
+# 1.12.1 that are incompatible with Sciter's JavaScript engine.
+overrides:
+  '@adguard/scriptlets': '1.11.27'
