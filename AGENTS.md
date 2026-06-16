@@ -210,7 +210,9 @@ and external deps. Shared library may only depend on external deps.
 - Tokenizer tests verify token output against expected arrays.
 - No mocking is used — tests exercise real module code.
 
-### Dependency Management
+- **Error handling** — throw errors; let consumers catch. The
+  registry's `ensureRegistry` catches duplicate `loadWASM` calls
+  to allow safe repeated initialization.
 
 - **Pin all dependency versions explicitly** — do not use version
   ranges that allow automatic upgrades to untested versions.
