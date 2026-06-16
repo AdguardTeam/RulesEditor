@@ -1,10 +1,13 @@
 /**
- * TextMate grammar scope name for AdGuard filter rules.
+ * Primary grammar for filter rule syntax. Used by `initEditor` (CM6 language),
+ * `getFullTokenizer`, and `inspectLine` to tokenize adblock rules.
  */
 export const SCOPE_ADBLOCK = 'text.adblock';
 
 /**
- * TextMate grammar scope name for embedded JavaScript.
+ * Embedded grammar for scriptlet / `#%#` JavaScript. Required by the adblock
+ * grammar's `"include": "source.js"` references so that inline JS in rules like
+ * `example.org#%#var x = 1` is highlighted with full JavaScript tokenization.
  */
 export const SCOPE_JS = 'source.js';
 
