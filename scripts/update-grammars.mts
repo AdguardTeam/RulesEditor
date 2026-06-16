@@ -184,7 +184,7 @@ export function assertKnownScopes(scopes: string[], known: Set<string>): void {
             + 'Each embedded grammar must be downloadable and registered. To fix:\n'
             + '  1. Add the scope to GRAMMAR_SCOPES in src/lib/constants.ts.\n'
             + '  2. Add a matching download entry to the GRAMMARS array in '
-            + 'scripts/loadGrammars.mts.',
+            + 'scripts/update-grammars.mts.',
         );
     }
 }

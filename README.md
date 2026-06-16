@@ -150,10 +150,17 @@ Returns a function that accepts a rule string and returns `RuleTokens`
 
 ```typescript
 async function inspectLine(
+    wasm: WasmSource,
     line: string,
     scopeName?: string,
 ): Promise<TokenSegment[]>
 ```
+
+| Parameter | Description |
+| --- | --- |
+| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
+| `line` | The line of filter rule text to tokenize |
+| `scopeName` | Grammar scope; defaults to `text.adblock` |
 
 Returns a contiguous, gap-free array of `TokenSegment` objects covering
 the input line. Each segment has `text`, `startIndex`, `endIndex`,

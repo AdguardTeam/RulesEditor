@@ -169,7 +169,7 @@ Public API (src/index.ts — re-exports)
      ↓
 Features (initEditor, tokenizers, rulesBuilder)
      ↓
-Shared library (lib/initGrammar, lib/utils)
+Shared library (lib/registry, lib/utils, lib/errors)
      ↓
 External deps (codemirror, vscode-textmate, vscode-oniguruma, tsurlfilter)
 ```
@@ -249,7 +249,7 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 
 - No runtime configuration — the library is configured via function
   parameters (`initEditor` accepts a config object, tokenizers accept
-  WASM path and optional theme).
+  a `WasmSource`).
 - No environment variables or config files are read at runtime.
 - `README.md` documents the public API with usage examples — update it
   when the public interface changes.
