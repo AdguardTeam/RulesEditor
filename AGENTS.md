@@ -180,7 +180,7 @@ and external deps. Shared library may only depend on external deps.
 
 ### Code Quality
 
-- **JSDoc required** — ESLint enforces `jsdoc/require-jsdoc`,
+Shared library (lib/registry, lib/utils, lib/errors)
   `jsdoc/require-description` (complete sentence), and
   `jsdoc/require-returns` on classes, class properties, functions, and
   methods.
