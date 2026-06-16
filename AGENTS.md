@@ -261,7 +261,9 @@ All Markdown files MUST follow these formatting rules:
   code blocks are exempt from this limit.
 - **Unordered lists**: Use dashes (`-`) for bullet points. Indent nested
   list items by 4 spaces.
-- **Emphasis**: Use asterisks (`*`) for emphasis (`*italic*`,
+- No runtime configuration — the library is configured via function
+  parameters (`initEditor` accepts a config object, tokenizers accept
+  a `WasmSource`).
   `**bold**`). Do NOT use underscores.
 - **Headings**: Duplicate heading names are allowed only among sibling
   headings (same parent level). Avoid duplicates across different levels.
