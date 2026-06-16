@@ -18,9 +18,10 @@ pnpm install
 | Command | Purpose |
 | --- | --- |
 | `pnpm run build` | Build UMD bundle to `dist/` via Webpack |
-| `pnpm test` | Run all Jest tests |
-| `pnpm run lint` | Lint `src/index.ts` with ESLint |
-| `pnpm run loadGrammar` | Regenerate TextMate grammar from upstream |
+| `pnpm test` | Run all Vitest tests |
+| `pnpm run test:watch` | Run Vitest in watch mode |
+| `pnpm run lint` | Lint `./src` with ESLint |
+| `pnpm run update-grammars` | Download + optimize TextMate grammars from upstream |
 | `pnpm run increment` | Bump patch version |
 
 ## Updating Grammars
@@ -33,8 +34,15 @@ The JavaScript grammar is based on
 To update to the latest version:
 
 ```sh
-pnpm run loadGrammar
+pnpm run update-grammars
 ```
+
+This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
+every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
+(external) grammar is one the library knows how to resolve. To add a new
+embedded grammar, register its scope in `src/lib/constants.ts`
+(`GRAMMAR_SCOPES`) and add a download entry to the `GRAMMARS` array in
+`scripts/update-grammars.mts`.
 
 Do not edit `src/grammars/*.json` files manually — they are generated.
 

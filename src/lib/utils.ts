@@ -1,31 +1,41 @@
 import { CosmeticRuleMarker } from '@adguard/tsurlfilter';
 
-// Token names that resemble the return types of the CodeMirror-TextMate tokenizer.
+/**
+ * Token names aligned with the CodeMirror 6 / `@lezer/highlight` tag taxonomy.
+ *
+ * Each value is backed by a standard highlight tag (see
+ * `src/highlight/tokenTags.ts`), so editor highlighting works with the built-in
+ * `defaultHighlightStyle` and any consumer-supplied theme.
+ */
 export enum Token {
     Atom = 'atom',
-    Attribute = 'attribute',
-    Bracket = 'bracket',
-    Builtin = 'builtin',
+    AttributeName = 'attributeName',
+    ClassName = 'className',
     Comment = 'comment',
-    Def = 'def',
-    Error = 'error',
-    Header = 'header',
-    HR = 'hr',
+    Definition = 'definition',
+    Emphasis = 'emphasis',
+    Escape = 'escape',
+    Function = 'function',
+    Heading = 'heading',
+    Invalid = 'invalid',
     Keyword = 'keyword',
     Link = 'link',
+    List = 'list',
     Meta = 'meta',
+    Monospace = 'monospace',
     Number = 'number',
     Operator = 'operator',
-    Property = 'property',
-    Qualifier = 'qualifier',
+    PropertyName = 'propertyName',
     Quote = 'quote',
+    Regexp = 'regexp',
+    Self = 'self',
+    Special = 'special',
+    Standard = 'standard',
+    Strong = 'strong',
     String = 'string',
-    String2 = 'string-2',
-    Tag = 'tag',
-    Type = 'type',
-    Variable = 'variable',
-    Variable2 = 'variable-2',
-    Variable3 = 'variable-3',
+    TagName = 'tagName',
+    TypeName = 'typeName',
+    VariableName = 'variableName',
 }
 
 // The return type for both tokenize functions.
@@ -34,7 +44,12 @@ export enum Token {
 export type RuleTokens = { str: string, token: Token | null }[];
 
 /**
- * normalizeTokens - function is designed to merge adjacent rule parts which tokens are identical.
+ * The function is used to normalize the output of the tokenizer by merging adjacent tokens of the same type.
+ *
+ * @param rule The output of the tokenizer function, which is an array of objects containing a string and a token type.
+ * @returns A new array of objects where adjacent tokens of the same type have been merged into a single object.
+ * The `str` property of the merged object is the concatenation of the `str` properties of the original objects,
+ * and the `token` property is the same as the original token type.
  */
 export function normalizeTokens(rule: RuleTokens): RuleTokens {
     const normalizedRule = [rule.shift()!];
@@ -55,7 +70,11 @@ export function normalizeTokens(rule: RuleTokens): RuleTokens {
 
 /**
 * Function is locating the CosmeticRuleMarker and determine its position within a cosmetic rule.
-* Has been taken from: https://github.com/AdguardTeam/tsurlfilter/blob/tsurlfilter-v2.1.12/packages/tsurlfilter/src/rules/cosmetic-rule-marker.ts
+* Has been taken from: https://github.com/AdguardTeam/tsurlfilter/blob/tsurlfilter-v2.1.12/packages/tsurlfilter/src/rules/cosmetic-rule-marker.ts.
+*
+* @param ruleText The text of the cosmetic rule to be analyzed.
+* @returns A tuple containing the index of the found marker
+* and the corresponding CosmeticRuleMarker enum value, or -1 and null if no marker is found.
 */
 export function findCosmeticRuleMarker(ruleText: string): [number, CosmeticRuleMarker | null] {
     const maxIndex = ruleText.length - 1;

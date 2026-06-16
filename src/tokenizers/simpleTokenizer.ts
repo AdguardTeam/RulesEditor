@@ -5,11 +5,12 @@ import type { RuleTokens } from '../lib/utils';
 import { findCosmeticRuleMarker, normalizeTokens, Token } from '../lib/utils';
 
 /**
- * simpleTokenizer - provides a tokenizer function for splitting a filter ruleRaw into tokenized parts,
+ * Provides a tokenizer function for splitting a filter ruleRaw into tokenized parts,
  * which aids in highlighting individual segments of a single ruleRaw. Because it does not utilize WebAssembly,
- * the outcome is not as precise as the tokenizer obtained from getTokenizer
- * @param ruleRaw - user rule
- * @returns RuleTokens
+ * the outcome is not as precise as the tokenizer obtained from getTokenizer.
+ *
+ * @param ruleRaw - User rule.
+ * @returns RuleTokens.
  */
 export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
     if (RuleFactory.isComment(ruleRaw)) {
@@ -21,7 +22,7 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
         if (rule.isRegexRule()) {
             return [
                 { token: Token.Keyword, str: '/' },
-                { token: Token.String2, str: ruleRaw.slice(1, -1) },
+                { token: Token.Regexp, str: ruleRaw.slice(1, -1) },
                 { token: Token.Keyword, str: '/' },
             ];
         }
@@ -89,7 +90,7 @@ export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
         return [
             { token: Token.String, str: beforeMarket },
             { token: Token.Keyword, str: marker! },
-            { token: Token.Def, str: afterMarker[0] },
+            { token: Token.Definition, str: afterMarker[0] },
         ];
     }
 

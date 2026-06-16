@@ -1,3 +1,4 @@
+import { test, expect } from 'vitest';
 import { simpleTokenizer } from '../src/tokenizers/simpleTokenizer';
 
 test('Rule: @@|https://example.org/unified/someJsFile.js$domain=domain.one.com|domaintwo.com|domainthree.com', () => {
@@ -17,7 +18,7 @@ test('Rule: example.com.it#@##some-sdk', () => {
     const result = [
         { token: 'string', str: 'example.com.it' },
         { token: 'keyword', str: '#@#' },
-        { token: 'def', str: '#some-sdk' },
+        { token: 'definition', str: '#some-sdk' },
     ];
     expect(simpleTokenizer(rule)).toEqual(result);
 });
@@ -27,7 +28,7 @@ test('Rule: example.com#@#.cookie-confirm', () => {
     const result = [
         { token: 'string', str: 'example.com' },
         { token: 'keyword', str: '#@#' },
-        { token: 'def', str: '.cookie-confirm' },
+        { token: 'definition', str: '.cookie-confirm' },
     ];
     expect(simpleTokenizer(rule)).toEqual(result);
 });
@@ -48,7 +49,7 @@ test('Rule: /example.org/', () => {
     const rule = '/example.org/';
     const result = [
         { token: 'keyword', str: '/' },
-        { token: 'string-2', str: 'example.org' },
+        { token: 'regexp', str: 'example.org' },
         { token: 'keyword', str: '/' },
     ];
     expect(simpleTokenizer(rule)).toEqual(result);

@@ -1,206 +1,152 @@
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import * as CodeMirror from 'codemirror';
+import { EditorState, type Extension } from '@codemirror/state';
+import { EditorView, lineNumbers, keymap } from '@codemirror/view';
+import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
+import { search } from '@codemirror/search';
 
-import type { ITextmateThemePlus } from 'codemirror-textmate';
-import { addTheme } from 'codemirror-textmate';
-
-import { initGrammar } from './lib/initGrammar';
-
-// Enabling find and replace functionality
-import 'codemirror/addon/search/searchcursor';
-import 'codemirror/addon/search/search';
-import 'codemirror/addon/dialog/dialog';
-// Enabling comment functionality
-import './commands/comment';
-// Enabling move/copy lines up and down functionality
-import './commands/lines';
+import { SCOPE_ADBLOCK } from './lib/constants';
+import { configureRegistry, getGrammar, type WasmSource } from './lib/registry';
+import { createTextmateLanguage } from './highlight/textmateLanguage';
+import {
+    breakpointState,
+    toggleBreakpoint,
+    isBreakpointAt,
+    enabledRuleLines,
+    setMarkerFactory,
+} from './commands/breakpoints';
 import { configureHotKeys, createMarker } from './commands/hotKeys';
 import { RulesBuilder } from './rulesBuilder/RulesBuilder';
 
-export type EditorFromTextArea = CodeMirror.EditorFromTextArea;
-
-// Editor enabled syntax mode, we have it here as constant temporary, then it should be exported from lib
-export const EDITOR_DEFAULT_MODE = 'adblock';
-export const MAX_HIGHLIGHTED_LINES = 1000;
+export { EditorView };
 
 /**
- * InitEditor - function initializes a CodeMirror editor with syntax highlighting for AdGuard filter rules.
- * @param element - Textarea element in your HTML.
- * @param wasm - WebAssembly module provided by onigasm.
- * @param conf - Configuration for initialization of CodeMirror and hotkeys.
- * @returns - Promise<CodeMirror.EditorFromTextArea>. CodeMirror instance.
+ * Configuration for {@link initEditor}.
+ */
+export interface InitEditorConfig {
+    /** Enables the enabled-rule gutter. */
+    withBreakpoints?: boolean;
+    /** Called after each document change. */
+    onChange?: (view: EditorView) => void;
+    /** Hotkey configuration. */
+    hotkeys: {
+        mode: 'windows' | 'mac';
+        markerColor?: string;
+        markerHTML?: string;
+        toggleRule?: (view: EditorView) => void;
+        onSave?: (view: EditorView) => void;
+    };
+    /** Extra CodeMirror 6 extensions appended last. */
+    extensions?: Extension[];
+}
+
+/**
+ * Initializes a CodeMirror 6 editor with adblock TextMate highlighting and the
+ * AdGuard rule-editing extensions, replacing the provided textarea.
+ *
+ * @param element The textarea to replace.
+ * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
+ *   Promise/thunk); URL/string inputs are fetched. See {@link WasmSource}.
+ * @param conf Editor configuration.
+ * @returns The created {@link EditorView}.
+ * @throws {WasmLoadError} If the WASM binary cannot be loaded.
  */
 export async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: any,
-    conf: {
-        // Describes if breakpoint gutter will be used
-        withBreakpoints?: boolean,
-        // Callback for change event
-        onChange?: (editor: CodeMirror.Editor, makeMarker: () => HTMLDivElement) => void,
-        // Configuration for hotkeys
-        hotkeys: {
-            // OS mode for hotkeys mapping
-            mode: 'windows' | 'mac',
-            // Color of the marker for placing on the gutter (describes if rule is enabled)
-            markerColor?: string,
-            // HTML of the marker
-            markerHTML?: string,
-            // Callback for toggle rule
-            toggleRule?: (editor: CodeMirror.Editor) => void,
-            // Callback for save
-            onSave?: (editor: CodeMirror.Editor) => void,
-        },
-        // Extended configuration of CodeMirror
-        editor?: CodeMirror.EditorConfiguration,
-        // Additional theme for CodeMirror
-        theme?: ITextmateThemePlus,
-    },
-): Promise<EditorFromTextArea> {
-    await initGrammar(wasm);
+    wasm: WasmSource,
+    conf: InitEditorConfig,
+): Promise<EditorView> {
+    configureRegistry(wasm);
+    const grammar = await getGrammar(SCOPE_ADBLOCK);
 
-    const { hotkeys, editor: editorConfig, theme } = conf;
+    setMarkerFactory(createMarker({
+        color: conf.hotkeys.markerColor,
+        innerHTML: conf.hotkeys.markerHTML,
+    }));
 
-    const config: CodeMirror.EditorConfiguration = {
-        ...(editorConfig || {}),
-        lineNumbers: true,
-        mode: 'adblock',
-    };
+    const extensions: Extension[] = [
+        lineNumbers(),
+        history(),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        search(),
+        createTextmateLanguage(grammar),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        configureHotKeys({
+            onToggleRule: conf.hotkeys.toggleRule,
+            onSave: conf.hotkeys.onSave,
+        }),
+    ];
 
     if (conf.withBreakpoints) {
-        config.gutters = ['CodeMirror-linenumbers', 'breakpoints'];
+        extensions.push(breakpointState());
     }
-
-    if (theme) {
-        addTheme(theme);
-        config.theme = theme.name;
-    }
-
-    const editor = CodeMirror.fromTextArea(element, config);
-
-    const keys = configureHotKeys({
-        commentCallback: (cm) => {
-            hotkeys.toggleRule?.(cm);
-        },
-        markerOptions: {
-            color: hotkeys.markerColor,
-            innerHTML: hotkeys.markerHTML,
-        },
-    });
 
     if (conf.onChange) {
-        editor.on('change', () => {
-            conf.onChange!(editor, keys.makeMarker);
-        });
-    }
-
-    if (hotkeys.mode === 'mac' && conf.withBreakpoints) {
-        editor.on('gutterClick', (cm: any, n: number) => {
-            const info = cm.lineInfo(n);
-            if (RulesBuilder.getRuleType(info.text) !== 'comment') {
-                cm.setGutterMarker(n, 'breakpoints', info.gutterMarkers ? null : keys.makeMarker());
-                hotkeys.toggleRule?.(cm);
+        extensions.push(EditorView.updateListener.of((update) => {
+            if (update.docChanged) {
+                conf.onChange!(update.view);
             }
-        });
-        editor.setOption('extraKeys', {
-            'Cmd-R': 'replace',
-            'Cmd-/': keys.onComment,
-            'Cmd-S': conf.hotkeys.onSave || (() => {}),
-            'Cmd-C': keys.onCopy,
-            'Cmd-V': () => {
-                keys.onPaste(editor);
-            },
-            'Cmd-X': keys.onCut,
-            'Alt-Up': keys.moveLineUp,
-            'Shift-Alt-Up': keys.copyLineUp,
-            'Shift-Alt-Down': keys.copyLineDown,
-            'Alt-Down': keys.moveLineDown,
-        });
-    } else {
-        editor.setOption('extraKeys', {
-            'Mod-/': (editorInstance) => {
-                conf.hotkeys.toggleRule?.(editorInstance);
-            },
-            'Mod-H': 'replace',
-            'Alt-Up': 'moveLineUp',
-            'Alt-Down': 'moveLineDown',
-            'Shift-Alt-Up': 'copyLineUp',
-            'Shift-Alt-Down': 'copyLineDown',
-            'Mod-S': () => hotkeys.onSave?.(editor),
-        });
-        editor.on('gutterClick', (editorInstance, line) => {
-            editorInstance.setCursor(line);
-            conf.hotkeys.toggleRule?.(editorInstance);
+        }));
+    }
+
+    if (conf.extensions) {
+        extensions.push(...conf.extensions);
+    }
+
+    const view = new EditorView({
+        state: EditorState.create({ doc: element.value, extensions }),
+    });
+
+    // Replace the textarea (CM5 fromTextArea parity).
+    element.parentNode?.insertBefore(view.dom, element);
+    element.style.display = 'none';
+    if (element.form) {
+        element.form.addEventListener('submit', () => {
+            element.value = view.state.doc.toString();
         });
     }
 
-    return editor;
+    return view;
 }
-// Function to get rules from editor with gutter markers
-export const getRulesFromEditor = (editor: CodeMirror.Editor) => {
-    // Get editor document
-    const doc = editor.getDoc();
-    try {
-        // Get total number of lines
-        const totalLines = doc.lineCount();
-        let i = 0;
-        const rules: { enabled: boolean, rule: string }[] = [];
 
-        // Process each line
-        while (i <= totalLines) {
-            const info = editor.lineInfo(i);
-            if (info && info.text) {
-                rules.push({ enabled: !!info.gutterMarkers, rule: info.text });
+/**
+ * Reads rules and their enabled flags from the editor.
+ *
+ * @param view The editor view.
+ * @returns One entry per line with its text and enabled flag.
+ */
+export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: string }[] {
+    const enabled = new Set(enabledRuleLines(view.state));
+    const rules: { enabled: boolean; rule: string }[] = [];
+    for (let i = 1; i <= view.state.doc.lines; i += 1) {
+        const line = view.state.doc.line(i);
+        rules.push({ enabled: enabled.has(i), rule: line.text });
+    }
+    return rules;
+}
+
+/**
+ * Replaces the editor content and restores enabled-rule markers.
+ *
+ * @param view The editor view.
+ * @param value Rules with enabled flags.
+ * @param markerOptions Marker color/HTML overrides.
+ * @returns Nothing.
+ */
+export function setEditorValue(
+    view: EditorView,
+    value: { enabled: boolean; rule: string }[],
+    markerOptions: { color?: string; innerHTML?: string },
+): void {
+    setMarkerFactory(createMarker(markerOptions));
+    const doc = value.map((v) => v.rule).join('\n');
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+
+    value.forEach((v, index) => {
+        if (v.enabled && RulesBuilder.getRuleType(v.rule) !== 'comment') {
+            const line = view.state.doc.line(index + 1);
+            if (!isBreakpointAt(view.state, line.from)) {
+                view.dispatch({ effects: toggleBreakpoint.of(line.from) });
             }
-            i++;
         }
-        return rules;
-    } catch {
-        // Fallback - return raw editor value if processing fails
-        return editor.getValue();
-    }
-};
-
-// Function to configure editor mode
-export const configureEditorMode = (editor: CodeMirror.Editor) => {
-    const doc = editor.getDoc();
-    try {
-        // Get total number of lines
-        const totalLines = doc.lineCount();
-        if (totalLines > MAX_HIGHLIGHTED_LINES && editor.getOption('mode') === EDITOR_DEFAULT_MODE) {
-            editor.setOption('mode', undefined);
-        }
-        if (totalLines <= MAX_HIGHLIGHTED_LINES && editor.getOption('mode') !== EDITOR_DEFAULT_MODE) {
-            editor.setOption('mode', EDITOR_DEFAULT_MODE);
-        }
-    } catch (e) {
-        // If some unexpected error occurs, do nothing, logs will appear in console
-        // eslint-disable-next-line no-console
-        console.error(e instanceof Error ? e.message : 'Unknown error');
-    }
-};
-
-// Function to set editor value with gutter markers
-export const setEditorValue = (
-    editor: CodeMirror.Editor,
-    value: { enabled: boolean, rule: string }[],
-    markerOptions: { color?: string, innerHTML?: string },
-) => {
-    // Array to store line numbers of enabled rules
-    const enabledLines: number[] = [];
-    // Split editor value by lines and process each line
-    const data = value.map(({ enabled, rule }, index) => {
-        // If rule is enabled and not a comment, store its line number
-        if (enabled && RulesBuilder.getRuleType(rule) !== 'comment') {
-            enabledLines.push(index);
-        }
-        return rule;
     });
-    editor.setValue(data.join('\n'));
-    // Add gutter markers for enabled rules
-    const makeMarker = createMarker(markerOptions);
-    enabledLines.forEach((l) => {
-        editor.setGutterMarker(l, 'breakpoints', makeMarker());
-    });
-    configureEditorMode(editor);
-};
+}

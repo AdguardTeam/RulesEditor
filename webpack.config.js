@@ -1,6 +1,5 @@
 const webpack = require('webpack');
 const path = require('path');
-const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
     mode: 'production',
@@ -11,12 +10,20 @@ module.exports = {
         path: path.resolve(__dirname, './dist'),
         filename: '[name].js',
         clean: true,
-        publicPath: '/',
-        assetModuleFilename: '[name][ext]',
         library: {
             type: 'umd'
         }
     },
+    // CodeMirror and Lezer packages MUST NOT be bundled. The editor relies on
+    // `instanceof` checks (e.g. for extension values and facets), which break
+    // when two copies of `@codemirror/state` are loaded — one bundled here and
+    // one from the consumer. Externalizing them forces the consumer's bundler
+    // to resolve a single shared copy.
+    externalsType: 'umd',
+    externals: [
+        /^@codemirror\/.+$/,
+        /^@lezer\/.+$/,
+    ],
     resolve: {
         extensions: ['.ts', '.js'],
         fallback: {
@@ -33,20 +40,11 @@ module.exports = {
                 }],
                 exclude: /node_modules/,
             },
-            {
-                test: /\.wasm$/,
-                type: 'asset/resource'
-            }
         ]
     },
     plugins: [
         new webpack.DefinePlugin({
             process: { env: {} },
         }),
-        new CopyPlugin({
-            patterns: [
-              { from: 'node_modules/codemirror/lib/codemirror.css', to: './' },
-            ],
-          }),
     ],
 };

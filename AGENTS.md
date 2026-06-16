@@ -1,7 +1,9 @@
+<!-- omit in toc -->
 # AGENTS.md
 
 ## Table of Contents
 
+- [Table of Contents](#table-of-contents)
 - [Project Overview](#project-overview)
 - [Technical Context](#technical-context)
 - [Project Structure](#project-structure)
@@ -13,7 +15,7 @@
     - [Code Quality](#code-quality)
     - [Testing](#testing)
     - [Dependency Management](#dependency-management)
-    - [Configuration & Documentation](#configuration--documentation)
+    - [Configuration \& Documentation](#configuration--documentation)
     - [Markdown Formatting](#markdown-formatting)
 
 ## Project Overview
@@ -21,8 +23,8 @@
 `@adguard/rules-editor` is a browser-based text editor library for AdGuard
 filter rules. It provides:
 
-1. A CodeMirror 5 editor with TextMate-based syntax highlighting for
-   adblock filter rules (using WebAssembly Oniguruma via `onigasm`).
+1. A CodeMirror 6 editor with TextMate-based syntax highlighting for
+   adblock filter rules (using WebAssembly Oniguruma via `vscode-oniguruma`).
 2. A full tokenizer (WASM-backed) that splits a rule into highlighted
    segments for custom rendering outside the editor.
 3. A simple tokenizer (no WASM) for lightweight rule tokenization.
@@ -34,9 +36,9 @@ filter rules. It provides:
 | Field | Value |
 | --- | --- |
 | Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 5, codemirror-textmate, onigasm (WASM), @adguard/tsurlfilter |
+| Primary Dependencies | CodeMirror 6 (@codemirror/*), vscode-textmate, vscode-oniguruma (WASM), @adguard/tsurlfilter |
 | Storage | None (client-side library) |
-| Testing | Jest + ts-jest |
+| Testing | Vitest |
 | Target Platform | Browser (bundled as UMD via Webpack) |
 | Project Type | Library / Package |
 | Performance Goals | N/A |
@@ -48,23 +50,32 @@ filter rules. It provides:
 ```text
 ├── src/
 │   ├── index.ts                  # Public API entry point (re-exports)
-│   ├── initEditor.ts             # CodeMirror editor initialization
-│   ├── commands/                 # Editor hotkeys, commenting, line ops
+│   ├── initEditor.ts             # CodeMirror 6 editor initialization
+│   ├── commands/
+│   │   ├── breakpoints.ts        # Enabled-rule gutter state (CM6)
+│   │   └── hotKeys.ts            # CM6 keymap builder
 │   ├── grammars/                 # TextMate grammar JSON files (adblock, JS)
+│   ├── highlight/
+│   │   ├── tokenTags.ts          # Token → standard @lezer/highlight Tag map
+│   │   ├── scopeToToken.ts       # TextMate scope to Token mapping
+│   │   └── textmateLanguage.ts   # StreamLanguage for CM6
 │   ├── lib/
-│   │   ├── initGrammar.ts        # WASM + grammar loader (singleton)
+│   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError, UnknownThemeError
+│   │   ├── registry.ts           # Lazy Oniguruma + vscode-textmate Registry
+│   │   ├── types.ts              # TokenSegment type
 │   │   └── utils.ts              # Token enum, normalizeTokens helper
 │   ├── rulesBuilder/
 │   │   ├── RulesBuilder.ts       # Static factory for rule builders
 │   │   └── rules/                # Individual rule type builders (6 types)
 │   └── tokenizers/
-│       ├── getFullTokenizer.ts   # WASM-based tokenizer
+│       ├── getFullTokenizer.ts   # WASM-based tokenizer (vscode-textmate)
+│       ├── inspectLine.ts        # Line→TokenSegment[] utility
 │       └── simpleTokenizer.ts    # Regex-based tokenizer (no WASM)
-├── test/                         # Jest test files
+├── test/                         # Vitest test files
 ├── scripts/                      # Build-time scripts (grammar loader)
 ├── webpack.config.js             # UMD bundle config
 ├── tsconfig.json                 # Main TypeScript config
-├── jest.config.js                # Jest config
+├── vitest.config.ts              # Vitest config
 ├── package.json                  # Package manifest
 └── .eslintrc                     # ESLint config (airbnb-typescript)
 ```
@@ -74,9 +85,9 @@ filter rules. It provides:
 | Command | Purpose |
 | --- | --- |
 | `pnpm run build` | Build UMD bundle to `dist/` via Webpack |
-| `pnpm test` | Run all Jest tests |
+| `pnpm test` | Run all Vitest tests |
 | `pnpm run lint` | Lint `src/index.ts` with ESLint |
-| `pnpm run loadGrammar` | Regenerate TextMate grammar from upstream |
+| `pnpm run update-grammars` | Download + optimize TextMate grammars from upstream |
 | `pnpm run increment` | Bump patch version |
 
 ## Contribution Instructions
@@ -161,7 +172,7 @@ Features (initEditor, tokenizers, rulesBuilder)
      ↓
 Shared library (lib/initGrammar, lib/utils)
      ↓
-External deps (codemirror, codemirror-textmate, onigasm, tsurlfilter)
+External deps (codemirror, vscode-textmate, vscode-oniguruma, tsurlfilter)
 ```
 
 Public API re-exports features. Features may depend on shared library
@@ -189,7 +200,10 @@ and external deps. Shared library may only depend on external deps.
 
 - Tests live in `test/` directory at repo root.
 - Test files follow `*.test.ts` naming convention.
-- Framework: Jest with `ts-jest` preset, node environment.
+- Framework: Vitest (no globals; every file imports `test`/`expect` etc.
+  explicitly from `vitest`).
+- Default environment is `node`; editor/gutter tests use `@vitest-environment
+  jsdom` docblock.
 - Tests are plain `test()` calls (no `describe` blocks currently).
 - Each rule builder type has coverage for building rules and parsing
   them back from strings.
@@ -226,6 +240,9 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 - `path-browserify` and `util` — polyfills for Node built-ins needed
   by Webpack browser bundle; acceptable but should be evaluated for
   removal if upstream deps drop Node API usage.
+- `path-browserify` and `util` — polyfills for Node built-ins needed
+  by Webpack browser bundle; acceptable but should be evaluated for
+  removal if upstream deps drop Node API usage.
 
 ### Configuration & Documentation
 
@@ -236,7 +253,7 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 - `README.md` documents the public API with usage examples — update it
   when the public interface changes.
 - Grammar JSON files in `src/grammars/` are generated by
-  `pnpm run loadGrammar` — do not edit them manually.
+  `pnpm run update-grammars` — do not edit them manually.
 
 ### Markdown Formatting
 

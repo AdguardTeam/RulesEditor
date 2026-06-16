@@ -16,14 +16,12 @@
         "strict": true,
         "resolveJsonModule": true,
         "types": [
-            "node",
-            "jest"
+            "node"
         ],
         "useDefineForClassFields": true
     },
     "include": [
-        "src/**/*",
-        "./declaration.d.ts"
+        "src/**/*"
     ],
     "exclude": []
   }

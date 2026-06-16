@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<!-- TODO: Add release date -->
+## 2.0.0
+
+### Added
+
+- `inspectLine` utility returning per-token segments with TextMate scope stacks
+- Public error classes: `WasmLoadError`, `GrammarNotFoundError`, `UnknownThemeError`
+- `TokenSegment` type and `WasmSource` type
+- `normalizeTokens` exported for custom tokenization pipelines
+
+### Changed
+
+- **Breaking:** Migrated editor from CodeMirror 5 to CodeMirror 6; `initEditor` now returns `EditorView` with a new configuration shape
+- **Breaking:** Token enum values aligned with `@lezer/highlight` tag taxonomy (e.g. `Def` → `Definition`, `String2` → `Regexp`, `Tag` → `TagName`)
+- **Breaking:** WASM backend changed from `onigasm` to `vscode-oniguruma` + `vscode-textmate`; the library no longer exports a `wasm` URL — pass a flexible `WasmSource` instead
+- **Breaking:** `getFullTokenizer` no longer accepts a `theme` argument
+- **Breaking:** CodeMirror packages (`@codemirror/*`, `@lezer/*`) moved to `peerDependencies`; the consumer's bundler must supply them
+- **Breaking:** Removed `configureEditorMode` and `EDITOR_DEFAULT_MODE` — syntax highlighting is now always active
+- Editor commands (comment toggle, line move/copy, search) now use CodeMirror 6 built-ins
+- Grammars are now optimized at build time via `oniguruma-parser`
+- Grammars are updated
+
+### Fixed
+
+- Comment toggle no longer marks comment-only lines as enabled
+- `BlockRequestRule` and `UnblockRequestRule` now correctly include the `important` modifier in rule output
+- `NoFilteringRule` no longer appends a trailing `$`
+
 ## 1.3.3 - 2026-06-08
 
 - Fix @adguard/scriplets dependency
