@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { optimize } from 'oniguruma-parser/optimizer';
 
