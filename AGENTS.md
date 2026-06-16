@@ -14,7 +14,6 @@
     - [Architecture](#architecture)
     - [Code Quality](#code-quality)
     - [Testing](#testing)
-    - [Dependency Management](#dependency-management)
     - [Configuration \& Documentation](#configuration--documentation)
     - [Markdown Formatting](#markdown-formatting)
 
@@ -195,6 +194,9 @@ Shared library (lib/registry, lib/utils, lib/errors)
   to allow safe repeated calls.
 - **Naming** — files use camelCase; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
+  **Exception**: generated TextMate grammar files in `src/grammars/` use
+  the standard `<scope>.tmLanguage.json` convention (e.g.
+  `adblock.tmLanguage.json`).
 
 ### Testing
 
