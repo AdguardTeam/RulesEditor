@@ -1,5 +1,5 @@
 import { SCOPE_ADBLOCK } from '../lib/constants';
-import { getGrammar } from '../lib/registry';
+import { configureRegistry, getGrammar, type WasmSource } from '../lib/registry';
 import { resolveToken } from '../highlight/scopeToToken';
 import type { TokenSegment } from '../lib/types';
 
@@ -8,16 +8,21 @@ import type { TokenSegment } from '../lib/types';
  * per TextMate token, each with its text, offsets, scope stack, and resolved
  * highlight token. Intended for tests and grammar debugging.
  *
+ * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
+ *   Promise/thunk); URL/string inputs are fetched. See {@link WasmSource}.
  * @param line The line of text to tokenize.
  * @param scopeName The top-level grammar scope. Defaults to {@link SCOPE_ADBLOCK}.
  * @returns A contiguous, gap-free list of segments covering the whole line.
+ * @throws {WasmLoadError} If the WASM binary cannot be loaded.
  * @throws {GrammarNotFoundError} If the registry is not initialized or the
  * scope is unknown.
  */
 export async function inspectLine(
+    wasm: WasmSource,
     line: string,
     scopeName = SCOPE_ADBLOCK,
 ): Promise<TokenSegment[]> {
+    configureRegistry(wasm);
     if (line.length === 0) {
         return [];
     }

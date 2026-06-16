@@ -33,18 +33,3 @@ export class GrammarNotFoundError extends Error {
         this.name = 'GrammarNotFoundError';
     }
 }
-
-/**
- * Thrown when an editor/tokenizer is requested with an unregistered theme name.
- */
-export class UnknownThemeError extends Error {
-    /**
-     * Creates an UnknownThemeError.
-     *
-     * @param themeName The unknown theme name.
-     */
-    constructor(themeName: string) {
-        super(`Unknown theme '${themeName}'.`);
-        this.name = 'UnknownThemeError';
-    }
-}

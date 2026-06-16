@@ -3,7 +3,6 @@ export { inspectLine } from './tokenizers/inspectLine';
 export type { WasmSource } from './lib/registry';
 export {
     initEditor,
-    EditorView,
     getRulesFromEditor,
     setEditorValue,
     type InitEditorConfig,
@@ -15,7 +14,6 @@ export type { TokenSegment } from './lib/types';
 export {
     WasmLoadError,
     GrammarNotFoundError,
-    UnknownThemeError,
 } from './lib/errors';
 export { RulesBuilder, RuleType, DnsRuleType } from './rulesBuilder/RulesBuilder';
 export {

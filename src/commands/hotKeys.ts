@@ -9,6 +9,7 @@ import {
 import { openSearchPanel } from '@codemirror/search';
 import type { Extension } from '@codemirror/state';
 import { toggleBreakpoint, isBreakpointAt } from './breakpoints';
+import { RulesBuilder } from '../rulesBuilder/RulesBuilder';
 
 /**
  * Creates the marker DOM factory used for enabled rules in the gutter.
@@ -47,8 +48,11 @@ export function configureHotKeys(handlers: {
             key: 'Mod-/',
             run: (view): boolean => {
                 const line = view.state.doc.lineAt(view.state.selection.main.head);
-                view.dispatch({ effects: toggleBreakpoint.of(line.from) });
-                handlers.onToggleRule?.(view);
+                const isComment = RulesBuilder.getRuleType(line.text) === 'comment';
+                if (!isComment) {
+                    view.dispatch({ effects: toggleBreakpoint.of(line.from) });
+                    handlers.onToggleRule?.(view);
+                }
                 return toggleComment(view);
             },
         },

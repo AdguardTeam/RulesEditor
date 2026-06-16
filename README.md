@@ -82,7 +82,7 @@ const tokens2 = simpleTokenizer('||example.org^$important');
 import { inspectLine } from '@adguard/rules-editor';
 
 const wasm = new URL('vscode-oniguruma/release/onig.wasm', import.meta.url);
-const segments = await inspectLine('||example.org^$important');
+const segments = await inspectLine(wasm, '||example.org^$important');
 // segments: TokenSegment[] — each with text, startIndex, endIndex,
 //            scopes (full TextMate scope stack), and token (resolved class)
 ```

@@ -240,9 +240,6 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 - `path-browserify` and `util` — polyfills for Node built-ins needed
   by Webpack browser bundle; acceptable but should be evaluated for
   removal if upstream deps drop Node API usage.
-- `path-browserify` and `util` — polyfills for Node built-ins needed
-  by Webpack browser bundle; acceptable but should be evaluated for
-  removal if upstream deps drop Node API usage.
 
 ### Configuration & Documentation
 
