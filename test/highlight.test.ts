@@ -7,7 +7,7 @@ import { EditorView } from '@codemirror/view';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { SCOPE_ADBLOCK } from '../src/lib/constants';
-import { configureRegistry, getGrammar, resetRegistryForTests } from '../src/lib/registry';
+import { RegistryManager } from '../src/lib/registry';
 import { createTextmateLanguage } from '../src/highlight/textmateLanguage';
 import { tokenTags } from '../src/highlight/tokenTags';
 import { Token } from '../src/lib/utils';
@@ -16,7 +16,7 @@ const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
 ).buffer;
 
-beforeEach(() => resetRegistryForTests());
+beforeEach(() => RegistryManager.resetForTests());
 
 test('tokenTags maps tokens to standard @lezer/highlight tags', () => {
     expect(tokenTags[Token.Comment]).toBe(tags.comment);
@@ -25,8 +25,8 @@ test('tokenTags maps tokens to standard @lezer/highlight tags', () => {
 });
 
 test('wraps a comment in a highlighted span via defaultHighlightStyle', async () => {
-    configureRegistry(wasm);
-    const grammar = await getGrammar(SCOPE_ADBLOCK);
+    RegistryManager.configureRegistry(wasm);
+    const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
     const language = createTextmateLanguage(grammar);
     const view = new EditorView({
         state: EditorState.create({

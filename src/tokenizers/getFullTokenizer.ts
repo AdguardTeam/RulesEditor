@@ -1,7 +1,7 @@
 import { normalizeTokens } from '../lib/utils';
 import type { RuleTokens } from '../lib/utils';
 import { SCOPE_ADBLOCK } from '../lib/constants';
-import { configureRegistry, getGrammar, type WasmSource } from '../lib/registry';
+import { RegistryManager, type WasmSource } from '../lib/registry';
 import { resolveToken } from '../highlight/scopeToToken';
 
 /**
@@ -18,8 +18,8 @@ import { resolveToken } from '../highlight/scopeToToken';
 export async function getFullTokenizer(
     wasm: WasmSource,
 ): Promise<(rule: string) => RuleTokens> {
-    configureRegistry(wasm);
-    const grammar = await getGrammar(SCOPE_ADBLOCK);
+    RegistryManager.configureRegistry(wasm);
+    const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
 
     return function parseRule(rule: string): RuleTokens {
         if (rule.length === 0) {

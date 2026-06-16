@@ -5,7 +5,7 @@ import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { search } from '@codemirror/search';
 
 import { SCOPE_ADBLOCK } from './lib/constants';
-import { configureRegistry, getGrammar, type WasmSource } from './lib/registry';
+import { RegistryManager, type WasmSource } from './lib/registry';
 import { createTextmateLanguage } from './highlight/textmateLanguage';
 import {
     breakpointState,
@@ -55,8 +55,8 @@ export async function initEditor(
     wasm: WasmSource,
     conf: InitEditorConfig,
 ): Promise<EditorView> {
-    configureRegistry(wasm);
-    const grammar = await getGrammar(SCOPE_ADBLOCK);
+    RegistryManager.configureRegistry(wasm);
+    const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
 
     setMarkerFactory(createMarker({
         color: conf.hotkeys.markerColor,

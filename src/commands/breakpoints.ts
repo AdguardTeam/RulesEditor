@@ -14,39 +14,44 @@ import { GutterMarker, gutter } from '@codemirror/view';
 export const toggleBreakpoint = StateEffect.define<number>();
 
 /**
- * Gutter marker rendered for an enabled rule line.
+ * Gutter marker rendered for an enabled rule line. Also owns the (mutable) DOM
+ * factory used to render markers, grouped as static members instead of loose
+ * module-level state.
  */
 class BreakpointMarker extends GutterMarker {
-    /** Marker DOM element factory provided by the editor configuration. */
-    private readonly make: () => HTMLElement;
+    /** The current factory producing an enabled-rule marker element. */
+    private static factory: () => HTMLElement = BreakpointMarker.defaultMarker;
 
     /**
-     * Creates a BreakpointMarker.
+     * Builds the default marker element (a filled circle).
      *
-     * @param make Factory producing the marker DOM element.
+     * @returns The default marker DOM element.
      */
-    constructor(make: () => HTMLElement) {
-        super();
-        this.make = make;
+    private static defaultMarker(): HTMLElement {
+        const el = document.createElement('div');
+        el.textContent = '\u25CF';
+        return el;
     }
 
     /**
-     * Renders the marker element.
+     * Sets the factory used to render enabled-rule markers.
+     *
+     * @param make Factory producing a marker element.
+     * @returns Nothing.
+     */
+    public static setFactory(make: () => HTMLElement): void {
+        BreakpointMarker.factory = make;
+    }
+
+    /**
+     * Renders the marker element using the current factory.
      *
      * @returns The marker DOM node.
      */
     public toDOM(): HTMLElement {
-        return this.make();
+        return BreakpointMarker.factory();
     }
 }
-
-const defaultMake = (): HTMLElement => {
-    const el = document.createElement('div');
-    el.textContent = '\u25CF';
-    return el;
-};
-
-let markerFactory: () => HTMLElement = defaultMake;
 
 /**
  * Sets the DOM factory used to render enabled-rule markers.
@@ -55,7 +60,7 @@ let markerFactory: () => HTMLElement = defaultMake;
  * @returns Nothing.
  */
 export function setMarkerFactory(make: () => HTMLElement): void {
-    markerFactory = make;
+    BreakpointMarker.setFactory(make);
 }
 
 const breakpointField = StateField.define<RangeSet<GutterMarker>>({
@@ -71,7 +76,7 @@ const breakpointField = StateField.define<RangeSet<GutterMarker>>({
                 });
                 next = has
                     ? next.update({ filter: (from) => from !== pos })
-                    : next.update({ add: [new BreakpointMarker(markerFactory).range(pos)] });
+                    : next.update({ add: [new BreakpointMarker().range(pos)] });
             }
         });
         return next;
@@ -89,7 +94,7 @@ export function breakpointState(): Extension {
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField),
-            initialSpacer: () => new BreakpointMarker(markerFactory),
+            initialSpacer: () => new BreakpointMarker(),
         }),
     ];
 }

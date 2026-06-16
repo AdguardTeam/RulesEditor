@@ -2,13 +2,13 @@ import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { inspectLine } from '../src/tokenizers/inspectLine';
-import { resetRegistryForTests } from '../src/lib/registry';
+import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
 ).buffer;
 
-beforeEach(() => resetRegistryForTests());
+beforeEach(() => RegistryManager.resetForTests());
 
 test('segments cover the whole line contiguously', async () => {
     const line = '||example.org^$important';

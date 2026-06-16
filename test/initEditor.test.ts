@@ -3,13 +3,13 @@ import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { initEditor, getRulesFromEditor, setEditorValue } from '../src/initEditor';
-import { resetRegistryForTests } from '../src/lib/registry';
+import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
 ).buffer;
 
-beforeEach(() => resetRegistryForTests());
+beforeEach(() => RegistryManager.resetForTests());
 
 test('mounts an editor and highlights a comment', async () => {
     const textarea = document.createElement('textarea');

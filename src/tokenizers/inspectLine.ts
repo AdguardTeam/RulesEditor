@@ -1,5 +1,5 @@
 import { SCOPE_ADBLOCK } from '../lib/constants';
-import { configureRegistry, getGrammar, type WasmSource } from '../lib/registry';
+import { RegistryManager, type WasmSource } from '../lib/registry';
 import { resolveToken } from '../highlight/scopeToToken';
 import type { TokenSegment } from '../lib/types';
 
@@ -22,11 +22,11 @@ export async function inspectLine(
     line: string,
     scopeName = SCOPE_ADBLOCK,
 ): Promise<TokenSegment[]> {
-    configureRegistry(wasm);
+    RegistryManager.configureRegistry(wasm);
     if (line.length === 0) {
         return [];
     }
-    const grammar = await getGrammar(scopeName);
+    const grammar = await RegistryManager.getGrammar(scopeName);
     const { tokens } = grammar.tokenizeLine(line, null);
     return tokens.map((t) => ({
         text: line.slice(t.startIndex, t.endIndex),

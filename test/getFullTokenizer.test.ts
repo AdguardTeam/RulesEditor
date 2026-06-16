@@ -2,13 +2,13 @@ import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { getFullTokenizer } from '../src/tokenizers/getFullTokenizer';
-import { resetRegistryForTests } from '../src/lib/registry';
+import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
 ).buffer;
 
-beforeEach(() => resetRegistryForTests());
+beforeEach(() => RegistryManager.resetForTests());
 
 test('returns contiguous RuleTokens covering the rule', async () => {
     const tokenize = await getFullTokenizer(wasm);
