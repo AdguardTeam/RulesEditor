@@ -11,6 +11,7 @@ import { toggleBreakpoint, isBreakpointAt } from './breakpoints';
 import { findCosmeticRuleMarker } from '../lib/utils';
 
 const COMMENT_MARKER = '!';
+const HASH_COMMENT_MARKER = '#';
 
 /**
  * Returns `true` when a line is purely a comment — it starts with `!`, or it
@@ -24,7 +25,7 @@ function isCommentLine(text: string): boolean {
     if (text.startsWith(COMMENT_MARKER)) {
         return true;
     }
-    if (text.startsWith('#') && findCosmeticRuleMarker(text)[0] === -1) {
+    if (text.startsWith(HASH_COMMENT_MARKER) && findCosmeticRuleMarker(text)[0] === -1) {
         return true;
     }
     return false;
@@ -80,9 +81,9 @@ function toggleAdblockComment(view: EditorView): boolean {
                 changes.push({ from: line.from, to: line.from + 2 });
             } else if (line.text.startsWith(COMMENT_MARKER)) {
                 changes.push({ from: line.from, to: line.from + 1 });
-            } else if (line.text.startsWith('# ')) {
+            } else if (line.text.startsWith(`${HASH_COMMENT_MARKER} `)) {
                 changes.push({ from: line.from, to: line.from + 2 });
-            } else if (line.text.startsWith('#')) {
+            } else if (line.text.startsWith(HASH_COMMENT_MARKER)) {
                 changes.push({ from: line.from, to: line.from + 1 });
             }
         } else if (line.text !== '') {
