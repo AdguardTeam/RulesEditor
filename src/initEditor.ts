@@ -23,11 +23,17 @@ export { EditorView };
  * Configuration for {@link initEditor}.
  */
 export interface InitEditorConfig {
-    /** Enables the enabled-rule gutter. */
+    /**
+     * Enables the enabled-rule gutter.
+     */
     withBreakpoints?: boolean;
-    /** Called after each document change. */
+    /**
+     * Called after each document change.
+     */
     onChange?: (view: EditorView) => void;
-    /** Hotkey configuration. */
+    /**
+     * Hotkey configuration.
+     */
     hotkeys: {
         mode: 'windows' | 'mac';
         markerColor?: string;
@@ -35,7 +41,9 @@ export interface InitEditorConfig {
         toggleRule?: (view: EditorView) => void;
         onSave?: (view: EditorView) => void;
     };
-    /** Extra CodeMirror 6 extensions appended last. */
+    /**
+     * Extra CodeMirror 6 extensions appended last.
+     */
     extensions?: Extension[];
 }
 

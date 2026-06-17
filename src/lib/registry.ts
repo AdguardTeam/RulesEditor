@@ -25,7 +25,9 @@ export type WasmSource =
     | Promise<ResolvedWasm>
     | (() => ResolvedWasm | Promise<ResolvedWasm>);
 
-/** A directly usable WASM input (no thunk/Promise wrapper). */
+/**
+ * A directly usable WASM input (no thunk/Promise wrapper).
+ */
 type ResolvedWasm =
     | ArrayBuffer
     | ArrayBufferView
@@ -45,13 +47,19 @@ const scopeToRawJson: Record<string, unknown> = {
  * module-level variables.
  */
 export class RegistryManager {
-    /** The WASM source captured on first configuration, or `null`. */
+    /**
+     * The WASM source captured on first configuration, or `null`.
+     */
     private static wasmSource: WasmSource | null = null;
 
-    /** Memoized promise resolving to the shared registry, or `null`. */
+    /**
+     * Memoized promise resolving to the shared registry, or `null`.
+     */
     private static readyPromise: Promise<Registry> | null = null;
 
-    /** Cache of loaded grammars keyed by their top-level scope name. */
+    /**
+     * Cache of loaded grammars keyed by their top-level scope name.
+     */
     private static readonly grammarCache = new Map<string, IGrammar>();
 
     /**

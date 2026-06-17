@@ -4,7 +4,9 @@
  * Thrown when the Oniguruma WASM binary fails to load or is invalid.
  */
 export class WasmLoadError extends Error {
-    /** The underlying cause, if any. */
+    /**
+     * The underlying cause, if any.
+     */
     public readonly cause?: unknown;
 
     /**

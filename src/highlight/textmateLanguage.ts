@@ -13,11 +13,17 @@ import { tokenTags } from './tokenTags';
  * within that list.
  */
 interface TmState {
-    /** TextMate rule stack persisted across lines. */
+    /**
+     * TextMate rule stack persisted across lines.
+     */
     stack: StateStack;
-    /** Tokens produced by the most recent {@link IGrammar.tokenizeLine} call. */
+    /**
+     * Tokens produced by the most recent {@link IGrammar.tokenizeLine} call.
+     */
     tokens: IToken[];
-    /** Current index within {@link tokens}. */
+    /**
+     * Current index within {@link tokens}.
+     */
     index: number;
 }
 

@@ -19,7 +19,9 @@ export const toggleBreakpoint = StateEffect.define<number>();
  * module-level state.
  */
 class BreakpointMarker extends GutterMarker {
-    /** The current factory producing an enabled-rule marker element. */
+    /**
+     * The current factory producing an enabled-rule marker element.
+     */
     private static factory: () => HTMLElement = BreakpointMarker.defaultMarker;
 
     /**

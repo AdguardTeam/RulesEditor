@@ -110,7 +110,16 @@
             }
         ],
         "jsdoc/require-description-complete-sentence": ["error"],
-        "jsdoc/require-returns": ["error"]
+        "jsdoc/require-returns": ["error"],
+        "jsdoc/multiline-blocks": [
+            "error",
+            {
+                "noSingleLineBlocks": true,
+                "singleLineTags": [
+                    "inheritdoc"
+                ]
+            }
+        ]
     },
     "extends": [
         "airbnb-base",
