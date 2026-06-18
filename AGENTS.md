@@ -49,27 +49,28 @@ filter rules. It provides:
 ```text
 ├── src/
 │   ├── index.ts                  # Public API entry point (re-exports)
-│   ├── initEditor.ts             # CodeMirror 6 editor initialization
+│   ├── init-editor.ts            # CodeMirror 6 editor initialization
 │   ├── commands/
 │   │   ├── breakpoints.ts        # Enabled-rule gutter state (CM6)
-│   │   └── hotKeys.ts            # CM6 keymap builder
+│   │   └── hot-keys.ts           # CM6 keymap builder
 │   ├── grammars/                 # TextMate grammar JSON files (adblock, JS)
 │   ├── highlight/
-│   │   ├── tokenTags.ts          # Token → standard @lezer/highlight Tag map
-│   │   ├── scopeToToken.ts       # TextMate scope to Token mapping
-│   │   └── textmateLanguage.ts   # StreamLanguage for CM6
+│   │   ├── token-tags.ts         # Token → standard @lezer/highlight Tag map
+│   │   ├── scope-to-token.ts     # TextMate scope to Token mapping
+│   │   └── textmate-language.ts  # StreamLanguage for CM6
 │   ├── lib/
-│   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError, UnknownThemeError
+│   │   ├── constants.ts          # Scope name constants
+│   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError
 │   │   ├── registry.ts           # Lazy Oniguruma + vscode-textmate Registry
 │   │   ├── types.ts              # TokenSegment type
 │   │   └── utils.ts              # Token enum, normalizeTokens helper
-│   ├── rulesBuilder/
-│   │   ├── RulesBuilder.ts       # Static factory for rule builders
-│   │   └── rules/                # Individual rule type builders (6 types)
+│   ├── rules-builder/
+│   │   ├── rules-builder.ts      # Static factory for rule builders
+│   │   └── rules/                # Individual rule type builders (7 files)
 │   └── tokenizers/
-│       ├── getFullTokenizer.ts   # WASM-based tokenizer (vscode-textmate)
-│       ├── inspectLine.ts        # Line→TokenSegment[] utility
-│       └── simpleTokenizer.ts    # Regex-based tokenizer (no WASM)
+│       ├── get-full-tokenizer.ts # WASM-based tokenizer (vscode-textmate)
+│       ├── inspect-line.ts       # Line→TokenSegment[] utility
+│       └── simple-tokenizer.ts   # Regex-based tokenizer (no WASM)
 ├── test/                         # Vitest test files
 ├── scripts/                      # Build-time scripts (grammar loader)
 ├── webpack.config.js             # UMD bundle config
@@ -192,7 +193,7 @@ Shared library (lib/registry, lib/utils, lib/errors)
 - **Error handling** — throw errors; let consumers catch. The
   `initGrammar` singleton silently catches "already loaded" errors
   to allow safe repeated calls.
-- **Naming** — files use camelCase; classes use PascalCase; enums use
+- **Naming** — files use kebab-case; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
   **Exception**: generated TextMate grammar files in `src/grammars/` use
   the standard `<scope>.tmLanguage.json` convention (e.g.

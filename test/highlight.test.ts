@@ -8,8 +8,8 @@ import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight';
 import { SCOPE_ADBLOCK } from '../src/lib/constants';
 import { RegistryManager } from '../src/lib/registry';
-import { createTextmateLanguage } from '../src/highlight/textmateLanguage';
-import { tokenTags } from '../src/highlight/tokenTags';
+import { createTextmateLanguage } from '../src/highlight/textmate-language';
+import { tokenTags } from '../src/highlight/token-tags';
 import { Token } from '../src/lib/utils';
 
 const wasm = readFileSync(

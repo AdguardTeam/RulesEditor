@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
-import { RulesBuilder } from '../src/rulesBuilder/RulesBuilder';
-import { BlockContentTypeModifiers, UnblockContentTypeModifier, ExceptionSelectModifiers, DomainModifiers } from '../src/rulesBuilder/rules/utils';
+import { RulesBuilder } from '../src/rules-builder/rules-builder';
+import { BlockContentTypeModifiers, UnblockContentTypeModifier, ExceptionSelectModifiers, DomainModifiers } from '../src/rules-builder/rules/utils';
 
 // Block rules
 test('RulesBuilder: ||example.org^$important', () => {

@@ -6,7 +6,7 @@ import { search } from '@codemirror/search';
 
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { RegistryManager, type WasmSource } from './lib/registry';
-import { createTextmateLanguage } from './highlight/textmateLanguage';
+import { createTextmateLanguage } from './highlight/textmate-language';
 import {
     breakpointState,
     toggleBreakpoint,
@@ -14,8 +14,8 @@ import {
     enabledRuleLines,
     setMarkerFactory,
 } from './commands/breakpoints';
-import { configureHotKeys, createMarker } from './commands/hotKeys';
-import { RulesBuilder } from './rulesBuilder/RulesBuilder';
+import { configureHotKeys, createMarker } from './commands/hot-keys';
+import { RulesBuilder } from './rules-builder/rules-builder';
 
 export { EditorView };
 

@@ -1,13 +1,13 @@
-export { getFullTokenizer } from './tokenizers/getFullTokenizer';
-export { inspectLine } from './tokenizers/inspectLine';
+export { getFullTokenizer } from './tokenizers/get-full-tokenizer';
+export { inspectLine } from './tokenizers/inspect-line';
 export type { WasmSource } from './lib/registry';
 export {
     initEditor,
     getRulesFromEditor,
     setEditorValue,
     type InitEditorConfig,
-} from './initEditor';
-export { simpleTokenizer } from './tokenizers/simpleTokenizer';
+} from './init-editor';
+export { simpleTokenizer } from './tokenizers/simple-tokenizer';
 export { normalizeTokens, Token } from './lib/utils';
 export type { RuleTokens } from './lib/utils';
 export type { TokenSegment } from './lib/types';
@@ -15,16 +15,16 @@ export {
     WasmLoadError,
     GrammarNotFoundError,
 } from './lib/errors';
-export { RulesBuilder, RuleType, DnsRuleType } from './rulesBuilder/RulesBuilder';
+export { RulesBuilder, RuleType, DnsRuleType } from './rules-builder/rules-builder';
 export {
     BlockContentTypeModifiers,
     UnblockContentTypeModifier,
     DomainModifiers,
     ExceptionSelectModifiers,
-} from './rulesBuilder/rules/utils';
-export { BlockRequestRule } from './rulesBuilder/rules/BlockRequestRule';
-export { UnblockRequestRule } from './rulesBuilder/rules/UnblockRequestRule';
-export { NoFilteringRule } from './rulesBuilder/rules/NoFilteringRule';
-export { Comment } from './rulesBuilder/rules/Comment';
-export { CustomRule } from './rulesBuilder/rules/CustomRule';
-export { DNSRule } from './rulesBuilder/rules/DNSRule';
+} from './rules-builder/rules/utils';
+export { BlockRequestRule } from './rules-builder/rules/block-request-rule';
+export { UnblockRequestRule } from './rules-builder/rules/unblock-request-rule';
+export { NoFilteringRule } from './rules-builder/rules/no-filtering-rule';
+export { Comment } from './rules-builder/rules/comment';
+export { CustomRule } from './rules-builder/rules/custom-rule';
+export { DNSRule } from './rules-builder/rules/dns-rule';

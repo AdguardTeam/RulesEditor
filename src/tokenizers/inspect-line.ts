@@ -1,6 +1,6 @@
 import { SCOPE_ADBLOCK } from '../lib/constants';
 import { RegistryManager, type WasmSource } from '../lib/registry';
-import { resolveToken } from '../highlight/scopeToToken';
+import { resolveToken } from '../highlight/scope-to-token';
 import type { TokenSegment } from '../lib/types';
 
 /**

@@ -1,7 +1,7 @@
 import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { getFullTokenizer } from '../src/tokenizers/getFullTokenizer';
+import { getFullTokenizer } from '../src/tokenizers/get-full-tokenizer';
 import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(

@@ -1,7 +1,7 @@
 import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { inspectLine } from '../src/tokenizers/inspectLine';
+import { inspectLine } from '../src/tokenizers/inspect-line';
 import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(

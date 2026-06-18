@@ -3,8 +3,8 @@ import { INITIAL, type IGrammar, type IToken, type StateStack } from 'vscode-tex
 import type { Tag } from '@lezer/highlight';
 import type { Token } from '../lib/utils';
 import { CM_LANGUAGE_NAME } from '../lib/constants';
-import { resolveToken } from './scopeToToken';
-import { tokenTags } from './tokenTags';
+import { resolveToken } from './scope-to-token';
+import { tokenTags } from './token-tags';
 
 /**
  * Internal state for the CodeMirror stream parser. Tracks the TextMate

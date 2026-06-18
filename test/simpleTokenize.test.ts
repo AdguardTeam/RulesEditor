@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { simpleTokenizer } from '../src/tokenizers/simpleTokenizer';
+import { simpleTokenizer } from '../src/tokenizers/simple-tokenizer';
 
 test('Rule: @@|https://example.org/unified/someJsFile.js$domain=domain.one.com|domaintwo.com|domainthree.com', () => {
     const rule = '@@|https://example.org/unified/someJsFile.js$domain=domain.one.com|domaintwo.com|domainthree.com';

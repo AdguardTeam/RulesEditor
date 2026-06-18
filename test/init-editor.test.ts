@@ -2,7 +2,7 @@
 import { test, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { initEditor, getRulesFromEditor, setEditorValue } from '../src/initEditor';
+import { initEditor, getRulesFromEditor, setEditorValue } from '../src/init-editor';
 import { RegistryManager } from '../src/lib/registry';
 
 const wasm = readFileSync(

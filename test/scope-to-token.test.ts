@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest';
 import { SCOPE_ADBLOCK } from '../src/lib/constants';
-import { scopeToToken, resolveToken } from '../src/highlight/scopeToToken';
+import { scopeToToken, resolveToken } from '../src/highlight/scope-to-token';
 import { Token } from '../src/lib/utils';
 
 test('maps comment scope to Comment token', () => {

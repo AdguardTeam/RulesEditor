@@ -2,12 +2,12 @@ import { CosmeticRule, NetworkRule, HostRule, RuleFactory } from '@adguard/tsurl
 
 import type { BasicRule } from './rules/utils';
 import { BlockContentTypeModifiers, domainMatch, important, thirdParty, domainModifier, noFilteringModifiers } from './rules/utils';
-import { BlockRequestRule } from './rules/BlockRequestRule';
-import { UnblockRequestRule } from './rules/UnblockRequestRule';
-import { NoFilteringRule } from './rules/NoFilteringRule';
-import { Comment } from './rules/Comment';
-import { CustomRule } from './rules/CustomRule';
-import { DNSRule } from './rules/DNSRule';
+import { BlockRequestRule } from './rules/block-request-rule';
+import { UnblockRequestRule } from './rules/unblock-request-rule';
+import { NoFilteringRule } from './rules/no-filtering-rule';
+import { Comment } from './rules/comment';
+import { CustomRule } from './rules/custom-rule';
+import { DNSRule } from './rules/dns-rule';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const isValidDomain = require('is-valid-domain');

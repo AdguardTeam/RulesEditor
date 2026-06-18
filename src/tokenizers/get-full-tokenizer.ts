@@ -2,7 +2,7 @@ import { normalizeTokens } from '../lib/utils';
 import type { RuleTokens } from '../lib/utils';
 import { SCOPE_ADBLOCK } from '../lib/constants';
 import { RegistryManager, type WasmSource } from '../lib/registry';
-import { resolveToken } from '../highlight/scopeToToken';
+import { resolveToken } from '../highlight/scope-to-token';
 
 /**
  * Builds a tokenizer that splits a single filter rule into highlighted
