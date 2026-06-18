@@ -10,12 +10,12 @@
 - [Build And Test Commands](#build-and-test-commands)
 - [Contribution Instructions](#contribution-instructions)
 - [Code Guidelines](#code-guidelines)
-    - [System Design](#system-design)
-    - [Architecture](#architecture)
-    - [Code Quality](#code-quality)
-    - [Testing](#testing)
-    - [Configuration \& Documentation](#configuration--documentation)
-    - [Markdown Formatting](#markdown-formatting)
+  - [System Design](#system-design)
+  - [Architecture](#architecture)
+  - [Code Quality](#code-quality)
+  - [Testing](#testing)
+  - [Configuration \& Documentation](#configuration--documentation)
+  - [Markdown Formatting](#markdown-formatting)
 
 ## Project Overview
 
@@ -35,7 +35,7 @@ filter rules. It provides:
 | Field | Value |
 | --- | --- |
 | Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 6 (@codemirror/*), vscode-textmate, vscode-oniguruma (WASM), @adguard/tsurlfilter |
+| Primary Dependencies | CodeMirror 6 (@codemirror/*), vscode-textmate, vscode-oniguruma (WASM), @adguard/tsurlfilter 2 |
 | Storage | None (client-side library) |
 | Testing | Vitest |
 | Target Platform | Browser (bundled as UMD via Webpack) |
