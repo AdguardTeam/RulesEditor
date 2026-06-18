@@ -112,13 +112,12 @@ export class RegistryManager {
                         new Error('Registry not configured: call RegistryManager.configureRegistry(wasm) first.'),
                     );
                 }
+                // Safe to call repeatedly: vscode-oniguruma tracks initCalled/initPromise
+                // and returns the existing promise for duplicate calls.
                 try {
                     await loadWASM(await RegistryManager.resolveWasm(RegistryManager.wasmSource));
                 } catch (e) {
-                    // vscode-oniguruma throws if loadWASM was already called elsewhere.
-                    if (!(e instanceof Error && /already/i.test(e.message))) {
-                        throw new WasmLoadError(e);
-                    }
+                    throw new WasmLoadError(e);
                 }
                 return new Registry({
                     onigLib: Promise.resolve({ createOnigScanner, createOnigString }),
