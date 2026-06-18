@@ -39,7 +39,6 @@ class BreakpointMarker extends GutterMarker {
      * Sets the factory used to render enabled-rule markers.
      *
      * @param make Factory producing a marker element.
-     * @returns Nothing.
      */
     public static setFactory(make: () => HTMLElement): void {
         BreakpointMarker.factory = make;

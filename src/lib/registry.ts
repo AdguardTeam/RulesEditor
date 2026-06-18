@@ -69,7 +69,6 @@ export class RegistryManager {
      * repeatedly; the source is captured once and later calls are ignored.
      *
      * @param wasm The WASM source (URL/string/Response/ArrayBuffer/Promise/thunk).
-     * @returns Nothing.
      */
     public static configureRegistry(wasm: WasmSource): void {
         if (!RegistryManager.wasmSource) {
@@ -169,8 +168,6 @@ export class RegistryManager {
 
     /**
      * Resets all manager state. Test-only helper; not part of the public API.
-     *
-     * @returns Nothing.
      */
     public static resetForTests(): void {
         RegistryManager.wasmSource = null;
