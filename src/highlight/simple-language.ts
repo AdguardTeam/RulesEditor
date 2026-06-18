@@ -14,6 +14,7 @@ interface SimpleState {
      * Tokens produced by the most recent {@link simpleTokenizer} call.
      */
     tokens: RuleTokens;
+
     /**
      * Current index within {@link tokens}.
      */
