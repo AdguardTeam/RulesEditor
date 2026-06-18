@@ -71,6 +71,31 @@ const view = await initEditor(textarea, wasm, {
 });
 ```
 
+#### Highlighting strategy
+
+By default the editor uses full TextMate highlighting backed by Oniguruma
+WASM. When you do not need precise highlighting — for example a compact
+preview, or a build that must not ship the WASM asset — choose a lighter
+strategy via `conf.highlight`. The `'simple'` and `'none'` strategies never
+load WASM, so the `wasm` argument can be `undefined`:
+
+```js
+// Lightweight regex highlighting, no WASM:
+const view = await initEditor(textarea, undefined, {
+    hotkeys: { mode: 'mac' },
+    highlight: 'simple',
+});
+
+// No highlighting at all, no WASM:
+const plain = await initEditor(textarea, undefined, {
+    hotkeys: { mode: 'mac' },
+    highlight: 'none',
+});
+```
+
+`initEditor` still returns a `Promise<EditorView>` for every strategy, so
+existing `await initEditor(...)` call sites are unaffected.
+
 ### Tokenizing a Rule
 
 ```typescript
@@ -126,7 +151,7 @@ async function initEditor(
 | Parameter | Description |
 | --- | --- |
 | `element` | Textarea element to attach the editor to |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
+| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these. Required for `highlight: 'full'` (the default); pass `undefined` when using `'simple'` or `'none'` |
 | `conf.hotkeys.mode` | OS mode for hotkey mapping (`'windows'` or `'mac'`) |
 | `conf.hotkeys.toggleRule` | Callback for Ctrl/Cmd+/ (toggle rule breakpoint) |
 | `conf.hotkeys.onSave` | Callback for Ctrl/Cmd+S |
@@ -135,6 +160,7 @@ async function initEditor(
 | `conf.withBreakpoints` | Enable breakpoint gutter |
 | `conf.onChange` | Called after each document change |
 | `conf.extensions` | Extra CodeMirror 6 extensions appended last |
+| `conf.highlight` | Highlight strategy: `'full'` (WASM TextMate, default), `'simple'` (regex, no WASM), or `'none'` (no WASM) |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and

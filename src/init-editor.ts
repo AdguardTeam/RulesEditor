@@ -6,7 +6,9 @@ import { search } from '@codemirror/search';
 
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { RegistryManager, type WasmSource } from './lib/registry';
+import { WasmLoadError } from './lib/errors';
 import { createTextmateLanguage } from './highlight/textmate-language';
+import { createSimpleLanguage } from './highlight/simple-language';
 import {
     breakpointState,
     toggleBreakpoint,
@@ -20,9 +22,27 @@ import { RulesBuilder } from './rules-builder/rules-builder';
 export { EditorView };
 
 /**
+ * Syntax-highlighting strategy for {@link initEditor}.
+ *
+ * - `'full'` — TextMate highlighting backed by Oniguruma WASM. Highest
+ *   precision; requires a {@link WasmSource}. This is the default.
+ * - `'simple'` — lightweight, regex-based highlighting via the built-in
+ *   simple tokenizer. No WASM; approximate.
+ * - `'none'` — no syntax highlighting. No WASM.
+ */
+export type HighlightMode = 'full' | 'simple' | 'none';
+
+/**
  * Configuration for {@link initEditor}.
  */
 export interface InitEditorConfig {
+    /**
+     * Syntax-highlighting strategy. Defaults to `'full'` (WASM-backed
+     * TextMate). `'simple'` and `'none'` skip WASM entirely. See
+     * {@link HighlightMode}.
+     */
+    highlight?: HighlightMode;
+
     /**
      * Enables the enabled-rule gutter.
      */
@@ -82,11 +102,10 @@ export interface InitEditorConfig {
  */
 export async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: WasmSource,
+    wasm: WasmSource | undefined,
     conf: InitEditorConfig,
 ): Promise<EditorView> {
-    RegistryManager.configureRegistry(wasm);
-    const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
+    const highlight: HighlightMode = conf.highlight ?? 'full';
 
     setMarkerFactory(createMarker({
         color: conf.hotkeys.markerColor,
@@ -98,13 +117,33 @@ export async function initEditor(
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         search(),
-        createTextmateLanguage(grammar),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         configureHotKeys({
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
         }),
     ];
+
+    if (highlight === 'full') {
+        if (wasm === undefined) {
+            throw new WasmLoadError(
+                new Error(
+                    "highlight: 'full' requires a WASM source; pass one or use "
+                    + "highlight: 'simple' | 'none'.",
+                ),
+            );
+        }
+        RegistryManager.configureRegistry(wasm);
+        const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
+        extensions.push(
+            createTextmateLanguage(grammar),
+            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        );
+    } else if (highlight === 'simple') {
+        extensions.push(
+            createSimpleLanguage(),
+            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        );
+    }
 
     if (conf.withBreakpoints) {
         extensions.push(breakpointState());
