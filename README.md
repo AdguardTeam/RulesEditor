@@ -8,8 +8,17 @@ programmatic rule construction.
 
 ## Installation
 
+`vscode-oniguruma` and CodeMirror/Lezer packages are peer dependencies —
+your project must install them separately. `vscode-oniguruma` is required
+so the WASM binary is available in your bundle; the CodeMirror packages
+are required because the library returns a live `EditorView` instance.
+CodeMirror's `@codemirror/state` relies on `instanceof` checks for
+extensions and facets — if your bundler duplicates `@codemirror/state`
+(the library bundles one copy and your app another), these checks will
+fail. Externalizing the peer deps ensures a single shared copy.`
+
 ```sh
-pnpm add @adguard/rules-editor
+pnpm add @adguard/rules-editor vscode-oniguruma @codemirror/state @codemirror/view @codemirror/language @codemirror/commands @codemirror/search @lezer/highlight
 ```
 
 ## Key Concepts
@@ -196,7 +205,18 @@ builder API.
 | --- | --- |
 | `WasmLoadError` | Thrown when the Oniguruma WASM binary fails to load |
 | `GrammarNotFoundError` | Thrown when a grammar scope has no registration |
-| `UnknownThemeError` | Thrown when an unknown theme name is requested |
+
+## Peer Dependencies
+
+| Package | Version |
+| --- | --- |
+| `vscode-oniguruma` | `^2.0.1` |
+| `@codemirror/commands` | `^6.10.3` |
+| `@codemirror/language` | `^6.12.3` |
+| `@codemirror/search` | `^6.7.0` |
+| `@codemirror/state` | `^6.6.0` |
+| `@codemirror/view` | `^6.43.0` |
+| `@lezer/highlight` | `^1.2.3` |
 
 ## Migration (v1 -> v2)
 

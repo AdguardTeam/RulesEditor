@@ -14,15 +14,17 @@ module.exports = {
             type: 'umd'
         }
     },
-    // CodeMirror and Lezer packages MUST NOT be bundled. The editor relies on
-    // `instanceof` checks (e.g. for extension values and facets), which break
-    // when two copies of `@codemirror/state` are loaded — one bundled here and
-    // one from the consumer. Externalizing them forces the consumer's bundler
+    // CodeMirror, Lezer, and vscode-oniguruma MUST NOT be bundled.
+    // CodeMirror/Lezer: `instanceof` checks (e.g. for extension values and
+    // facets) break with duplicate copies.
+    // vscode-oniguruma: a peer dependency — the consumer provides the WASM and
+    // may already have loaded it. Externalizing forces the consumer's bundler
     // to resolve a single shared copy.
     externalsType: 'umd',
     externals: [
         /^@codemirror\/.+$/,
         /^@lezer\/.+$/,
+        /^vscode-oniguruma$/,
     ],
     resolve: {
         extensions: ['.ts', '.js'],

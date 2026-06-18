@@ -35,7 +35,8 @@ filter rules. It provides:
 | Field | Value |
 | --- | --- |
 | Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 6 (@codemirror/*), vscode-textmate, vscode-oniguruma (WASM), @adguard/tsurlfilter 2 |
+| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma
+  (WASM — peer), vscode-textmate, @adguard/tsurlfilter 2 |
 | Storage | None (client-side library) |
 | Testing | Vitest |
 | Target Platform | Browser (bundled as UMD via Webpack) |
