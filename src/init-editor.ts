@@ -95,7 +95,9 @@ export interface InitEditorConfig {
  *
  * @param element The textarea to replace.
  * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
- *   Promise/thunk); URL/string inputs are fetched. See {@link WasmSource}.
+ *   Promise/thunk); URL/string inputs are fetched. Only required when
+ *   {@link highlight} is `'full'` (the default); pass `undefined` for
+ *   `'simple'` or `'none'`. See {@link WasmSource}.
  * @param conf Editor configuration.
  * @returns The created {@link EditorView}.
  * @throws {WasmLoadError} If the WASM binary cannot be loaded.

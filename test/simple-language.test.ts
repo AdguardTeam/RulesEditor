@@ -25,12 +25,12 @@ test('createSimpleLanguage highlights a comment without WASM', () => {
 test('createSimpleLanguage renders an unparseable line without throwing', () => {
     const view = new EditorView({
         state: EditorState.create({
-            doc: '||example.org^$domain=example.com',
+            doc: '#%#//scriptlet(foo',
             extensions: [createSimpleLanguage(), syntaxHighlighting(defaultHighlightStyle)],
         }),
         parent: document.body,
     });
     view.dispatch({});
-    expect(view.dom.textContent).toContain('||example.org^$domain=example.com');
+    expect(view.dom.textContent).toContain('#%#//scriptlet(foo');
     view.destroy();
 });
