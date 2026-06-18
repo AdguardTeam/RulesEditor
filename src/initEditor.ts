@@ -27,20 +27,42 @@ export interface InitEditorConfig {
      * Enables the enabled-rule gutter.
      */
     withBreakpoints?: boolean;
+
     /**
      * Called after each document change.
      */
     onChange?: (view: EditorView) => void;
+
     /**
      * Hotkey configuration.
      */
     hotkeys: {
+        /**
+         * Keyboard shortcut style, determines modifier keys used.
+         */
         mode: 'windows' | 'mac';
+
+        /**
+         * CSS color for the gutter marker icon.
+         */
         markerColor?: string;
+
+        /**
+         * Raw HTML for the gutter marker icon.
+         */
         markerHTML?: string;
+
+        /**
+         * Called when the user toggles a rule's enabled state.
+         */
         toggleRule?: (view: EditorView) => void;
+
+        /**
+         * Called when the user triggers the save shortcut.
+         */
         onSave?: (view: EditorView) => void;
     };
+
     /**
      * Extra CodeMirror 6 extensions appended last.
      */
