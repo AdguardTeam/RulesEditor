@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable no-console */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,11 +18,17 @@ type GrammarKey = keyof typeof GRAMMAR_SCOPES;
  * A downloadable TextMate grammar definition.
  */
 interface GrammarSource {
-    /** Friendly key; also the output filename stem (`<key>.tmLanguage.json`). */
+    /**
+     * Friendly key; also the output filename stem (`<key>.tmLanguage.json`).
+     */
     key: GrammarKey;
-    /** URL to download the grammar from. */
+    /**
+     * URL to download the grammar from.
+     */
     url: string;
-    /** Source format. YAML grammars are converted to JSON on write. */
+    /**
+     * Source format. YAML grammars are converted to JSON on write.
+     */
     format: 'yaml' | 'json';
 }
 
@@ -45,7 +52,9 @@ const GRAMMARS: GrammarSource[] = [
 
 const GRAMMARS_DIR = path.resolve(import.meta.dirname, '../src/grammars');
 
-/** All grammar scope names this library can resolve. */
+/**
+ * All grammar scope names this library can resolve.
+ */
 const KNOWN_SCOPES = new Set<string>(Object.values(GRAMMAR_SCOPES));
 
 /**
@@ -65,9 +74,13 @@ const REGEX_KEYS = new Set([
  * Visitor callbacks for {@link walkGrammar}.
  */
 interface GrammarVisitors {
-    /** Called for each Oniguruma regex field; the return value replaces it. */
+    /**
+     * Called for each Oniguruma regex field; the return value replaces it.
+     */
     onRegex?: (value: string) => string;
-    /** Called for each `include` reference (read-only). */
+    /**
+     * Called for each `include` reference (read-only).
+     */
     onInclude?: (ref: string) => void;
 }
 
@@ -104,8 +117,8 @@ function walkGrammar(node: unknown, visitors: GrammarVisitors): void {
 
 /**
  * Optimizes a single Oniguruma pattern. Falls back to the original pattern when
- * the optimizer cannot parse it (e.g. exotic constructs), so the grammar is
- * never broken by optimization.
+ * the optimizer cannot parse it (e.g. Exotic constructs), so the grammar is
+ * never broken by optimization..
  *
  * @param pattern The Oniguruma regex to optimize.
  * @returns The optimized pattern, or the original on failure.

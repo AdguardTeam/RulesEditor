@@ -9,6 +9,12 @@ import {
     enabledRuleLines,
 } from '../src/commands/breakpoints';
 
+/**
+ * Creates an EditorView instance with the given document.
+ *
+ * @param doc - The initial content of the editor.
+ * @returns An EditorView instance.
+ */
 function makeView(doc: string): EditorView {
     return new EditorView({
         state: EditorState.create({ doc, extensions: [breakpointState()] }),

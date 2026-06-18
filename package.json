@@ -9,7 +9,9 @@
   "scripts": {
     "update-grammars": "tsx ./scripts/update-grammars.mts",
     "build": "webpack",
-    "lint": "eslint ./src --ext .ts",
+    "lint:code": "eslint --cache --ignore-path .gitignore --ext .ts --ext .mts .",
+    "lint:types": "tsc",
+    "lint": "pnpm run lint:code && pnpm run lint:types",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky install",
