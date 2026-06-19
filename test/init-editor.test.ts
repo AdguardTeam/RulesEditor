@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { test, expect, beforeEach } from 'vitest';
+import { test, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { initEditor, getRulesFromEditor, setEditorValue } from '../src/init-editor';
 import { RegistryManager } from '../src/lib/registry';
+import { WasmLoadError } from '../src/lib/errors';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
@@ -39,4 +40,56 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
         { enabled: false, rule: '||b.com^' },
     ]);
     view.destroy();
+});
+
+test("highlight: 'none' mounts without loading WASM", async () => {
+    const spy = vi.spyOn(RegistryManager, 'getGrammar');
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'mac' },
+        highlight: 'none',
+    });
+    view.dispatch({ changes: { from: 0, insert: '! comment' } });
+    expect(spy).not.toHaveBeenCalled();
+    // No language extension -> no highlighted spans.
+    expect(view.dom.querySelector('.cm-line span')).toBeNull();
+    expect(view.dom.textContent).toContain('! comment');
+    spy.mockRestore();
+    view.destroy();
+});
+
+test("highlight: 'simple' highlights without loading WASM", async () => {
+    const spy = vi.spyOn(RegistryManager, 'getGrammar');
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'mac' },
+        highlight: 'simple',
+    });
+    view.dispatch({ changes: { from: 0, insert: '! comment' } });
+    const span = view.dom.querySelector('.cm-line span');
+    expect(spy).not.toHaveBeenCalled();
+    expect(span).not.toBeNull();
+    expect(span!.className).not.toBe('');
+    spy.mockRestore();
+    view.destroy();
+});
+
+test("highlight: 'full' without a WASM source throws WasmLoadError", async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    await expect(
+        initEditor(textarea, undefined, { hotkeys: { mode: 'mac' }, highlight: 'full' }),
+    ).rejects.toBeInstanceOf(WasmLoadError);
+});
+
+test('HighlightMode is exported from the package entry point', async () => {
+    const mod = await import('../src/index');
+    // Type-only export has no runtime value; assert the function is present
+    // and a typed usage compiles (compilation is checked by `pnpm run build`).
+    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    const value: import('../src/index').HighlightMode = 'simple';
+    expect(mod.initEditor).toBeTypeOf('function');
+    expect(value).toBe('simple');
 });

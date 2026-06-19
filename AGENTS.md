@@ -58,7 +58,8 @@ filter rules. It provides:
 │   ├── highlight/
 │   │   ├── token-tags.ts         # Token → standard @lezer/highlight Tag map
 │   │   ├── scope-to-token.ts     # TextMate scope to Token mapping
-│   │   └── textmate-language.ts  # StreamLanguage for CM6
+│   │   ├── textmate-language.ts  # StreamLanguage for CM6 (WASM TextMate)
+│   │   └── simple-language.ts    # StreamLanguage for CM6 (no-WASM simple)
 │   ├── lib/
 │   │   ├── constants.ts          # Scope name constants
 │   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError

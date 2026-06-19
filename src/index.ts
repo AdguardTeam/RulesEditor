@@ -6,6 +6,7 @@ export {
     getRulesFromEditor,
     setEditorValue,
     type InitEditorConfig,
+    type HighlightMode,
 } from './init-editor';
 export { simpleTokenizer } from './tokenizers/simple-tokenizer';
 export { normalizeTokens, Token } from './lib/utils';
