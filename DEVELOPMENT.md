@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- Node.js (LTS)
-- pnpm
+- Node.js v22
+- pnpm v10.33.4
 
 ## Setup
 

@@ -14,6 +14,10 @@
     "prepare": "husky install",
     "increment": "pnpm version patch --no-git-tag-version"
   },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10.33.4 <11"
+  },
   "dependencies": {
     "@adguard/tsurlfilter": "^2.1.12",
     "@types/codemirror": "^5.60.10",
