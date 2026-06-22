@@ -36,8 +36,8 @@ export type HighlightMode = 'full' | 'simple' | 'none';
  */
 export interface InitEditorConfig {
     /**
-     * Syntax-highlighting strategy. Defaults to `'full'` (WASM-backed
-     * TextMate). `'simple'` and `'none'` skip WASM entirely. See
+     * Syntax-highlighting strategy. Defaults to `'full'` (TextMate).
+     * `'simple'` and `'none'` skip grammar loading. See
      * {@link HighlightMode}.
      */
     highlight?: HighlightMode;

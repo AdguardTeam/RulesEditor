@@ -163,8 +163,8 @@ Universal design principles:
   builder selection; `Token` enum constrains valid token values
 - **Observability Built-in** — less critical for a client-side library;
   errors surface via thrown exceptions to the consumer
-- **Keep It Boring** — standard patterns (factory, builder, singleton
-  for WASM init)
+- **Keep It Boring** — standard patterns (factory, builder, lazy init
+  for the registry)
 
 This project's layers, from top to bottom:
 
@@ -217,8 +217,8 @@ Shared library (lib/registry, lib/utils, lib/errors)
 - No mocking is used — tests exercise real module code.
 
 - **Error handling** — throw errors; let consumers catch. The
-  registry's `ensureRegistry` catches duplicate `loadWASM` calls
-  to allow safe repeated initialization.
+  `initGrammar` singleton silently catches "already loaded" errors
+  to allow safe repeated calls.
 
 - **Pin all dependency versions explicitly** — do not use version
   ranges that allow automatic upgrades to untested versions.

@@ -61,7 +61,7 @@ CodeMirror's `defaultHighlightStyle`; pass your own theme (or
 ```js
 import { oneDark } from '@codemirror/theme-one-dark';
 
-const view = await initEditor(textarea, wasm, {
+const view = await initEditor(textarea, {
     hotkeys: { mode: 'mac' },
     extensions: [oneDark],
 });
@@ -69,21 +69,19 @@ const view = await initEditor(textarea, wasm, {
 
 #### Highlighting strategy
 
-By default the editor uses full TextMate highlighting backed by Oniguruma
-WASM. When you do not need precise highlighting — for example a compact
-preview, or a build that must not ship the WASM asset — choose a lighter
-strategy via `conf.highlight`. The `'simple'` and `'none'` strategies never
-load WASM, so the `wasm` argument can be `undefined`:
+By default the editor uses full TextMate highlighting. When you do not
+need precise highlighting — for example a compact preview — choose a
+lighter strategy via `conf.highlight`:
 
 ```js
-// Lightweight regex highlighting, no WASM:
-const view = await initEditor(textarea, undefined, {
+// Lightweight regex highlighting, no grammar load:
+const view = await initEditor(textarea, {
     hotkeys: { mode: 'mac' },
     highlight: 'simple',
 });
 
-// No highlighting at all, no WASM:
-const plain = await initEditor(textarea, undefined, {
+// No highlighting at all:
+const plain = await initEditor(textarea, {
     hotkeys: { mode: 'mac' },
     highlight: 'none',
 });
