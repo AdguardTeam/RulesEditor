@@ -2,31 +2,30 @@
 
 A browser-based library for editing and tokenizing AdGuard filter rules.
 It provides a **CodeMirror 6** text editor with TextMate syntax highlighting
-(via WebAssembly Oniguruma backed by `vscode-textmate` + `vscode-oniguruma`),
-two tokenizers for custom rule rendering, and a `RulesBuilder` for
-programmatic rule construction.
+(via `vscode-textmate` with a native-`RegExp` Oniguruma engine,
+`oniguruma-to-es`), two tokenizers for custom rule rendering, and a
+`RulesBuilder` for programmatic rule construction.
 
 ## Installation
 
-`vscode-oniguruma` and CodeMirror/Lezer packages are peer dependencies —
-your project must install them separately. `vscode-oniguruma` is required
-so the WASM binary is available in your bundle; the CodeMirror packages
-are required because the library returns a live `EditorView` instance.
-CodeMirror's `@codemirror/state` relies on `instanceof` checks for
-extensions and facets — if your bundler duplicates `@codemirror/state`
-(the library bundles one copy and your app another), these checks will
-fail. Externalizing the peer deps ensures a single shared copy.`
+CodeMirror/Lezer packages are peer dependencies — your project must
+install them separately. The CodeMirror packages are required because
+the library returns a live `EditorView` instance. CodeMirror's
+`@codemirror/state` relies on `instanceof` checks for extensions and
+facets — if your bundler duplicates `@codemirror/state` (the library
+bundles one copy and your app another), these checks will fail.
+Externalizing the peer deps ensures a single shared copy.
 
 ```sh
-pnpm add @adguard/rules-editor vscode-oniguruma @codemirror/state @codemirror/view @codemirror/language @codemirror/commands @codemirror/search @lezer/highlight
+pnpm add @adguard/rules-editor @codemirror/state @codemirror/view @codemirror/language @codemirror/commands @codemirror/search @lezer/highlight
 ```
 
 ## Key Concepts
 
 - **Editor** — a CodeMirror 6 instance with adblock syntax highlighting
   (including embedded JavaScript highlighting via `source.js`), powered by
-  WASM-based Oniguruma regex from `vscode-oniguruma`.
-- **Full tokenizer** — splits a rule into highlighted segments using WASM;
+  native `RegExp` (no WASM).
+- **Full tokenizer** — splits a rule into highlighted segments;
   highest precision.
 - **Simple tokenizer** — regex-based tokenizer without WASM; slightly
   less precise but no async setup required.
@@ -45,11 +44,8 @@ pnpm add @adguard/rules-editor vscode-oniguruma @codemirror/state @codemirror/vi
 ```js
 import { initEditor } from '@adguard/rules-editor';
 
-// Let your bundler (webpack 5 / Vite) emit the asset and compute the URL.
-const wasm = new URL('vscode-oniguruma/release/onig.wasm', import.meta.url);
-
 const textarea = document.getElementById('textarea');
-const view = await initEditor(textarea, wasm, {
+const view = await initEditor(textarea, {
     hotkeys: { mode: 'mac' },
 });
 view.dispatch({ changes: { from: 0, insert: '||example.org^' } });
@@ -101,12 +97,11 @@ existing `await initEditor(...)` call sites are unaffected.
 ```typescript
 import { getFullTokenizer, simpleTokenizer } from '@adguard/rules-editor';
 
-// WASM-based (async init, higher precision)
-const wasm = new URL('vscode-oniguruma/release/onig.wasm', import.meta.url);
-const tokenize = await getFullTokenizer(wasm);
+// Full tokenizer (async init, highest precision)
+const tokenize = await getFullTokenizer();
 const tokens = tokenize('||example.org^$important');
 
-// Simple (sync, no WASM)
+// Simple (sync, lightweight)
 const tokens2 = simpleTokenizer('||example.org^$important');
 ```
 
@@ -115,8 +110,7 @@ const tokens2 = simpleTokenizer('||example.org^$important');
 ```typescript
 import { inspectLine } from '@adguard/rules-editor';
 
-const wasm = new URL('vscode-oniguruma/release/onig.wasm', import.meta.url);
-const segments = await inspectLine(wasm, '||example.org^$important');
+const segments = await inspectLine('||example.org^$important');
 // segments: TokenSegment[] — each with text, startIndex, endIndex,
 //            scopes (full TextMate scope stack), and token (resolved class)
 ```
@@ -143,7 +137,6 @@ rule.buildRule();
 ```typescript
 async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: WasmSource,
     conf: InitEditorConfig,
 ): Promise<EditorView>
 ```
@@ -151,7 +144,6 @@ async function initEditor(
 | Parameter | Description |
 | --- | --- |
 | `element` | Textarea element to attach the editor to |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these. Required for `highlight: 'full'` (the default); pass `undefined` when using `'simple'` or `'none'` |
 | `conf.hotkeys.mode` | OS mode for hotkey mapping (`'windows'` or `'mac'`) |
 | `conf.hotkeys.toggleRule` | Callback for Ctrl/Cmd+/ (toggle rule breakpoint) |
 | `conf.hotkeys.onSave` | Callback for Ctrl/Cmd+S |
@@ -160,7 +152,7 @@ async function initEditor(
 | `conf.withBreakpoints` | Enable breakpoint gutter |
 | `conf.onChange` | Called after each document change |
 | `conf.extensions` | Extra CodeMirror 6 extensions appended last |
-| `conf.highlight` | Highlight strategy: `'full'` (WASM TextMate, default), `'simple'` (regex, no WASM), or `'none'` (no WASM) |
+| `conf.highlight` | Highlight strategy: `'full'` (TextMate, default), `'simple'` (regex), or `'none'` |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
@@ -169,14 +161,8 @@ Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 ### `getFullTokenizer`
 
 ```typescript
-async function getFullTokenizer(
-    wasm: WasmSource,
-): Promise<(rule: string) => RuleTokens>
+async function getFullTokenizer(): Promise<(rule: string) => RuleTokens>
 ```
-
-| Parameter | Description |
-| --- | --- |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
 
 Returns a function that accepts a rule string and returns `RuleTokens`
 (`{ str: string, token: Token | null }[]`). No `theme` argument.
@@ -185,7 +171,6 @@ Returns a function that accepts a rule string and returns `RuleTokens`
 
 ```typescript
 async function inspectLine(
-    wasm: WasmSource,
     line: string,
     scopeName?: string,
 ): Promise<TokenSegment[]>
@@ -193,7 +178,6 @@ async function inspectLine(
 
 | Parameter | Description |
 | --- | --- |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
 | `line` | The line of filter rule text to tokenize |
 | `scopeName` | Grammar scope; defaults to `text.adblock` |
 
@@ -229,14 +213,12 @@ builder API.
 
 | Class | Description |
 | --- | --- |
-| `WasmLoadError` | Thrown when the Oniguruma WASM binary fails to load |
 | `GrammarNotFoundError` | Thrown when a grammar scope has no registration |
 
 ## Peer Dependencies
 
 | Package | Version |
 | --- | --- |
-| `vscode-oniguruma` | `^2.0.1` |
 | `@codemirror/commands` | `^6.10.3` |
 | `@codemirror/language` | `^6.12.3` |
 | `@codemirror/search` | `^6.7.0` |
@@ -248,9 +230,10 @@ builder API.
 
 - **`initEditor`** now returns a CodeMirror 6 `EditorView` instead of a CM5
   `EditorFromTextArea`. Use the CM6 API for document manipulation and events.
-- **WASM backend** changed from `onigasm` to `vscode-oniguruma`. The library
-  no longer exports a `wasm` URL. Pass a flexible `WasmSource` instead:
-  `new URL('vscode-oniguruma/release/onig.wasm', import.meta.url)`.
+- **Highlighting engine** changed from `vscode-oniguruma` (WASM) to a
+  native-`RegExp` engine (`oniguruma-to-es`). The `wasm` / `WasmSource`
+  parameter is removed; `initEditor` and `getFullTokenizer` no longer
+  require a WASM argument.
 - **`getFullTokenizer`** no longer accepts a `theme` argument.
 - **`configureEditorMode`** and **`EDITOR_DEFAULT_MODE`** removed.
 - **Editor commands** (comment toggle, line move/copy, search) are now

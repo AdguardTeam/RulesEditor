@@ -20,6 +20,7 @@
   "dependencies": {
     "@adguard/tsurlfilter": "^2.1.12",
     "is-valid-domain": "^0.1.6",
+    "oniguruma-to-es": "^4.3.6",
     "path-browserify": "^1.0.1",
     "util": "^0.12.5",
     "vscode-textmate": "^9.3.2"
@@ -30,8 +31,7 @@
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
-    "@lezer/highlight": "^1.2.3",
-    "vscode-oniguruma": "^2.0.1"
+    "@lezer/highlight": "^1.2.3"
   },
   "devDependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -43,6 +43,7 @@
     "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^6.7.4",
     "@typescript-eslint/parser": "^6.7.4",
+    "@vitest/coverage-v8": "^4.1.8",
     "copy-webpack-plugin": "^11.0.0",
     "eslint": "^8.50.0",
     "eslint-config-airbnb": "^19.0.4",
@@ -58,7 +59,6 @@
     "tsx": "^4.22.4",
     "typescript": "^5.2.2",
     "vitest": "^4.1.8",
-    "vscode-oniguruma": "^2.0.1",
     "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4",
     "yaml": "^2.9.0"

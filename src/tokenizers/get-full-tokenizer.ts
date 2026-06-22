@@ -1,24 +1,18 @@
 import { normalizeTokens } from '../lib/utils';
 import type { RuleTokens } from '../lib/utils';
 import { SCOPE_ADBLOCK } from '../lib/constants';
-import { RegistryManager, type WasmSource } from '../lib/registry';
+import { RegistryManager } from '../lib/registry';
 import { resolveToken } from '../highlight/scope-to-token';
 
 /**
  * Builds a tokenizer that splits a single filter rule into highlighted
  * segments using the adblock TextMate grammar (with embedded JavaScript
- * support) backed by vscode-textmate and vscode-oniguruma.
+ * support) backed by vscode-textmate and a native-`RegExp` Oniguruma mock.
  *
- * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
- *   Promise/thunk); URL/string inputs are fetched. See {@link WasmSource}.
  * @returns A function mapping a rule string to its {@link RuleTokens}.
- * @throws {WasmLoadError} If the WASM binary cannot be loaded.
  * @throws {GrammarNotFoundError} If the adblock grammar cannot be resolved.
  */
-export async function getFullTokenizer(
-    wasm: WasmSource,
-): Promise<(rule: string) => RuleTokens> {
-    RegistryManager.configureRegistry(wasm);
+export async function getFullTokenizer(): Promise<(rule: string) => RuleTokens> {
     const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
 
     return function parseRule(rule: string): RuleTokens {

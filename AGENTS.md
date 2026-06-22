@@ -23,9 +23,10 @@
 filter rules. It provides:
 
 1. A CodeMirror 6 editor with TextMate-based syntax highlighting for
-   adblock filter rules (using WebAssembly Oniguruma via `vscode-oniguruma`).
-2. A full tokenizer (WASM-backed) that splits a rule into highlighted
-   segments for custom rendering outside the editor.
+   adblock filter rules (using `vscode-textmate` with a native-`RegExp`
+   Oniguruma engine, `oniguruma-to-es`).
+2. A full tokenizer that splits a rule into highlighted segments for
+   custom rendering outside the editor.
 3. A simple tokenizer (no WASM) for lightweight rule tokenization.
 4. A `RulesBuilder` class that programmatically constructs filter rules
    (block, unblock, no-filtering, DNS, comment, custom).
@@ -35,14 +36,14 @@ filter rules. It provides:
 | Field | Value |
 | --- | --- |
 | Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma
-  (WASM — peer), vscode-textmate, @adguard/tsurlfilter 2 |
+| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-textmate,
+  oniguruma-to-es, @adguard/tsurlfilter 2 |
 | Storage | None (client-side library) |
 | Testing | Vitest |
 | Target Platform | Browser (bundled as UMD via Webpack) |
 | Project Type | Library / Package |
 | Performance Goals | N/A |
-| Constraints | Requires WASM for full tokenization; must support browsers without native Oniguruma |
+| Constraints | Native `RegExp` (v flag, ES2024) for full tokenization; no WASM |
 | Scale/Scope | Consumed by AdGuard products for user rule editing UIs |
 
 ## Project Structure
@@ -58,19 +59,20 @@ filter rules. It provides:
 │   ├── highlight/
 │   │   ├── token-tags.ts         # Token → standard @lezer/highlight Tag map
 │   │   ├── scope-to-token.ts     # TextMate scope to Token mapping
-│   │   ├── textmate-language.ts  # StreamLanguage for CM6 (WASM TextMate)
+│   │   ├── textmate-language.ts  # StreamLanguage for CM6 (TextMate)
 │   │   └── simple-language.ts    # StreamLanguage for CM6 (no-WASM simple)
 │   ├── lib/
 │   │   ├── constants.ts          # Scope name constants
-│   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError
-│   │   ├── registry.ts           # Lazy Oniguruma + vscode-textmate Registry
+│   │   ├── errors.ts             # GrammarNotFoundError
+│   │   ├── onig-mock.ts          # Native-RegExp Oniguruma engine (vscode-oniguruma mock)
+│   │   ├── registry.ts           # Lazy vscode-textmate Registry
 │   │   ├── types.ts              # TokenSegment type
 │   │   └── utils.ts              # Token enum, normalizeTokens helper
 │   ├── rules-builder/
 │   │   ├── rules-builder.ts      # Static factory for rule builders
 │   │   └── rules/                # Individual rule type builders (7 files)
 │   └── tokenizers/
-│       ├── get-full-tokenizer.ts # WASM-based tokenizer (vscode-textmate)
+│       ├── get-full-tokenizer.ts # Full tokenizer (vscode-textmate)
 │       ├── inspect-line.ts       # Line→TokenSegment[] utility
 │       └── simple-tokenizer.ts   # Regex-based tokenizer (no WASM)
 ├── test/                         # Vitest test files
@@ -153,8 +155,7 @@ Universal design principles:
   (`index.ts`) depends on internal modules, never the reverse
 - **Explicit Boundaries** — only `src/index.ts` defines the public
   surface; everything else is internal
-- **Data Flow Clarity** — WASM loads once → grammar activates →
-  tokenizer/editor consumes grammar state
+- **Data Flow Clarity** — Grammar loads → tokenizer/editor consumes grammar state
 - **Minimize Coupling, Maximize Cohesion** — rule builders are
   self-contained; tokenizers share only the `Token` enum and
   `normalizeTokens` utility
@@ -174,7 +175,7 @@ Features (initEditor, tokenizers, rulesBuilder)
      ↓
 Shared library (lib/registry, lib/utils, lib/errors)
      ↓
-External deps (codemirror, vscode-textmate, vscode-oniguruma, tsurlfilter)
+External deps (codemirror, vscode-textmate, oniguruma-to-es, tsurlfilter)
 ```
 
 Public API re-exports features. Features may depend on shared library
@@ -251,8 +252,8 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 ### Configuration & Documentation
 
 - No runtime configuration — the library is configured via function
-  parameters (`initEditor` accepts a config object, tokenizers accept
-  a `WasmSource`).
+  parameters (`initEditor` accepts a config object, tokenizers are
+  initialized without a WASM argument).
 - No environment variables or config files are read at runtime.
 - `README.md` documents the public API with usage examples — update it
   when the public interface changes.
@@ -269,8 +270,8 @@ All Markdown files MUST follow these formatting rules:
 - **Unordered lists**: Use dashes (`-`) for bullet points. Indent nested
   list items by 4 spaces.
 - No runtime configuration — the library is configured via function
-  parameters (`initEditor` accepts a config object, tokenizers accept
-  a `WasmSource`).
+  parameters (`initEditor` accepts a config object, tokenizers are
+  initialized without a WASM argument).
   `**bold**`). Do NOT use underscores.
 - **Headings**: Duplicate heading names are allowed only among sibling
   headings (same parent level). Avoid duplicates across different levels.

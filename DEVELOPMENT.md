@@ -38,8 +38,10 @@ pnpm run update-grammars
 ```
 
 This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
-every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
-(external) grammar is one the library knows how to resolve. To add a new
+every Oniguruma regex with `oniguruma-parser`, verifies that any embedded
+(external) grammar is one the library knows how to resolve, and validates that
+every pattern converts to a native `RegExp` (via `oniguruma-to-es`, strict
+accuracy) — failing the build if any pattern is not convertible. To add a new
 embedded grammar, register its scope in `src/lib/constants.ts`
 (`GRAMMAR_SCOPES`) and add a download entry to the `GRAMMARS` array in
 `scripts/update-grammars.mts`.

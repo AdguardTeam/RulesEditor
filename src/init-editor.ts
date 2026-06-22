@@ -5,8 +5,7 @@ import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { search } from '@codemirror/search';
 
 import { SCOPE_ADBLOCK } from './lib/constants';
-import { RegistryManager, type WasmSource } from './lib/registry';
-import { WasmLoadError } from './lib/errors';
+import { RegistryManager } from './lib/registry';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { createSimpleLanguage } from './highlight/simple-language';
 import {
@@ -24,8 +23,8 @@ export { EditorView };
 /**
  * Syntax-highlighting strategy for {@link initEditor}.
  *
- * - `'full'` — TextMate highlighting backed by Oniguruma WASM. Highest
- *   precision; requires a {@link WasmSource}. This is the default.
+ * - `'full'` — TextMate highlighting backed by the native-`RegExp`
+ *   Oniguruma engine. Highest precision. This is the default.
  * - `'simple'` — lightweight, regex-based highlighting via the built-in
  *   simple tokenizer. No WASM; approximate.
  * - `'none'` — no syntax highlighting. No WASM.
@@ -94,17 +93,12 @@ export interface InitEditorConfig {
  * AdGuard rule-editing extensions, replacing the provided textarea.
  *
  * @param element The textarea to replace.
- * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
- *   Promise/thunk); URL/string inputs are fetched. Only required when
- *   {@link highlight} is `'full'` (the default); pass `undefined` for
- *   `'simple'` or `'none'`. See {@link WasmSource}.
  * @param conf Editor configuration.
  * @returns The created {@link EditorView}.
- * @throws {WasmLoadError} If the WASM binary cannot be loaded.
+ * @throws {GrammarNotFoundError} If the adblock grammar cannot be resolved.
  */
 export async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: WasmSource | undefined,
     conf: InitEditorConfig,
 ): Promise<EditorView> {
     const highlight: HighlightMode = conf.highlight ?? 'full';
@@ -126,15 +120,6 @@ export async function initEditor(
     ];
 
     if (highlight === 'full') {
-        if (wasm === undefined) {
-            throw new WasmLoadError(
-                new Error(
-                    "highlight: 'full' requires a WASM source; pass one or use "
-                    + "highlight: 'simple' | 'none'.",
-                ),
-            );
-        }
-        RegistryManager.configureRegistry(wasm);
         const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
         extensions.push(
             createTextmateLanguage(grammar),

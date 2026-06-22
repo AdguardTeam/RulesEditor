@@ -2,8 +2,10 @@
 /* eslint-disable no-console */
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { optimize } from 'oniguruma-parser/optimizer';
+import { toRegExpDetails } from 'oniguruma-to-es';
 
 import { GRAMMAR_SCOPES } from '../src/lib/constants';
 
@@ -135,6 +137,42 @@ export function optimizePattern(pattern: string): string {
 }
 
 /**
+ * Asserts that every Oniguruma regex in a grammar converts to a native
+ * `RegExp` under strict accuracy. This guards the runtime engine
+ * (`src/lib/onig-mock.ts`), which converts patterns with the same options, so a
+ * non-convertible grammar can never reach a release.
+ *
+ * @param grammar The parsed grammar to validate.
+ * @param label A human-readable grammar identifier for error messages.
+ * @throws {Error} If any pattern cannot be converted, listing each failure.
+ */
+export function assertConvertible(grammar: unknown, label: string): void {
+    const failures: string[] = [];
+    walkGrammar(grammar, {
+        onRegex: (value) => {
+            try {
+                // `allowOrphanBackrefs` mirrors the optimizer: TextMate
+                // `end`/`while` patterns reference groups defined in `begin`.
+                toRegExpDetails(value, {
+                    accuracy: 'strict',
+                    rules: { allowOrphanBackrefs: true },
+                });
+            } catch (e) {
+                failures.push(`  - ${value}\n    ${(e as Error).message}`);
+            }
+            return value;
+        },
+    });
+    if (failures.length > 0) {
+        throw new Error(
+            `Grammar '${label}' has ${failures.length} pattern(s) that cannot be `
+            + 'converted to a native RegExp (oniguruma-to-es, strict):\n'
+            + `${failures.join('\n')}`,
+        );
+    }
+}
+
+/**
  * Optimizes every Oniguruma regex in a grammar in place.
  *
  * @param grammar The parsed grammar to mutate.
@@ -230,6 +268,12 @@ async function main(): Promise<void> {
         assertKnownScopes(findExternalScopes(grammar, scopeName), KNOWN_SCOPES);
     });
 
+    // Validate that every pattern converts to a native RegExp (matches the
+    // runtime engine in src/lib/onig-mock.ts).
+    grammars.forEach(({ grammar, key }) => {
+        assertConvertible(grammar, key);
+    });
+
     await Promise.all(grammars.map(async ({ key, grammar }) => {
         const { changed, total } = optimizeGrammar(grammar);
         const outFile = path.resolve(GRAMMARS_DIR, `${key}.tmLanguage.json`);
@@ -243,7 +287,11 @@ async function main(): Promise<void> {
     console.log('Grammars updated.');
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exit(1);
-});
+// Only run when executed directly (e.g. `tsx ./scripts/update-grammars.mts`),
+// not when imported by tests.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    main().catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
+}

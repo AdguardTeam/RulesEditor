@@ -1,6 +1,5 @@
 export { getFullTokenizer } from './tokenizers/get-full-tokenizer';
 export { inspectLine } from './tokenizers/inspect-line';
-export type { WasmSource } from './lib/registry';
 export {
     initEditor,
     getRulesFromEditor,
@@ -12,10 +11,7 @@ export { simpleTokenizer } from './tokenizers/simple-tokenizer';
 export { normalizeTokens, Token } from './lib/utils';
 export type { RuleTokens } from './lib/utils';
 export type { TokenSegment } from './lib/types';
-export {
-    WasmLoadError,
-    GrammarNotFoundError,
-} from './lib/errors';
+export { GrammarNotFoundError } from './lib/errors';
 export { RulesBuilder, RuleType, DnsRuleType } from './rules-builder/rules-builder';
 export {
     BlockContentTypeModifiers,

@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 import { test, expect, beforeEach } from 'vitest';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
@@ -12,10 +10,6 @@ import { createTextmateLanguage } from '../src/highlight/textmate-language';
 import { tokenTags } from '../src/highlight/token-tags';
 import { Token } from '../src/lib/utils';
 
-const wasm = readFileSync(
-    resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
-).buffer;
-
 beforeEach(() => RegistryManager.resetForTests());
 
 test('tokenTags maps tokens to standard @lezer/highlight tags', () => {
@@ -25,7 +19,6 @@ test('tokenTags maps tokens to standard @lezer/highlight tags', () => {
 });
 
 test('wraps a comment in a highlighted span via defaultHighlightStyle', async () => {
-    RegistryManager.configureRegistry(wasm);
     const grammar = await RegistryManager.getGrammar(SCOPE_ADBLOCK);
     const language = createTextmateLanguage(grammar);
     const view = new EditorView({
