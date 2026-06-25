@@ -7,9 +7,10 @@ release-naming: ${bamboo.buildNumber}
 
 environments:
   - npmjs
+  - npmjs • alpha
 
-npmjs:
-  variables:
+npmjs: &npmjs
+  variables: &npmjs-variables
     publishArgs: --access public
   docker:
     image: adguard/node-ssh:22.22--0
@@ -40,3 +41,9 @@ npmjs:
             npm publish rules-editor.tgz $bamboo_publishArgs
   requirements:
     - extension: 'true'
+
+npmjs • alpha:
+  <<: *npmjs
+  variables:
+    <<: *npmjs-variables
+    publishArgs: --tag alpha --access public
