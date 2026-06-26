@@ -1,6 +1,7 @@
-const webpack = require('webpack');
-const path = require('path');
+const path = require('node:path');
+
 const CopyPlugin = require('copy-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
     mode: 'production',
@@ -14,15 +15,15 @@ module.exports = {
         publicPath: '/',
         assetModuleFilename: '[name][ext]',
         library: {
-            type: 'umd'
-        }
+            type: 'umd',
+        },
     },
     resolve: {
         extensions: ['.ts', '.js'],
         fallback: {
-            'path': require.resolve('path-browserify'),
-            'util': require.resolve('util/')
-        }
+            path: require.resolve('path-browserify'),
+            util: require.resolve('util/'),
+        },
     },
     module: {
         rules: [
@@ -30,14 +31,17 @@ module.exports = {
                 test: /\.ts?$/,
                 use: [{
                     loader: 'ts-loader',
+                    options: {
+                        configFile: 'tsconfig.build.json',
+                    },
                 }],
                 exclude: /node_modules/,
             },
             {
                 test: /\.wasm$/,
-                type: 'asset/resource'
-            }
-        ]
+                type: 'asset/resource',
+            },
+        ],
     },
     plugins: [
         new webpack.DefinePlugin({
@@ -45,8 +49,8 @@ module.exports = {
         }),
         new CopyPlugin({
             patterns: [
-              { from: 'node_modules/codemirror/lib/codemirror.css', to: './' },
+                { from: 'node_modules/codemirror/lib/codemirror.css', to: './' },
             ],
-          }),
+        }),
     ],
 };

@@ -31,10 +31,14 @@ export enum Token {
 // The return type for both tokenize functions.
 // It can be used as the input parameter type for the generator function.
 // Please refer to the README.md file for examples of how the generator can looks like.
-export type RuleTokens = { str: string, token: Token | null }[];
+export type RuleTokens = { str: string; token: Token | null }[];
 
 /**
- * normalizeTokens - function is designed to merge adjacent rule parts which tokens are identical.
+ * NormalizeTokens - function is designed to merge adjacent rule parts which tokens are identical.
+ *
+ * @param rule Tokenized rule whose adjacent same-token parts are merged.
+ *
+ * @returns The rule with adjacent identical-token parts merged.
  */
 export function normalizeTokens(rule: RuleTokens): RuleTokens {
     const normalizedRule = [rule.shift()!];
@@ -54,9 +58,13 @@ export function normalizeTokens(rule: RuleTokens): RuleTokens {
 }
 
 /**
-* Function is locating the CosmeticRuleMarker and determine its position within a cosmetic rule.
-* Has been taken from: https://github.com/AdguardTeam/tsurlfilter/blob/tsurlfilter-v2.1.12/packages/tsurlfilter/src/rules/cosmetic-rule-marker.ts
-*/
+ * Function is locating the CosmeticRuleMarker and determine its position within a cosmetic rule.
+ * Has been taken from: https://github.com/AdguardTeam/tsurlfilter/blob/tsurlfilter-v2.1.12/packages/tsurlfilter/src/rules/cosmetic-rule-marker.ts.
+ *
+ * @param ruleText Rule text to scan for a cosmetic rule marker.
+ *
+ * @returns Tuple of the marker index and the matched marker, or null when absent.
+ */
 export function findCosmeticRuleMarker(ruleText: string): [number, CosmeticRuleMarker | null] {
     const maxIndex = ruleText.length - 1;
     for (let i = 0; i < maxIndex; i += 1) {

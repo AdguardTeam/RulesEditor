@@ -1,21 +1,19 @@
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
 import * as CodeMirror from 'codemirror';
-
 import type { ITextmateThemePlus } from 'codemirror-textmate';
 import { addTheme } from 'codemirror-textmate';
-
-import { initGrammar } from './lib/initGrammar';
-
 // Enabling find and replace functionality
 import 'codemirror/addon/search/searchcursor';
 import 'codemirror/addon/search/search';
 import 'codemirror/addon/dialog/dialog';
+
+import { configureHotKeys, createMarker } from './commands/hotKeys';
+import { initGrammar } from './lib/initGrammar';
+import { RulesBuilder } from './rulesBuilder/RulesBuilder';
+
 // Enabling comment functionality
 import './commands/comment';
 // Enabling move/copy lines up and down functionality
 import './commands/lines';
-import { configureHotKeys, createMarker } from './commands/hotKeys';
-import { RulesBuilder } from './rulesBuilder/RulesBuilder';
 
 export type EditorFromTextArea = CodeMirror.EditorFromTextArea;
 
@@ -25,36 +23,48 @@ export const MAX_HIGHLIGHTED_LINES = 1000;
 
 /**
  * InitEditor - function initializes a CodeMirror editor with syntax highlighting for AdGuard filter rules.
- * @param element - Textarea element in your HTML.
- * @param wasm - WebAssembly module provided by onigasm.
- * @param conf - Configuration for initialization of CodeMirror and hotkeys.
- * @returns - Promise<CodeMirror.EditorFromTextArea>. CodeMirror instance.
+ *
+ * @param element Textarea element in your HTML.
+ * @param wasm WebAssembly module provided by onigasm.
+ * @param conf Configuration for initialization of CodeMirror and hotkeys.
+ * @param conf.withBreakpoints Whether the breakpoint gutter is enabled.
+ * @param conf.onChange Callback invoked on editor change.
+ * @param conf.hotkeys Hotkey configuration.
+ * @param conf.hotkeys.mode OS mode for hotkey mapping.
+ * @param conf.hotkeys.markerColor Color of the gutter marker.
+ * @param conf.hotkeys.markerHTML HTML of the gutter marker.
+ * @param conf.hotkeys.toggleRule Callback invoked to toggle a rule.
+ * @param conf.hotkeys.onSave Callback invoked on save.
+ * @param conf.editor CodeMirror editor configuration.
+ * @param conf.theme Editor theme.
+ *
+ * @returns CodeMirror instance.
  */
 export async function initEditor(
     element: HTMLTextAreaElement,
     wasm: any,
     conf: {
         // Describes if breakpoint gutter will be used
-        withBreakpoints?: boolean,
+        withBreakpoints?: boolean;
         // Callback for change event
-        onChange?: (editor: CodeMirror.Editor, makeMarker: () => HTMLDivElement) => void,
+        onChange?: (editor: CodeMirror.Editor, makeMarker: () => HTMLDivElement) => void;
         // Configuration for hotkeys
         hotkeys: {
             // OS mode for hotkeys mapping
-            mode: 'windows' | 'mac',
+            mode: 'windows' | 'mac';
             // Color of the marker for placing on the gutter (describes if rule is enabled)
-            markerColor?: string,
+            markerColor?: string;
             // HTML of the marker
-            markerHTML?: string,
+            markerHTML?: string;
             // Callback for toggle rule
-            toggleRule?: (editor: CodeMirror.Editor) => void,
+            toggleRule?: (editor: CodeMirror.Editor) => void;
             // Callback for save
-            onSave?: (editor: CodeMirror.Editor) => void,
-        },
+            onSave?: (editor: CodeMirror.Editor) => void;
+        };
         // Extended configuration of CodeMirror
-        editor?: CodeMirror.EditorConfiguration,
+        editor?: CodeMirror.EditorConfiguration;
         // Additional theme for CodeMirror
-        theme?: ITextmateThemePlus,
+        theme?: ITextmateThemePlus;
     },
 ): Promise<EditorFromTextArea> {
     await initGrammar(wasm);
@@ -144,7 +154,7 @@ export const getRulesFromEditor = (editor: CodeMirror.Editor) => {
         // Get total number of lines
         const totalLines = doc.lineCount();
         let i = 0;
-        const rules: { enabled: boolean, rule: string }[] = [];
+        const rules: { enabled: boolean; rule: string }[] = [];
 
         // Process each line
         while (i <= totalLines) {
@@ -152,7 +162,7 @@ export const getRulesFromEditor = (editor: CodeMirror.Editor) => {
             if (info && info.text) {
                 rules.push({ enabled: !!info.gutterMarkers, rule: info.text });
             }
-            i++;
+            i += 1;
         }
         return rules;
     } catch {
@@ -183,8 +193,8 @@ export const configureEditorMode = (editor: CodeMirror.Editor) => {
 // Function to set editor value with gutter markers
 export const setEditorValue = (
     editor: CodeMirror.Editor,
-    value: { enabled: boolean, rule: string }[],
-    markerOptions: { color?: string, innerHTML?: string },
+    value: { enabled: boolean; rule: string }[],
+    markerOptions: { color?: string; innerHTML?: string },
 ) => {
     // Array to store line numbers of enabled rules
     const enabledLines: number[] = [];

@@ -2,18 +2,20 @@
 
 ## Table of Contents
 
-- [Project Overview](#project-overview)
-- [Technical Context](#technical-context)
-- [Project Structure](#project-structure)
-- [Build And Test Commands](#build-and-test-commands)
-- [Contribution Instructions](#contribution-instructions)
-- [Code Guidelines](#code-guidelines)
+- [AGENTS.md](#agentsmd)
+  - [Table of Contents](#table-of-contents)
+  - [Project Overview](#project-overview)
+  - [Technical Context](#technical-context)
+  - [Project Structure](#project-structure)
+  - [Build And Test Commands](#build-and-test-commands)
+  - [Contribution Instructions](#contribution-instructions)
+  - [Code Guidelines](#code-guidelines)
     - [System Design](#system-design)
     - [Architecture](#architecture)
     - [Code Quality](#code-quality)
     - [Testing](#testing)
     - [Dependency Management](#dependency-management)
-    - [Configuration & Documentation](#configuration--documentation)
+    - [Configuration \& Documentation](#configuration--documentation)
     - [Markdown Formatting](#markdown-formatting)
 
 ## Project Overview
@@ -66,18 +68,20 @@ filter rules. It provides:
 ├── tsconfig.json                 # Main TypeScript config
 ├── jest.config.js                # Jest config
 ├── package.json                  # Package manifest
-└── .eslintrc                     # ESLint config (airbnb-typescript)
+└── eslint.config.mjs             # ESLint flat config (airbnb via FlatCompat)
 ```
 
 ## Build And Test Commands
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm run build` | Build UMD bundle to `dist/` via Webpack |
+| `pnpm build` | Build UMD bundle to `dist/` via Webpack |
 | `pnpm test` | Run all Jest tests |
-| `pnpm run lint` | Lint `src/index.ts` with ESLint |
-| `pnpm run loadGrammar` | Regenerate TextMate grammar from upstream |
-| `pnpm run increment` | Bump patch version |
+| `pnpm lint:code` | Run ESLint |
+| `pnpm lint:types` | Run TypeScript type checking |
+| `pnpm lint` | Run all linters (ESLint + TypeScript) |
+| `pnpm loadGrammar` | Regenerate TextMate grammar from upstream |
+| `pnpm increment` | Bump patch version |
 
 ## Contribution Instructions
 
@@ -178,7 +182,7 @@ and external deps. Shared library may only depend on external deps.
 - **Airbnb style** — ESLint extends `airbnb-typescript/base`; follow
   its conventions for imports, naming, and formatting.
 - **No modification of linter config** without explicit approval —
-  the `.eslintrc` rules are intentional.
+  the `eslint.config.mjs` rules are intentional.
 - **Error handling** — throw errors; let consumers catch. The
   `initGrammar` singleton silently catches "already loaded" errors
   to allow safe repeated calls.

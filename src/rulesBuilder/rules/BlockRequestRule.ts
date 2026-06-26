@@ -1,12 +1,13 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
+
 import type { BasicRule } from './utils';
 import {
-    DomainModifiers,
     BlockContentTypeModifiers,
-    important,
-    domainModifier,
-    thirdParty,
     blockRuleBeginning,
+    domainModifier,
+    DomainModifiers,
+    important,
+    thirdParty,
 } from './utils';
 
 /**
@@ -40,7 +41,8 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Setter for domain.
-     * @param domain - Domain.
+     *
+     * @param domain Domain.
      */
     public setDomain(domain: string) {
         this.domain = domain;
@@ -48,6 +50,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Getter for domain.
+     *
      * @returns Domain rule string.
      */
     public getDomain(): string {
@@ -56,7 +59,8 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Setter for blocking content type.
-     * @param modifiers - Content type modifiers.
+     *
+     * @param modifiers Content type modifiers.
      */
     public setContentType(modifiers: BlockContentTypeModifiers[]) {
         this.contentModifiers = modifiers;
@@ -64,7 +68,9 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Setter for domain modifiers.
-     * @param modifier - DomainModifiers.
+     *
+     * @param modifier DomainModifiers.
+     * @param domains Optional list of domains for the modifier.
      */
     public setDomainModifiers(modifier: DomainModifiers, domains?: string[]): void {
         this.domainModifier = modifier;
@@ -73,7 +79,8 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Setter for rule priority.
-     * @param priority - Boolean.
+     *
+     * @param priority Boolean.
      */
     public setHighPriority(priority: boolean): void {
         this.important = priority;
@@ -81,6 +88,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Getter for blocking content type.
+     *
      * @returns Data.
      */
     public getContentType() {
@@ -89,6 +97,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Getter for domain modifiers.
+     *
      * @returns Data.
      */
     public getDomainModifiers() {
@@ -97,6 +106,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Getter for domain modifiers.
+     *
      * @returns Data.
      */
     public getDomainModifiersDomains() {
@@ -105,6 +115,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Getter for rule priority.
+     *
      * @returns Data.
      */
     public getHighPriority() {
@@ -113,6 +124,7 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Build rule from current setup.
+     *
      * @returns String - rule string.
      */
     public buildRule(): string {
@@ -134,6 +146,8 @@ export class BlockRequestRule implements BasicRule {
             case DomainModifiers.allExceptListed:
                 modifiers.add(`${domainModifier}=${this.domainModifierDomains.map((s) => `~${s}`).join('|')}`);
                 break;
+            default:
+                break;
         }
 
         if (this.important) {
@@ -149,7 +163,9 @@ export class BlockRequestRule implements BasicRule {
 
     /**
      * Create RequestRule instance from existing rule string.
-     * @param rawRule - Rule string.
+     *
+     * @param rawRule Rule string.
+     *
      * @returns RequestRule instance.
      */
     public static fromRule(rawRule: string): BlockRequestRule {
@@ -188,7 +204,10 @@ export class BlockRequestRule implements BasicRule {
 
         let domainSetup: DomainModifiers = DomainModifiers.all;
 
-        if (modifiers.includes(BlockContentTypeModifiers.webpages) && modifiers.includes(`${domainModifier}=${domain}`)) {
+        if (
+            modifiers.includes(BlockContentTypeModifiers.webpages)
+            && modifiers.includes(`${domainModifier}=${domain}`)
+        ) {
             domainSetup = DomainModifiers.onlyThis;
         }
 
@@ -201,7 +220,9 @@ export class BlockRequestRule implements BasicRule {
             const parsedDomain = ruleDomainModifier.split('=');
             const domains = parsedDomain[1].split('|');
 
-            domainSetup = domains.every((v) => v.startsWith('~')) ? DomainModifiers.allExceptListed : DomainModifiers.onlyListed;
+            domainSetup = domains.every((v) => v.startsWith('~'))
+                ? DomainModifiers.allExceptListed
+                : DomainModifiers.onlyListed;
             rule.setDomainModifiers(
                 domainSetup,
                 domainSetup === DomainModifiers.allExceptListed ? domains.map((d) => d.slice(1)) : domains,

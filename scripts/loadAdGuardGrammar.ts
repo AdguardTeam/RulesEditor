@@ -1,9 +1,11 @@
-import { load } from 'js-yaml';
-import { promises as fs }  from 'fs';
-import * as path  from 'path';
-import { promisify }  from 'util';
-import { exec as baseExec }  from 'child_process';
+import { exec as baseExec } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
+import { promisify } from 'node:util';
+
 import type { addGrammar } from 'codemirror-textmate';
+import { load } from 'js-yaml';
+
 const exec = promisify(baseExec);
 
 type Grammar = Parameters<typeof addGrammar>[1];
@@ -13,11 +15,12 @@ const OUTPUT_FILE = path.resolve(__dirname, '../src/grammars/adblock.tmLanguage.
 const INPUT_FILE = path.resolve(TEMP_LIB_PATH, './syntaxes/adblock.yaml-tmlanguage');
 const REPO = 'https://github.com/AdguardTeam/VscodeAdblockSyntax.git';
 
-
 /**
  * Function to verify that adguard.tmLanguage exclusively includes js sources.
- * @param textmate loaded adguard.tmLanguage Grammar
- * @returns true in case validation failed
+ *
+ * @param textmate Loaded adguard.tmLanguage Grammar.
+ *
+ * @returns True in case validation failed.
  */
 const validateIncludes = (textmate: Grammar) => {
     const string = JSON.stringify(textmate);
@@ -29,9 +32,10 @@ const validateIncludes = (textmate: Grammar) => {
     if (!(extensions.size === 1 && extensions.has('js'))) {
         const ext = Array.from(extensions.values());
         console.error('Another source include found. Check that you have all needed grammars');
-        console.error(`Following includes found: ${ext.map((e) => `source.${e}`).join(', ')}`)
+        console.error(`Following includes found: ${ext.map((e) => `source.${e}`).join(', ')}`);
         return true;
     }
+    return false;
 };
 
 /**
@@ -43,7 +47,7 @@ const main = async () => {
     try {
         console.log('Convert yaml into json');
         const data = load(await fs.readFile(INPUT_FILE, { encoding: 'utf-8' }));
-        console.log('Validating AdGuard textmate for sources include')
+        console.log('Validating AdGuard textmate for sources include');
         const hasErrors = validateIncludes(data as Grammar);
 
         await fs.writeFile(OUTPUT_FILE, JSON.stringify(data, null, 4));
@@ -57,6 +61,6 @@ const main = async () => {
         console.log(e);
         process.exit(1);
     }
-}
+};
 
 main();

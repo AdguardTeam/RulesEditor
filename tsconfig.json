@@ -1,29 +1,19 @@
 {
+    "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "allowSyntheticDefaultImports": true,
-        "alwaysStrict": true,
-        "allowJs": true,
-        "target": "es6",
-        "module": "ESNext",
-        "moduleResolution": "node",
-        "outDir": "dist",
-        "declaration": true,
-        "declarationDir": "dist/types",
-        "noResolve": false,
-        "noImplicitAny": true,
-        "removeComments": true,
-        "sourceMap": true,
-        "strict": true,
-        "resolveJsonModule": true,
-        "types": [
-            "node",
-            "jest"
-        ],
-        "useDefineForClassFields": true
+        // With this tsconfig, we don't need to emit any files,
+        // we just want to check the types
+        "noEmit": true,
+        "skipLibCheck": true,
+        "types": ["jest", "node"]
     },
     "include": [
-        "src/**/*",
-        "./declaration.d.ts"
+        "declaration.d.ts",
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "scripts/**/*.ts",
+        "eslint.config.mjs",
+        "jest.config.js",
+        "webpack.config.js",
     ],
-    "exclude": []
-  }
+}

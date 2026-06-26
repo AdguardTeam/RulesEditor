@@ -1,15 +1,26 @@
-import { CosmeticRule, NetworkRule, HostRule, RuleFactory } from '@adguard/tsurlfilter';
+import {
+    CosmeticRule,
+    HostRule,
+    NetworkRule,
+    RuleFactory,
+} from '@adguard/tsurlfilter';
 
-import type { BasicRule } from './rules/utils';
-import { BlockContentTypeModifiers, domainMatch, important, thirdParty, domainModifier, noFilteringModifiers } from './rules/utils';
 import { BlockRequestRule } from './rules/BlockRequestRule';
-import { UnblockRequestRule } from './rules/UnblockRequestRule';
-import { NoFilteringRule } from './rules/NoFilteringRule';
 import { Comment } from './rules/Comment';
 import { CustomRule } from './rules/CustomRule';
 import { DNSRule } from './rules/DNSRule';
+import { NoFilteringRule } from './rules/NoFilteringRule';
+import { UnblockRequestRule } from './rules/UnblockRequestRule';
+import {
+    BlockContentTypeModifiers,
+    domainMatch,
+    domainModifier,
+    important,
+    noFilteringModifiers,
+    thirdParty,
+} from './rules/utils';
+import type { BasicRule } from './rules/utils';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const isValidDomain = require('is-valid-domain');
 
 export type RuleType = 'block' | 'unblock' | 'noFiltering' | 'custom' | 'comment';
@@ -49,6 +60,9 @@ export class RulesBuilder {
     public static getRuleByType(type: 'comment'): Comment;
     /**
      * Return correct rule builder for each type of creating rule.
+     *
+     * @param type Rule type to build a builder for.
+     *
      * @returns One of rule builder instance.
      */
     public static getRuleByType(type: RuleType): BasicRule {
@@ -63,6 +77,8 @@ export class RulesBuilder {
                 return new CustomRule();
             case 'comment':
                 return new Comment();
+            default:
+                throw new Error(`Unknown rule type: ${type}`);
         }
     }
 
@@ -88,7 +104,9 @@ export class RulesBuilder {
     public static getDnsRuleByType(type: 'comment'): Comment;
     /**
      * Returns new DNS isBlockingRule or unblock rule.
-     * @param isBlockingRule - Block rule or not.
+     *
+     * @param type Rule type to build a DNS builder for.
+     *
      * @returns DNSRule instance.
      */
     public static getDnsRuleByType(type: DnsRuleType): BasicRule {
@@ -101,13 +119,17 @@ export class RulesBuilder {
                 return new CustomRule();
             case 'comment':
                 return new Comment();
+            default:
+                throw new Error(`Unknown DNS rule type: ${type}`);
         }
     }
 
     /**
      * Simple validator for domain.
-     * @param ruleBuilder - Instance of RequestRule or NoFilteringRule builder.
-     * @param opts - Validation parameters, check is-valid-domain library function.
+     *
+     * @param ruleBuilder Instance of RequestRule or NoFilteringRule builder.
+     * @param opts Validation parameters, check is-valid-domain library function.
+     *
      * @returns Boolean - if domain is valid.
      */
     public static validateDomain(ruleBuilder:
@@ -117,7 +139,9 @@ export class RulesBuilder {
 
     /**
      * Validate if final rule is valid.
-     * @param ruleBuilder - Instance of rule builder.
+     *
+     * @param ruleBuilder Instance of rule builder.
+     *
      * @returns Boolean - if rule is valid.
      */
     public static validateRule(ruleBuilder: BasicRule) {
@@ -134,8 +158,10 @@ export class RulesBuilder {
 
     /**
      * Defines rule type from raw rule string.
-     * @param rawRule - Rule string.
-     * @param isDnsRule - Mode for dns rules.
+     *
+     * @param rawRule Rule string.
+     * @param isDnsRule Mode for dns rules.
+     *
      * @returns RuleType or null if failed to detect the rule type.
      */
     public static getRuleType(rawRule: string, isDnsRule?: boolean): DnsRuleType | RuleType | null {
@@ -228,8 +254,10 @@ export class RulesBuilder {
 
     /**
      * Returns specific rule builder depending on passed rule, return null if passed rule is incorrect.
-     * @param rawRule - Rule string.
-     * @param isDnsRule - Mode for dns rules.
+     *
+     * @param rawRule Rule string.
+     * @param isDnsRule Mode for dns rules.
+     *
      * @returns One of rule builder instance.
      */
     public static getRuleFromRuleString(rawRule: string, isDnsRule?: boolean) {

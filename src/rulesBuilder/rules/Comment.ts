@@ -16,7 +16,8 @@ export class Comment implements BasicRule {
 
     /**
      * Set comment text.
-     * @param text - Comment text.
+     *
+     * @param text Comment text.
      */
     public setText(text: string) {
         this.text = text;
@@ -24,6 +25,7 @@ export class Comment implements BasicRule {
 
     /**
      * Get comment text.
+     *
      * @returns Comment text.
      */
     public getText() {
@@ -32,7 +34,8 @@ export class Comment implements BasicRule {
 
     /**
      * Set hadHashtag property, defines that initial rule had a hashtag.
-     * @param hadHashtag - Boolean.
+     *
+     * @param hadHashtag Boolean.
      */
     public setHadHashtag(hadHashtag: boolean) {
         this.hadHashtag = hadHashtag;
@@ -40,6 +43,7 @@ export class Comment implements BasicRule {
 
     /**
      * Build comment from current text.
+     *
      * @returns String - comment string.
      */
     public buildRule(): string {
@@ -48,7 +52,9 @@ export class Comment implements BasicRule {
 
     /**
      * Create Comment instance from existing comment string.
-     * @param rawRule - Comment string.
+     *
+     * @param rawRule Comment string.
+     *
      * @returns Comment instance.
      */
     public static fromRule(rawRule: string): Comment {

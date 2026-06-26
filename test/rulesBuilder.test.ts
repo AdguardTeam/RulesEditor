@@ -1,5 +1,10 @@
+import {
+    BlockContentTypeModifiers,
+    DomainModifiers,
+    ExceptionSelectModifiers,
+    UnblockContentTypeModifier,
+} from '../src/rulesBuilder/rules/utils';
 import { RulesBuilder } from '../src/rulesBuilder/RulesBuilder';
-import { BlockContentTypeModifiers, UnblockContentTypeModifier, ExceptionSelectModifiers, DomainModifiers } from '../src/rulesBuilder/rules/utils';
 
 // Block rules
 test('RulesBuilder: ||example.org^$important', () => {
@@ -24,7 +29,9 @@ test('RulesBuilder: ||example.org^$stylesheet,script,domain=example.com|example.
 });
 
 test('RuleParser: ||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
-    const rule = RulesBuilder.getRuleFromRuleString('||example.org^$stylesheet,script,domain=example.com|example.ru,important');
+    const rule = RulesBuilder.getRuleFromRuleString(
+        '||example.org^$stylesheet,script,domain=example.com|example.ru,important',
+    );
     const result = '||example.org^$stylesheet,script,domain=example.com|example.ru,important';
     expect(rule?.buildRule()).toEqual(result);
 });
@@ -49,7 +56,9 @@ test('RulesBuilder: ||example.org^$stylesheet,script,domain=example.com|example.
 });
 
 test('RuleParser: ||example.org^$stylesheet,script,domain=~example.com|~example.ru,important', () => {
-    const rule = RulesBuilder.getRuleFromRuleString('||example.org^$stylesheet,script,domain=~example.com|~example.ru,important');
+    const rule = RulesBuilder.getRuleFromRuleString(
+        '||example.org^$stylesheet,script,domain=~example.com|~example.ru,important',
+    );
     const result = '||example.org^$stylesheet,script,domain=~example.com|~example.ru,important';
     expect(rule?.buildRule()).toEqual(result);
 });
@@ -149,7 +158,9 @@ test('RulesBuilder: @@||example.org^$stylesheet,script,domain=example.com|exampl
 });
 
 test('RuleParser: @@||example.org^$stylesheet,script,domain=example.com|example.ru,important', () => {
-    const rule = RulesBuilder.getRuleFromRuleString('@@||example.org^$stylesheet,script,domain=example.com|example.ru,important');
+    const rule = RulesBuilder.getRuleFromRuleString(
+        '@@||example.org^$stylesheet,script,domain=example.com|example.ru,important',
+    );
     const result = '@@||example.org^$stylesheet,script,domain=example.com|example.ru,important';
     expect(rule?.buildRule()).toEqual(result);
 });
@@ -174,13 +185,17 @@ test('RulesBuilder: @@||example.org^$stylesheet,script,domain=~example.com|~exam
 });
 
 test('RuleParser: @@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important', () => {
-    const rule = RulesBuilder.getRuleFromRuleString('@@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important');
+    const rule = RulesBuilder.getRuleFromRuleString(
+        '@@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important',
+    );
     const result = '@@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important';
     expect(rule?.buildRule()).toEqual(result);
 });
 
 test('Rule type: @@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important', () => {
-    const rule = RulesBuilder.getRuleType('@@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important');
+    const rule = RulesBuilder.getRuleType(
+        '@@||example.org^$stylesheet,script,domain=~example.com|~example.ru,important',
+    );
     const result = 'unblock';
     expect(rule).toEqual(result);
 });
@@ -277,7 +292,9 @@ test('RulesBuilder: @@||example.org^$extension,jsinject,elemhide,content,urlbloc
 });
 
 test('RuleParser: @@||example.org^$extension,jsinject,elemhide,content,urlblock,important', () => {
-    const rule = RulesBuilder.getRuleFromRuleString('@@||example.org^$extension,jsinject,elemhide,content,urlblock,important');
+    const rule = RulesBuilder.getRuleFromRuleString(
+        '@@||example.org^$extension,jsinject,elemhide,content,urlblock,important',
+    );
     const result = '@@||example.org^$extension,jsinject,elemhide,content,urlblock,important';
     expect(rule?.buildRule()).toEqual(result);
 });

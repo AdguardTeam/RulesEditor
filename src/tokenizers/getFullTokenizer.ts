@@ -1,22 +1,21 @@
 import type { ITextmateThemePlus } from 'codemirror-textmate';
-import {
-    addTheme,
-    themedHighlighters,
-} from 'codemirror-textmate';
+import { addTheme, themedHighlighters } from 'codemirror-textmate';
 
-import { normalizeTokens } from '../lib/utils';
 import { initGrammar } from '../lib/initGrammar';
-import type { Token, RuleTokens } from '../lib/utils';
+import { normalizeTokens } from '../lib/utils';
+import type { RuleTokens, Token } from '../lib/utils';
 
 /**
- * getFullTokenizer - provides a tokenizer function for splitting a filter rule into tokenized parts,
- * which aids in highlighting individual segments of a single rule
- * @param wasm - WebAssembly module provided by onigasm
- * @param theme - Usually a JSON object with a theme for syntax and editor highlighting
- * @returns Promise<(rule: string) => RuleTokens | { str: string, token: string | null }[]>
+ * GetFullTokenizer - provides a tokenizer function for splitting a filter rule into tokenized parts,
+ * which aids in highlighting individual segments of a single rule.
+ *
+ * @param wasm WebAssembly module provided by onigasm.
+ * @param theme Usually a JSON object with a theme for syntax and editor highlighting.
+ *
+ * @returns A promise that resolves to a function which takes a rule string and returns tokenized parts.
  */
 export async function getFullTokenizer(wasm: any, theme?: ITextmateThemePlus)
-    : Promise<(rule: string) => RuleTokens | { str: string, token: string | null }[]> {
+    : Promise<(rule: string) => RuleTokens | { str: string; token: string | null }[]> {
     await initGrammar(wasm);
 
     if (theme) {

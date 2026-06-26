@@ -1,15 +1,21 @@
-/* eslint-disable @typescript-eslint/strict-boolean-expressions */
-import { RuleFactory, CosmeticRule, NetworkRule, HostRule } from '@adguard/tsurlfilter';
+import {
+    CosmeticRule,
+    HostRule,
+    NetworkRule,
+    RuleFactory,
+} from '@adguard/tsurlfilter';
 
 import type { RuleTokens } from '../lib/utils';
 import { findCosmeticRuleMarker, normalizeTokens, Token } from '../lib/utils';
 
 /**
- * simpleTokenizer - provides a tokenizer function for splitting a filter ruleRaw into tokenized parts,
+ * SimpleTokenizer - provides a tokenizer function for splitting a filter ruleRaw into tokenized parts,
  * which aids in highlighting individual segments of a single ruleRaw. Because it does not utilize WebAssembly,
- * the outcome is not as precise as the tokenizer obtained from getTokenizer
- * @param ruleRaw - user rule
- * @returns RuleTokens
+ * the outcome is not as precise as the tokenizer obtained from getTokenizer.
+ *
+ * @param ruleRaw User rule.
+ *
+ * @returns RuleTokens.
  */
 export const simpleTokenizer = (ruleRaw: string): RuleTokens => {
     if (RuleFactory.isComment(ruleRaw)) {

@@ -71,13 +71,15 @@ test('rule is comment token', () => {
     expect(simpleTokenizer('! comment')).toEqual([{ token: 'comment', str: '! comment' }]);
     expect(simpleTokenizer('!#comment')).toEqual([{ token: 'comment', str: '!#comment' }]);
     expect(simpleTokenizer('!+comment')).toEqual([{ token: 'comment', str: '!+comment' }]);
-    expect(simpleTokenizer('! #########################')).toEqual([{ token: 'comment', str: '! #########################' }]);
+    expect(simpleTokenizer('! #########################'))
+        .toEqual([{ token: 'comment', str: '! #########################' }]);
     expect(simpleTokenizer('#')).toEqual([{ token: 'comment', str: '#' }]);
     expect(simpleTokenizer('# #')).toEqual([{ token: 'comment', str: '# #' }]);
     expect(simpleTokenizer('#comment')).toEqual([{ token: 'comment', str: '#comment' }]);
     expect(simpleTokenizer('# comment')).toEqual([{ token: 'comment', str: '# comment' }]);
     expect(simpleTokenizer('#+comment')).toEqual([{ token: 'comment', str: '#+comment' }]);
-    expect(simpleTokenizer('# ########################')).toEqual([{ token: 'comment', str: '# ########################' }]);
+    expect(simpleTokenizer('# ########################'))
+        .toEqual([{ token: 'comment', str: '# ########################' }]);
 });
 
 test('Rule: ||example.com/assets/Cookie.$stylesheet,script', () => {

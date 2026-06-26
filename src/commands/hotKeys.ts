@@ -1,12 +1,17 @@
 import type * as CodeMirror from 'codemirror';
+
 import { RulesBuilder } from '../rulesBuilder/RulesBuilder';
 
 /**
  * Function to create checkmark for enabled rules.
- * @param options - Object with color and innerHTML properties.
- * @returns - HTML element with checkmark.
+ *
+ * @param options Object with color and innerHTML properties.
+ * @param options.color Color of the checkmark marker.
+ * @param options.innerHTML Inner HTML of the checkmark marker.
+ *
+ * @returns HTML element with checkmark.
  */
-export const createMarker = (options: { color?: string, innerHTML?: string }) => () => {
+export const createMarker = (options: { color?: string; innerHTML?: string }) => () => {
     const marker = document.createElement('div');
     marker.style.color = options.color || '#67B279';
     marker.style.marginLeft = '-12px';
@@ -16,15 +21,15 @@ export const createMarker = (options: { color?: string, innerHTML?: string }) =>
 };
 
 export const configureHotKeys = (options: {
-    commentCallback: (cm: CodeMirror.Editor) => void,
-    markerOptions: { color?: string, innerHTML?: string },
+    commentCallback: (cm: CodeMirror.Editor) => void;
+    markerOptions: { color?: string; innerHTML?: string };
 }) => {
     const makeMarker = createMarker(options.markerOptions);
 
     /**
      * Function to toggle comment for a rule.
-     * @param options - Object with callback and markerOptions properties.
-     * @returns - Function to toggle comment for a rule.
+     *
+     * @param cm CodeMirror instance.
      */
     const onComment = (cm: CodeMirror.Editor) => {
         const { line } = cm.getCursor();
@@ -37,7 +42,8 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to copy selected text to clipboard.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const onCopy = (cm: CodeMirror.Editor) => {
         const selection = cm.getSelection();
@@ -46,7 +52,8 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to paste text from clipboard to editor.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const onPaste = async (cm: CodeMirror.Editor) => {
         const lines = await window.navigator.clipboard.readText();
@@ -87,7 +94,8 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to cut selected text to clipboard.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const onCut = (cm: CodeMirror.Editor) => {
         const selection = cm.getSelection();
@@ -100,7 +108,8 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to move selected line up.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const moveLineUp = (cm: CodeMirror.Editor) => {
         const cursorLine = cm.getCursor().line;
@@ -112,19 +121,31 @@ export const configureHotKeys = (options: {
         cm.operation(() => {
             const bottomLineIndex = cursorLine;
             const topLineIndex = cursorLine - 1; // line above cursor
-            
+
             const movingUpLine = cm.getLine(bottomLineIndex);
             const movingUpLineInfo = cm.lineInfo(bottomLineIndex);
-            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment' && movingUpLineInfo.gutterMarkers;
+            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment'
+                && movingUpLineInfo.gutterMarkers;
 
             const movingDownLine = cm.getLine(topLineIndex);
             const movingDownLineInfo = cm.lineInfo(topLineIndex);
-            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment' && movingDownLineInfo.gutterMarkers;
+            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment'
+                && movingDownLineInfo.gutterMarkers;
 
-            cm.replaceRange(movingDownLine, { line: bottomLineIndex, ch: 0 }, { line: bottomLineIndex, ch: movingUpLine.length }, '+swapLine');
+            cm.replaceRange(
+                movingDownLine,
+                { line: bottomLineIndex, ch: 0 },
+                { line: bottomLineIndex, ch: movingUpLine.length },
+                '+swapLine',
+            );
             cm.setGutterMarker(bottomLineIndex, 'breakpoints', shouldMarkMovingDownLine ? makeMarker() : null);
 
-            cm.replaceRange(movingUpLine, { line: topLineIndex, ch: 0 }, { line: topLineIndex, ch: movingDownLine.length }, '+swapLine');
+            cm.replaceRange(
+                movingUpLine,
+                { line: topLineIndex, ch: 0 },
+                { line: topLineIndex, ch: movingDownLine.length },
+                '+swapLine',
+            );
             cm.setGutterMarker(topLineIndex, 'breakpoints', shouldMarkMovingUpLine ? makeMarker() : null);
 
             cm.setCursor({ ...cm.getCursor(), line: topLineIndex });
@@ -134,18 +155,19 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to copy selected lines up.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const copyLineUp = (cm: CodeMirror.Editor) => {
         const cursorStartPos = cm.getDoc().getCursor();
         cm.operation(() => {
             const rangeCount = cm.listSelections().length;
-            for (let i = 0; i < rangeCount; i++) {
+            for (let i = 0; i < rangeCount; i += 1) {
                 const range = cm.listSelections()[i];
                 if (range.empty()) {
                     const info = cm.lineInfo(range.head.line);
                     const shouldMark = RulesBuilder.getRuleType(info.text) !== 'comment' && info.gutterMarkers;
-                    cm.replaceRange(cm.getLine(range.head.line) + '\n', { line: range.head.line, ch: 0 });
+                    cm.replaceRange(`${cm.getLine(range.head.line)}\n`, { line: range.head.line, ch: 0 });
                     if (shouldMark) {
                         cm.setGutterMarker(cursorStartPos.line, 'breakpoints', makeMarker());
                     }
@@ -159,7 +181,8 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to move selected line down.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const moveLineDown = (cm: CodeMirror.Editor) => {
         const cursorLine = cm.getCursor().line;
@@ -172,7 +195,8 @@ export const configureHotKeys = (options: {
 
             const movingUpLine = cm.getLine(bottomLineIndex);
             const movingUpLineInfo = cm.lineInfo(bottomLineIndex);
-            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment' && movingUpLineInfo.gutterMarkers;
+            const shouldMarkMovingUpLine = RulesBuilder.getRuleType(movingUpLineInfo.text) !== 'comment'
+                && movingUpLineInfo.gutterMarkers;
 
             let movingDownLine = cm.getLine(topLineIndex);
             const isLastLine = bottomLineIndex === cm.lastLine();
@@ -180,12 +204,23 @@ export const configureHotKeys = (options: {
                 movingDownLine = movingDownLine.replace('\n', '');
             }
             const movingDownLineInfo = cm.lineInfo(topLineIndex);
-            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment' && movingDownLineInfo.gutterMarkers;
+            const shouldMarkMovingDownLine = RulesBuilder.getRuleType(movingDownLineInfo.text) !== 'comment'
+                && movingDownLineInfo.gutterMarkers;
 
-            cm.replaceRange(movingDownLine, { line: bottomLineIndex, ch: 0 }, { line: bottomLineIndex, ch: movingUpLine.length }, '+swapLine');
+            cm.replaceRange(
+                movingDownLine,
+                { line: bottomLineIndex, ch: 0 },
+                { line: bottomLineIndex, ch: movingUpLine.length },
+                '+swapLine',
+            );
             cm.setGutterMarker(bottomLineIndex, 'breakpoints', shouldMarkMovingDownLine ? makeMarker() : null);
 
-            cm.replaceRange(movingUpLine, { line: topLineIndex, ch: 0 }, { line: topLineIndex, ch: movingDownLine.length }, '+swapLine');
+            cm.replaceRange(
+                movingUpLine,
+                { line: topLineIndex, ch: 0 },
+                { line: topLineIndex, ch: movingDownLine.length },
+                '+swapLine',
+            );
             cm.setGutterMarker(topLineIndex, 'breakpoints', shouldMarkMovingUpLine ? makeMarker() : null);
 
             cm.setCursor({ ...cm.getCursor(), line: bottomLineIndex });
@@ -195,18 +230,19 @@ export const configureHotKeys = (options: {
 
     /**
      * Function to copy selected lines down.
-     * @param cm - CodeMirror instance.
+     *
+     * @param cm CodeMirror instance.
      */
     const copyLineDown = (cm: CodeMirror.Editor) => {
         const cursorStartPos = cm.getDoc().getCursor();
         cm.operation(() => {
             const rangeCount = cm.listSelections().length;
-            for (let i = 0; i < rangeCount; i++) {
+            for (let i = 0; i < rangeCount; i += 1) {
                 const range = cm.listSelections()[i];
                 if (range.empty()) {
                     const info = cm.lineInfo(range.head.line);
                     const shouldMark = RulesBuilder.getRuleType(info.text) !== 'comment' && info.gutterMarkers;
-                    cm.replaceRange(cm.getLine(range.head.line) + '\n', { line: range.head.line, ch: 0 });
+                    cm.replaceRange(`${cm.getLine(range.head.line)}\n`, { line: range.head.line, ch: 0 });
                     if (shouldMark) {
                         cm.setGutterMarker(cursorStartPos.line, 'breakpoints', makeMarker());
                     }

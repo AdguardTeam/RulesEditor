@@ -11,7 +11,8 @@ export class CustomRule implements BasicRule {
 
     /**
      * Setter for comment.
-     * @param rule - Comment text.
+     *
+     * @param rule Comment text.
      */
     public setRule(rule: string) {
         this.rule = rule;
@@ -19,6 +20,7 @@ export class CustomRule implements BasicRule {
 
     /**
      * Getter for comment.
+     *
      * @returns Rule text.
      */
     public getRule() {
@@ -27,6 +29,7 @@ export class CustomRule implements BasicRule {
 
     /**
      * Build rule from current setup.
+     *
      * @returns String - rule string.
      */
     public buildRule(): string {
@@ -35,7 +38,9 @@ export class CustomRule implements BasicRule {
 
     /**
      * Create CustomRule instance from existing rule string.
-     * @param rawRule - Rule string.
+     *
+     * @param rawRule Rule string.
+     *
      * @returns CustomRule instance.
      */
     public static fromRule(rawRule: string): CustomRule {

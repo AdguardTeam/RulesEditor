@@ -1,6 +1,7 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
+
 import type { BasicRule } from './utils';
-import { unblockRuleBeginning, blockRuleBeginning } from './utils';
+import { blockRuleBeginning, unblockRuleBeginning } from './utils';
 
 /**
  * Rule builder for blocking and unblocking request rules.
@@ -23,15 +24,17 @@ export class DNSRule implements BasicRule {
 
     /**
      * Constructor.
+     *
      * @param isBlockingRule Defines if this DNSRule will be blocking rule or unblocking.
      */
-    public constructor(isBlockingRule: boolean) {
+    constructor(isBlockingRule: boolean) {
         this.isBlockingRule = isBlockingRule;
     }
 
     /**
      * Setter for domain.
-     * @param domain - Domain.
+     *
+     * @param domain Domain.
      */
     public setDomain(domain: string) {
         this.domain = domain;
@@ -39,6 +42,7 @@ export class DNSRule implements BasicRule {
 
     /**
      * Getter for domain.
+     *
      * @returns Domain rule string.
      */
     public getDomain(): string {
@@ -47,7 +51,8 @@ export class DNSRule implements BasicRule {
 
     /**
      * Setter for subdomain.
-     * @param includingSubdomains - Include subdomains.
+     *
+     * @param includingSubdomains Include subdomains.
      */
     public setIsIncludingSubdomains(includingSubdomains: boolean) {
         this.isIncludingSubdomains = includingSubdomains;
@@ -55,6 +60,7 @@ export class DNSRule implements BasicRule {
 
     /**
      * Getter for domain.
+     *
      * @returns Domain rule string.
      */
     public getIsIncludingSubdomains(): boolean {
@@ -63,6 +69,7 @@ export class DNSRule implements BasicRule {
 
     /**
      * Build rule from current setup.
+     *
      * @returns String - rule string.
      */
     public buildRule(): string {
@@ -80,7 +87,10 @@ export class DNSRule implements BasicRule {
 
     /**
      * Create DNSRule instance from existing rule string.
-     * @param rawRule - Rule string.
+     *
+     * @param rawRule Rule string.
+     * @param isBlockingRule Whether the rule is a blocking rule.
+     *
      * @returns DNSRule instance.
      */
     public static fromRule(rawRule: string, isBlockingRule: boolean): DNSRule {

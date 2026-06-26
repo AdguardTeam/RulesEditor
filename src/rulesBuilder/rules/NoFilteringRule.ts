@@ -1,6 +1,14 @@
 import { NetworkRule } from '@adguard/tsurlfilter';
+
 import type { BasicRule, ExceptionsModifiers } from './utils';
-import { important, ExceptionSelectModifiers, noFilteringModifiers, noFilteringUrlsModifiers, unblockRuleBeginning, blockRuleBeginning } from './utils';
+import {
+    blockRuleBeginning,
+    ExceptionSelectModifiers,
+    important,
+    noFilteringModifiers,
+    noFilteringUrlsModifiers,
+    unblockRuleBeginning,
+} from './utils';
 
 /**
  * Rule builder for disable filtering rules.
@@ -23,7 +31,8 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Setter for domain.
-     * @param domain - Domain.
+     *
+     * @param domain Domain.
      */
     public setDomain(domain: string) {
         this.domain = domain;
@@ -31,6 +40,7 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Getter for domain.
+     *
      * @returns Domain rule string.
      */
     public getDomain(): string {
@@ -39,7 +49,8 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Setter for blocking content type.
-     * @param modifiers - Content type modifiers.
+     *
+     * @param modifiers Content type modifiers.
      */
     public setContentType(modifiers: ExceptionSelectModifiers[]) {
         this.exceptionModifiers = modifiers;
@@ -47,6 +58,7 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Getter for blocking content type.
+     *
      * @returns Modifiers - Content type modifiers.
      */
     public getContentType() {
@@ -55,7 +67,8 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Setter for rule priority.
-     * @param priority - Boolean.
+     *
+     * @param priority Boolean.
      */
     public setHighPriority(priority: boolean): void {
         this.important = priority;
@@ -63,6 +76,7 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Getter for rule priority.
+     *
      * @returns Priority.
      */
     public getHighPriority() {
@@ -71,6 +85,7 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Build rule from current setup.
+     *
      * @returns String - rule string.
      */
     public buildRule(): string {
@@ -109,7 +124,9 @@ export class NoFilteringRule implements BasicRule {
 
     /**
      * Create NoFilteringRule instance from existing rule string.
-     * @param rawRule - Rule string.
+     *
+     * @param rawRule Rule string.
+     *
      * @returns NoFilteringRule instance.
      */
     public static fromRule(rawRule: string): NoFilteringRule {
