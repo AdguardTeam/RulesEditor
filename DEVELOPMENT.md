@@ -17,11 +17,30 @@ pnpm install
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm run build` | Build UMD bundle to `dist/` via Webpack |
-| `pnpm test` | Run all Jest tests |
-| `pnpm run lint` | Lint `src/index.ts` with ESLint |
-| `pnpm run loadGrammar` | Regenerate TextMate grammar from upstream |
+| `pnpm run build` | Build ESM bundle + type declarations to `dist/` via Rspack + tsc |
+| `ANALYZE=true pnpm run build` | Build with bundle analysis report |
+| `pnpm run demo` | Start a dev server with a live editor in the browser |
+| `pnpm test` | Run all Vitest tests |
+| `pnpm run test:watch` | Run Vitest in watch mode |
+| `pnpm run lint` | Lint `./src` with ESLint |
+| `pnpm run update-grammars` | Download + optimize TextMate grammars from upstream |
 | `pnpm run increment` | Bump patch version |
+
+## Demo
+
+A standalone demo page lets you open the editor in the browser and try it
+out against live source. Start the dev server with:
+
+```sh
+pnpm run demo
+```
+
+This launches an Rspack dev server (default [http://localhost:8080](http://localhost:8080)). The demo imports the editor directly from
+`src`, so changes to the library are reflected on reload without a
+separate build step. The Oniguruma WASM asset is resolved from
+`vscode-oniguruma/release/onig.wasm` and emitted by Rspack.
+
+Demo sources live in the `demo/` directory.
 
 ## Updating Grammars
 
@@ -33,8 +52,15 @@ The JavaScript grammar is based on
 To update to the latest version:
 
 ```sh
-pnpm run loadGrammar
+pnpm run update-grammars
 ```
+
+This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
+every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
+(external) grammar is one the library knows how to resolve. To add a new
+embedded grammar, register its scope in `src/lib/constants.ts`
+(`GRAMMAR_SCOPES`) and add a download entry to the `GRAMMARS` array in
+`scripts/update-grammars.mts`.
 
 Do not edit `src/grammars/*.json` files manually — they are generated.
 

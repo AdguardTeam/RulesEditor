@@ -24,6 +24,10 @@ const ESLINT_RULES = {
     'no-new': 'off',
     'no-continue': 'off',
     'arrow-body-style': 'off',
+    // Vendored CM idioms and tooling configs rely on these relaxations.
+    'class-methods-use-this': 'off',
+    'no-underscore-dangle': 'off',
+    'no-param-reassign': ['error', { props: false }],
 
     'no-restricted-syntax': ['error', 'LabeledStatement', 'WithStatement'],
     'no-constant-condition': ['error', { checkLoops: false }],
@@ -60,6 +64,13 @@ const ESLINT_RULES = {
 const TYPESCRIPT_ESLINT_RULES = {
     '@typescript-eslint/no-non-null-assertion': 'off',
     '@typescript-eslint/interface-name-prefix': 'off',
+
+    // Only constrain enum naming; leave other identifiers to general rules so
+    // tooling globals like `__dirname` are allowed.
+    '@typescript-eslint/naming-convention': [
+        'error',
+        { selector: 'enum', format: ['UPPER_CASE', 'PascalCase'] },
+    ],
 
     '@stylistic/member-delimiter-style': 'error',
 
@@ -100,6 +111,10 @@ const TYPESCRIPT_ESLINT_RULES = {
  */
 const IMPORT_PLUGIN_RULES = {
     'import/prefer-default-export': 'off',
+    // `import-x` cannot parse some modern plugin dist bundles (e.g.
+    // `@stylistic/eslint-plugin`); these checks add no value for this project.
+    'import/no-named-as-default': 'off',
+    'import/no-named-as-default-member': 'off',
 
     'import-newlines/enforce': ['error', 3, MAX_LINE_LENGTH],
     'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
@@ -250,6 +265,9 @@ const JSDOC_JS_RULES = {
 const N_PLUGIN_RULES = {
     // Import plugin is enough, also, this rule requires extensions in ESM, but we use bundler resolution
     'n/no-missing-import': 'off',
+    // The library targets browsers (via bundler) and its dev scripts run on the
+    // maintainer's Node toolchain, so Node-version builtin checks are noise.
+    'n/no-unsupported-features/node-builtins': 'off',
     // Require using node protocol for node modules, e.g. `node:fs` instead of `fs`.
     'n/prefer-node-protocol': 'error',
     // Prefer `/promises` API for `fs` and `dns` modules, if the corresponding imports are used.
@@ -377,6 +395,8 @@ export default [
         ignores: [
             'dist',
             'coverage',
+            // Hand-written ambient type declarations for third-party modules.
+            'types',
             // Vendored CodeMirror addon ports — kept as-is to preserve behavior.
             'src/commands/comment.js',
             'src/commands/lines.js',
@@ -390,9 +410,9 @@ export default [
     tseslint.configs['flat/eslint-recommended'],
     jsdoc.configs['flat/recommended'],
     // `recommended-typescript` disables the JSDoc type tags (types come from
-    // the TypeScript annotations), so it must apply to `*.ts` only — plain JS
-    // config files still document their types in JSDoc.
-    { ...jsdoc.configs['flat/recommended-typescript'], files: ['**/*.ts'] },
+    // the TypeScript annotations), so it must apply to TypeScript files only —
+    // plain JS config files still document their types in JSDoc.
+    { ...jsdoc.configs['flat/recommended-typescript'], files: ['**/*.ts', '**/*.mts', '**/*.cts'] },
     n.configs['flat/recommended'],
 
     // Register shared plugins globally. The airbnb-typescript ruleset references
@@ -409,9 +429,10 @@ export default [
     // Project parser configuration and rule overrides.
     //
     // All linted TypeScript (`src`, `test`, `scripts`, `declaration.d.ts`) is
-    // covered by the single `tsconfig.json`.
+    // covered by the single `tsconfig.json`. Matches `.ts` as well as the
+    // `.mts`/`.cts` module variants (e.g. `scripts/update-grammars.mts`).
     {
-        files: ['**/*.ts'],
+        files: ['**/*.ts', '**/*.mts', '**/*.cts'],
         languageOptions: {
             parser: tsParser,
             sourceType: 'module',
@@ -446,7 +467,7 @@ export default [
 
     // Build-time CLI scripts may log progress and terminate the process.
     {
-        files: ['scripts/**/*.ts'],
+        files: ['scripts/**/*.ts', 'scripts/**/*.mts', 'scripts/**/*.cts'],
         rules: {
             'no-console': 'off',
             'n/no-process-exit': 'off',

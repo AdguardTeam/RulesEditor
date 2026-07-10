@@ -7,7 +7,6 @@
         "removeComments": true
     },
     "include": [
-        "declaration.d.ts",
         "src/**/*.ts"
     ]
 }

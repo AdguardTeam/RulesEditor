@@ -1,31 +1,125 @@
-import { CosmeticRuleMarker } from '@adguard/tsurlfilter';
+/**
+ * Cosmetic rule markers, inlined from `@adguard/tsurlfilter` to drop the
+ * dependency. Values mirror the upstream `CosmeticRuleMarker` enum exactly.
+ */
+export enum CosmeticRuleMarker {
+    /**
+     * Element hiding rule marker: `##`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#cosmetic-elemhide-rules
+     */
+    ElementHiding = '##',
 
-// Token names that resemble the return types of the CodeMirror-TextMate tokenizer.
+    /**
+     * Element hiding exception marker: `#@#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#element-hiding-rules-exceptions
+     */
+    ElementHidingException = '#@#',
+
+    /**
+     * Extended CSS element hiding marker: `#?#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#extended-css-selectors
+     */
+    ElementHidingExtCSS = '#?#',
+
+    /**
+     * Extended CSS element hiding exception marker: `#@?#`.
+     */
+    ElementHidingExtCSSException = '#@?#',
+
+    /**
+     * CSS injection rule marker: `#$#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#cosmetic-css-rules
+     */
+    Css = '#$#',
+
+    /**
+     * CSS injection exception marker: `#@$#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#cosmetic-css-rules-exceptions
+     */
+    CssException = '#@$#',
+
+    /**
+     * Extended CSS injection rule marker: `#$?#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#extended-css-selectors
+     */
+    CssExtCSS = '#$?#',
+
+    /**
+     * Extended CSS injection exception marker: `#@$?#`.
+     */
+    CssExtCSSException = '#@$?#',
+
+    /**
+     * Scriptlet injection rule marker: `#%#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#javascript-rules
+     */
+    Js = '#%#',
+
+    /**
+     * Scriptlet injection exception marker: `#@%#`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#javascript-rules-exceptions-1
+     */
+    JsException = '#@%#',
+
+    /**
+     * HTML filtering rule marker: `$$`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#html-filtering-rules
+     */
+    Html = '$$',
+
+    /**
+     * HTML filtering exception marker: `$@$`.
+     *
+     * @see https://kb.adguard.com/en/general/how-to-create-your-own-ad-filters#html-filtering-rules-exceptions-1
+     */
+    HtmlException = '$@$',
+}
+
+/**
+ * Token names aligned with the CodeMirror 6 / `@lezer/highlight` tag taxonomy.
+ *
+ * Each value is backed by a standard highlight tag (see
+ * `src/highlight/tokenTags.ts`), so editor highlighting works with the built-in
+ * `defaultHighlightStyle` and any consumer-supplied theme.
+ */
 export enum Token {
     Atom = 'atom',
-    Attribute = 'attribute',
-    Bracket = 'bracket',
-    Builtin = 'builtin',
+    AttributeName = 'attributeName',
+    ClassName = 'className',
     Comment = 'comment',
-    Def = 'def',
-    Error = 'error',
-    Header = 'header',
-    HR = 'hr',
+    Definition = 'definition',
+    Emphasis = 'emphasis',
+    Escape = 'escape',
+    Function = 'function',
+    Heading = 'heading',
+    Invalid = 'invalid',
     Keyword = 'keyword',
     Link = 'link',
+    List = 'list',
     Meta = 'meta',
+    Monospace = 'monospace',
     Number = 'number',
     Operator = 'operator',
-    Property = 'property',
-    Qualifier = 'qualifier',
+    PropertyName = 'propertyName',
     Quote = 'quote',
+    Regexp = 'regexp',
+    Self = 'self',
+    Special = 'special',
+    Standard = 'standard',
+    Strong = 'strong',
     String = 'string',
-    String2 = 'string-2',
-    Tag = 'tag',
-    Type = 'type',
-    Variable = 'variable',
-    Variable2 = 'variable-2',
-    Variable3 = 'variable-3',
+    TagName = 'tagName',
+    TypeName = 'typeName',
+    VariableName = 'variableName',
 }
 
 // The return type for both tokenize functions.
@@ -34,11 +128,13 @@ export enum Token {
 export type RuleTokens = { str: string; token: Token | null }[];
 
 /**
- * NormalizeTokens - function is designed to merge adjacent rule parts which tokens are identical.
+ * The function is used to normalize the output of the tokenizer by merging adjacent tokens of the same type.
  *
- * @param rule Tokenized rule whose adjacent same-token parts are merged.
+ * @param rule The output of the tokenizer function, which is an array of objects containing a string and a token type.
  *
- * @returns The rule with adjacent identical-token parts merged.
+ * @returns A new array of objects where adjacent tokens of the same type have been merged into a single object.
+ * The `str` property of the merged object is the concatenation of the `str` properties of the original objects,
+ * and the `token` property is the same as the original token type.
  */
 export function normalizeTokens(rule: RuleTokens): RuleTokens {
     const normalizedRule = [rule.shift()!];
@@ -61,9 +157,10 @@ export function normalizeTokens(rule: RuleTokens): RuleTokens {
  * Function is locating the CosmeticRuleMarker and determine its position within a cosmetic rule.
  * Has been taken from: https://github.com/AdguardTeam/tsurlfilter/blob/tsurlfilter-v2.1.12/packages/tsurlfilter/src/rules/cosmetic-rule-marker.ts.
  *
- * @param ruleText Rule text to scan for a cosmetic rule marker.
+ * @param ruleText The text of the cosmetic rule to be analyzed.
  *
- * @returns Tuple of the marker index and the matched marker, or null when absent.
+ * @returns A tuple containing the index of the found marker
+ * and the corresponding CosmeticRuleMarker enum value, or -1 and null if no marker is found.
  */
 export function findCosmeticRuleMarker(ruleText: string): [number, CosmeticRuleMarker | null] {
     const maxIndex = ruleText.length - 1;
@@ -153,4 +250,28 @@ export function findCosmeticRuleMarker(ruleText: string): [number, CosmeticRuleM
     }
 
     return [-1, null];
+}
+
+const COMMENT_MARKER = '!';
+const HASH_COMMENT_MARKER = '#';
+
+/**
+ * Determines whether a line is purely a comment.
+ *
+ * A line is a comment when it starts with `!`, or it starts with `#` and
+ * {@link findCosmeticRuleMarker} finds no cosmetic separator (a legacy
+ * `#`-style comment rather than a cosmetic rule).
+ *
+ * @param text The line text.
+ *
+ * @returns `true` if the line is a comment, `false` otherwise.
+ */
+export function isCommentLine(text: string): boolean {
+    if (text.startsWith(COMMENT_MARKER)) {
+        return true;
+    }
+    if (text.startsWith(HASH_COMMENT_MARKER) && findCosmeticRuleMarker(text)[0] === -1) {
+        return true;
+    }
+    return false;
 }

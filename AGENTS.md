@@ -1,45 +1,42 @@
+<!-- omit in toc -->
 # AGENTS.md
 
 ## Table of Contents
 
-- [AGENTS.md](#agentsmd)
-  - [Table of Contents](#table-of-contents)
-  - [Project Overview](#project-overview)
-  - [Technical Context](#technical-context)
-  - [Project Structure](#project-structure)
-  - [Build And Test Commands](#build-and-test-commands)
-  - [Contribution Instructions](#contribution-instructions)
-  - [Code Guidelines](#code-guidelines)
-    - [System Design](#system-design)
-    - [Architecture](#architecture)
-    - [Code Quality](#code-quality)
-    - [Testing](#testing)
-    - [Dependency Management](#dependency-management)
-    - [Configuration \& Documentation](#configuration--documentation)
-    - [Markdown Formatting](#markdown-formatting)
+- [Table of Contents](#table-of-contents)
+- [Project Overview](#project-overview)
+- [Technical Context](#technical-context)
+- [Project Structure](#project-structure)
+- [Build And Test Commands](#build-and-test-commands)
+- [Contribution Instructions](#contribution-instructions)
+- [Code Guidelines](#code-guidelines)
+  - [System Design](#system-design)
+  - [Architecture](#architecture)
+  - [Code Quality](#code-quality)
+  - [Testing](#testing)
+  - [Configuration \& Documentation](#configuration--documentation)
+  - [Markdown Formatting](#markdown-formatting)
 
 ## Project Overview
 
 `@adguard/rules-editor` is a browser-based text editor library for AdGuard
 filter rules. It provides:
 
-1. A CodeMirror 5 editor with TextMate-based syntax highlighting for
-   adblock filter rules (using WebAssembly Oniguruma via `onigasm`).
-2. A full tokenizer (WASM-backed) that splits a rule into highlighted
-   segments for custom rendering outside the editor.
-3. A simple tokenizer (no WASM) for lightweight rule tokenization.
-4. A `RulesBuilder` class that programmatically constructs filter rules
-   (block, unblock, no-filtering, DNS, comment, custom).
+1. A CodeMirror 6 editor with TextMate-based syntax highlighting for
+   adblock filter rules (using WebAssembly Oniguruma via `vscode-oniguruma`).
+2. A WASM-backed tokenizer that splits a rule into highlighted segments
+   for custom rendering outside the editor.
 
 ## Technical Context
 
 | Field | Value |
 | --- | --- |
 | Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 5, codemirror-textmate, onigasm (WASM), @adguard/tsurlfilter |
+| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma
+  (WASM — peer), vscode-textmate, @adguard/tsurlfilter 2 |
 | Storage | None (client-side library) |
-| Testing | Jest + ts-jest |
-| Target Platform | Browser (bundled as UMD via Webpack) |
+| Testing | Vitest |
+| Target Platform | Browser (bundled as UMD via Rspack) |
 | Project Type | Library / Package |
 | Performance Goals | N/A |
 | Constraints | Requires WASM for full tokenization; must support browsers without native Oniguruma |
@@ -50,23 +47,36 @@ filter rules. It provides:
 ```text
 ├── src/
 │   ├── index.ts                  # Public API entry point (re-exports)
-│   ├── initEditor.ts             # CodeMirror editor initialization
-│   ├── commands/                 # Editor hotkeys, commenting, line ops
+│   ├── init-editor.ts            # CodeMirror 6 editor initialization
+│   ├── commands/
+│   │   ├── breakpoints.ts        # Enabled-rule gutter state (CM6)
+│   │   └── hot-keys.ts           # CM6 keymap builder
 │   ├── grammars/                 # TextMate grammar JSON files (adblock, JS)
+│   ├── highlight/
+│   │   ├── render-html.ts        # Token-list → colorized HTML + style mount
+│   │   ├── token-tags.ts         # Token → standard @lezer/highlight Tag map
+│   │   ├── scope-to-token.ts     # TextMate scope to Token mapping
+│   │   └── textmate-language.ts  # StreamLanguage for CM6 (WASM TextMate)
 │   ├── lib/
-│   │   ├── initGrammar.ts        # WASM + grammar loader (singleton)
-│   │   └── utils.ts              # Token enum, normalizeTokens helper
-│   ├── rulesBuilder/
-│   │   ├── RulesBuilder.ts       # Static factory for rule builders
-│   │   └── rules/                # Individual rule type builders (6 types)
+│   │   ├── constants.ts          # Scope name constants
+│   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError
+│   │   ├── registry.ts           # Lazy Oniguruma + vscode-textmate Registry
+│   │   ├── types.ts              # TokenSegment type
+│   │   └── utils.ts              # Token enum, normalizeTokens, isCommentLine, findCosmeticRuleMarker
 │   └── tokenizers/
-│       ├── getFullTokenizer.ts   # WASM-based tokenizer
-│       └── simpleTokenizer.ts    # Regex-based tokenizer (no WASM)
-├── test/                         # Jest test files
+│       ├── tokenizer.ts          # WASM-based tokenizer (vscode-textmate)
+│       ├── get-html-renderer.ts  # Compose tokenizer + renderer → HTML helpers
+│       └── inspect-line.ts       # Line → TokenSegment[] utility
+├── test/                         # Vitest test files
 ├── scripts/                      # Build-time scripts (grammar loader)
-├── webpack.config.js             # UMD bundle config
+├── demo/                         # Browser demo (pnpm run demo)
+│   ├── index.html                # Demo page template
+│   ├── index.ts                  # Editor bootstrap with sample rules
+│   ├── rspack.config.ts          # Dev-server config (bundles CodeMirror)
+│   └── tsconfig.json             # TypeScript config for the demo build
+├── rspack.config.ts              # UMD bundle config
 ├── tsconfig.json                 # Main TypeScript config
-├── jest.config.js                # Jest config
+├── vitest.config.ts              # Vitest config
 ├── package.json                  # Package manifest
 └── eslint.config.mjs             # ESLint flat config (airbnb via FlatCompat)
 ```
@@ -75,12 +85,13 @@ filter rules. It provides:
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm build` | Build UMD bundle to `dist/` via Webpack |
-| `pnpm test` | Run all Jest tests |
+| `pnpm build` | Build bundle + type declarations to `dist/` via Rspack + tsc |
+| `pnpm run demo` | Start a dev server with a live editor in the browser |
+| `pnpm test` | Run all Vitest tests |
 | `pnpm lint:code` | Run ESLint |
 | `pnpm lint:types` | Run TypeScript type checking |
 | `pnpm lint` | Run all linters (ESLint + TypeScript) |
-| `pnpm loadGrammar` | Regenerate TextMate grammar from upstream |
+| `pnpm update-grammars` | Download + optimize TextMate grammars from upstream |
 | `pnpm increment` | Bump patch version |
 
 ## Contribution Instructions
@@ -161,11 +172,11 @@ This project's layers, from top to bottom:
 ```text
 Public API (src/index.ts — re-exports)
      ↓
-Features (initEditor, tokenizers, rulesBuilder)
+Features (initEditor, tokenizers)
      ↓
-Shared library (lib/initGrammar, lib/utils)
+Shared library (lib/registry, lib/utils, lib/errors)
      ↓
-External deps (codemirror, codemirror-textmate, onigasm, tsurlfilter)
+External deps (codemirror, vscode-textmate, vscode-oniguruma)
 ```
 
 Public API re-exports features. Features may depend on shared library
@@ -173,7 +184,7 @@ and external deps. Shared library may only depend on external deps.
 
 ### Code Quality
 
-- **JSDoc required** — ESLint enforces `jsdoc/require-jsdoc`,
+Shared library (lib/registry, lib/utils, lib/errors)
   `jsdoc/require-description` (complete sentence), and
   `jsdoc/require-returns` on classes, class properties, functions, and
   methods.
@@ -186,21 +197,29 @@ and external deps. Shared library may only depend on external deps.
 - **Error handling** — throw errors; let consumers catch. The
   `initGrammar` singleton silently catches "already loaded" errors
   to allow safe repeated calls.
-- **Naming** — files use camelCase; classes use PascalCase; enums use
+- **Naming** — files use kebab-case; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
+  **Exception**: generated TextMate grammar files in `src/grammars/` use
+  the standard `<scope>.tmLanguage.json` convention (e.g.
+  `adblock.tmLanguage.json`).
 
 ### Testing
 
 - Tests live in `test/` directory at repo root.
 - Test files follow `*.test.ts` naming convention.
-- Framework: Jest with `ts-jest` preset, node environment.
+- Framework: Vitest (no globals; every file imports `test`/`expect` etc.
+  explicitly from `vitest`).
+- Default environment is `node`; editor/gutter tests use `@vitest-environment
+  jsdom` docblock.
 - Tests are plain `test()` calls (no `describe` blocks currently).
 - Each rule builder type has coverage for building rules and parsing
   them back from strings.
 - Tokenizer tests verify token output against expected arrays.
 - No mocking is used — tests exercise real module code.
 
-### Dependency Management
+- **Error handling** — throw errors; let consumers catch. The
+  registry's `ensureRegistry` catches duplicate `loadWASM` calls
+  to allow safe repeated initialization.
 
 - **Pin all dependency versions explicitly** — do not use version
   ranges that allow automatic upgrades to untested versions.
@@ -225,22 +244,17 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 
 - All dependencies use caret (`^`) version ranges instead of exact
   pinning.
-- `is-valid-domain` — niche package; could be replaced with a simple
-  regex or validation function.
-- `path-browserify` and `util` — polyfills for Node built-ins needed
-  by Webpack browser bundle; acceptable but should be evaluated for
-  removal if upstream deps drop Node API usage.
 
 ### Configuration & Documentation
 
 - No runtime configuration — the library is configured via function
   parameters (`initEditor` accepts a config object, tokenizers accept
-  WASM path and optional theme).
+  a `WasmSource`).
 - No environment variables or config files are read at runtime.
 - `README.md` documents the public API with usage examples — update it
   when the public interface changes.
 - Grammar JSON files in `src/grammars/` are generated by
-  `pnpm run loadGrammar` — do not edit them manually.
+  `pnpm run update-grammars` — do not edit them manually.
 
 ### Markdown Formatting
 
@@ -251,7 +265,9 @@ All Markdown files MUST follow these formatting rules:
   code blocks are exempt from this limit.
 - **Unordered lists**: Use dashes (`-`) for bullet points. Indent nested
   list items by 4 spaces.
-- **Emphasis**: Use asterisks (`*`) for emphasis (`*italic*`,
+- No runtime configuration — the library is configured via function
+  parameters (`initEditor` accepts a config object, tokenizers accept
+  a `WasmSource`).
   `**bold**`). Do NOT use underscores.
 - **Headings**: Duplicate heading names are allowed only among sibling
   headings (same parent level). Avoid duplicates across different levels.

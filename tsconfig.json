@@ -4,16 +4,16 @@
         // With this tsconfig, we don't need to emit any files,
         // we just want to check the types
         "noEmit": true,
-        "skipLibCheck": true,
-        "types": ["jest", "node"]
+        "skipLibCheck": true
     },
     "include": [
-        "declaration.d.ts",
         "src/**/*.ts",
-        "test/**/*.ts",
         "scripts/**/*.ts",
-        "eslint.config.mjs",
-        "jest.config.js",
-        "webpack.config.js",
+        "scripts/**/*.mts",
+        "test/**/*.ts",
+        "demo/**/*.ts",
+        "**/.eslintrc.cjs",
+        "vitest.config.ts",
+        "rspack.config.ts",
     ],
 }

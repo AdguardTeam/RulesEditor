@@ -1,5 +1,6 @@
 {
     "name": "Adblock",
+    "scopeName": "text.adblock",
     "patterns": [
         {
             "include": "#adblockAgent"
@@ -45,7 +46,7 @@
         "adblockAgent": {
             "patterns": [
                 {
-                    "match": "^(\\[)([^\\]]+)(\\])\\s*$",
+                    "match": "^(\\[)([^]]+)(])\\s*$",
                     "captures": {
                         "1": {
                             "name": "punctuation.definition.array.start.adblock.agent"
@@ -75,7 +76,7 @@
         "adblockData": {
             "patterns": [
                 {
-                    "match": "(?x)\n  (?:\\s*)\n  (\n      [Aa]d[Bb]lock(?:\\s[Pp]lus)?\n      |u[Bb]lock(?:\\s[Oo]rigin)?\n      |[Aa]d[Gg]uard\n  )\n  (?:\\s+(\\d+(?:\\.\\d+)*+\\+?))?\n  (?:\\s*)",
+                    "match": "\\s*([Aa]d[Bb]lock(?:\\s[Pp]lus)?|u[Bb]lock(?:\\s[Oo]rigin)?|[Aa]d[Gg]uard)(?:\\s+(\\d+(?:\\.\\d+)*+\\+?))?\\s*",
                     "captures": {
                         "1": {
                             "name": "constant.language.agent.adblocker.name"
@@ -90,24 +91,43 @@
         "preprocessor": {
             "patterns": [
                 {
-                    "match": "^(!#if) (.*)$",
+                    "match": "^(!#if)(\\s)(.*)$",
                     "captures": {
                         "1": {
                             "name": "keyword.preprocessor.directive"
                         },
                         "2": {
+                            "name": "keyword.other.delimiter.whitespace"
+                        },
+                        "3": {
                             "patterns": [
                                 {
                                     "name": "constant.language.platform.name",
-                                    "match": "(?x)\n(\n  adguard_app_windows\n  |adguard_app_mac\n  |adguard_app_android\n  |adguard_app_ios\n  |adguard_ext_chromium\n  |adguard_ext_firefox\n  |adguard_ext_edge\n  |adguard_ext_safari\n  |adguard_ext_opera\n  |adguard_ext_android_cb\n  |adguard|ext_abp\n  |ext_ublock\n  |env_chromium\n  |env_edge\n  |env_firefox\n  |env_mobile\n  |env_safari\n  |false\n  |cap_html_filtering\n  |cap_user_stylesheet\n  |env_legacy\n)"
+                                    "match": "[A-Za-z]+[-_\\w]*"
                                 },
                                 {
-                                    "name": "keyword.control.characters",
-                                    "match": "(&&|!|\\|\\|| )"
+                                    "name": "keyword.operator.logical.and",
+                                    "match": "&&"
                                 },
                                 {
-                                    "name": "keyword.control.characters",
-                                    "match": "(\\(|\\))"
+                                    "name": "keyword.operator.logical.or",
+                                    "match": "\\|\\|"
+                                },
+                                {
+                                    "name": "keyword.operator.logical.not",
+                                    "match": "!"
+                                },
+                                {
+                                    "name": "keyword.control.characters.parenthesis.open",
+                                    "match": "\\("
+                                },
+                                {
+                                    "name": "keyword.control.characters.parenthesis.close",
+                                    "match": "\\)"
+                                },
+                                {
+                                    "name": "keyword.other.delimiter.whitespace",
+                                    "match": "\\s+"
                                 },
                                 {
                                     "name": "invalid.illegal",
@@ -129,8 +149,26 @@
                     }
                 },
                 {
-                    "match": "^!#endif\\s*$",
-                    "name": "keyword.preprocessor.directive"
+                    "match": "^(!#else)(\\s*)$",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.preprocessor.directive"
+                        },
+                        "2": {
+                            "name": "keyword.other.delimiter.whitespace"
+                        }
+                    }
+                },
+                {
+                    "match": "^(!#endif)(\\s*)$",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.preprocessor.directive"
+                        },
+                        "2": {
+                            "name": "keyword.other.delimiter.whitespace"
+                        }
+                    }
                 },
                 {
                     "match": "^(!#safari_cb_affinity)(.*)$",
@@ -142,11 +180,11 @@
                             "patterns": [
                                 {
                                     "name": "constant.language.contentblocker.name",
-                                    "match": "(all|general|privacy|social|security|other|custom)"
+                                    "match": "(all|general|privacy|social|security|other|custom|advanced)"
                                 },
                                 {
                                     "name": "keyword.control.characters",
-                                    "match": "(\\(|\\)|,)"
+                                    "match": "([(),])"
                                 },
                                 {
                                     "name": "invalid.illegal",
@@ -166,15 +204,15 @@
                             "patterns": [
                                 {
                                     "name": "keyword.control.hint.name",
-                                    "match": "(NOT_OPTIMIZED|OPTIMIZED|PLATFORM|NOT_PLATFORM)"
+                                    "match": "(NOT_OPTIMIZED|OPTIMIZED|PLATFORM|NOT_PLATFORM|NOT_VALIDATE)"
                                 },
                                 {
                                     "name": "constant.language.platform.name",
-                                    "match": "(windows|mac|android|ios|ext_chromium|ext_ff|ext_edge|ext_opera|ext_ublock|ext_safari|ext_android_cb)"
+                                    "match": "(windows|mac|cli|android|ios|ext_chromium_mv3|ext_chromium|ext_ff|ext_edge|ext_opera|ext_ublock|ext_safari|ext_android_cb)"
                                 },
                                 {
                                     "name": "keyword.control.characters",
-                                    "match": "(\\(|\\)|,)"
+                                    "match": "([(),])"
                                 }
                             ]
                         }
@@ -189,23 +227,19 @@
         "comments": {
             "patterns": [
                 {
-                    "name": "comment.line",
+                    "name": "comment.line.exclamation-sign",
                     "match": "^!.*"
                 },
                 {
-                    "name": "comment.line.batch-style",
-                    "match": "^# .*"
-                },
-                {
-                    "name": "comment.line.batch-style",
-                    "match": "^#$"
+                    "name": "comment.line.hashtag-sign",
+                    "match": "^#(?!@?(?:\\$?\\?|[$%])?#).*"
                 }
             ]
         },
         "elemhideRules": {
             "patterns": [
                 {
-                    "match": "^(\\[.+?\\])?(.*?)(#@?\\??#\\^?)(.+)$",
+                    "match": "^(\\[(?:/(?:\\\\.|[^/\\\\])*/[a-z]*|[^]])+])?(.*?)(#@?\\??#\\^?)(.+)$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -238,7 +272,7 @@
         "snippetRulesABP": {
             "patterns": [
                 {
-                    "match": "^(.*?)(#\\$#)([^{]+)$",
+                    "match": "^(.*?)(#@?\\$#)([^{]+)$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -260,7 +294,7 @@
         "cssRules": {
             "patterns": [
                 {
-                    "match": "^(\\[.+?\\])?(.*?)(#@?\\$\\??#)(.+)$",
+                    "match": "^(\\[.+?])?(.*?)(#@?\\$\\??#)(.+)$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -293,7 +327,50 @@
         "contentRules": {
             "patterns": [
                 {
-                    "match": "^(\\[.+?\\])?(.*?)(\\$@?\\$)(.+?)(\\[.+)?$",
+                    "match": "^(\\[(?:/(?:\\\\.|[^/\\\\])*/[a-z]*|[^]])+])?(.*?)(\\$@?\\$)(.+)$",
+                    "captures": {
+                        "1": {
+                            "patterns": [
+                                {
+                                    "include": "#cosmeticRulesOptions"
+                                }
+                            ]
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#domainListCommaSeparated"
+                                }
+                            ]
+                        },
+                        "3": {
+                            "name": "keyword.control.adblock"
+                        },
+                        "4": {
+                            "patterns": [
+                                {
+                                    "include": "#htmlFilteringCssSelector"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        "scriptletRules": {
+            "patterns": [
+                {
+                    "include": "#exceptionScriptletRules"
+                },
+                {
+                    "include": "#blockingScriptletRules"
+                }
+            ]
+        },
+        "exceptionScriptletRules": {
+            "patterns": [
+                {
+                    "match": "^(\\[(?:/(?:\\\\.|[^/\\\\])*/[a-z]*|[^]])+])?(.*?)(#@%#)(//scriptlet)(\\()(.*)?(\\))\\s*$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -316,20 +393,29 @@
                             "name": "entity.name.function.adblock"
                         },
                         "5": {
+                            "name": "punctuation.section.adblock"
+                        },
+                        "6": {
                             "patterns": [
                                 {
-                                    "include": "#contentAttributes"
+                                    "include": "#emptyScriptletFunction"
+                                },
+                                {
+                                    "include": "#scriptletFunction"
                                 }
                             ]
+                        },
+                        "7": {
+                            "name": "punctuation.section.adblock"
                         }
                     }
                 }
             ]
         },
-        "scriptletRules": {
+        "blockingScriptletRules": {
             "patterns": [
                 {
-                    "match": "^(\\[.+?\\])?(.*?)(#@?%#)(\\/\\/scriptlet)(\\()(.+)(\\)\\s*)$",
+                    "match": "^(\\[(?:/(?:\\\\.|[^/\\\\])*/[a-z]*|[^]])+])?(.*?)(#%#)(//scriptlet)(\\()(.*\\S.*)(\\))\\s*$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -371,7 +457,7 @@
         "scriptletRulesUBO": {
             "patterns": [
                 {
-                    "match": "^(.*?)(##)(\\+js)(\\()(.+)(\\)\\s*)$",
+                    "match": "^(.*?)(#@?#)(\\+js)(\\()(.+)(\\)\\s*)$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -406,16 +492,23 @@
         "jsRules": {
             "patterns": [
                 {
-                    "begin": "^(.*?)(#@?%#(?!\\/\\/scriptlet))",
+                    "begin": "^(\\[(?:/(?:\\\\.|[^/\\\\])*/[a-z]*|[^]])+])?(.*?)(#@?%#(?!//scriptlet))",
                     "beginCaptures": {
                         "1": {
+                            "patterns": [
+                                {
+                                    "include": "#cosmeticRulesOptions"
+                                }
+                            ]
+                        },
+                        "2": {
                             "patterns": [
                                 {
                                     "include": "#domainListCommaSeparated"
                                 }
                             ]
                         },
-                        "2": {
+                        "3": {
                             "name": "keyword.control.adblock"
                         }
                     },
@@ -458,7 +551,7 @@
                         "2": {
                             "patterns": [
                                 {
-                                    "include": "#basicRulesOptions"
+                                    "include": "#modifierList"
                                 }
                             ]
                         }
@@ -469,7 +562,7 @@
         "basicRulesRegex": {
             "patterns": [
                 {
-                    "match": "^(\\/[^\\/\\\\]*(?:\\\\.[^\\/\\\\]*)*\\/[dgimsuy]*)(?:(\\$)(.+))?$",
+                    "match": "^(/[^/\\\\]*(?:\\\\.[^/\\\\]*)*/[dgimsuy]*)(?:(\\$)(.+))?$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -484,7 +577,7 @@
                         "3": {
                             "patterns": [
                                 {
-                                    "include": "#basicRulesOptions"
+                                    "include": "#modifierList"
                                 }
                             ]
                         }
@@ -495,7 +588,7 @@
         "basicRules": {
             "patterns": [
                 {
-                    "match": "^(.+?)((\\$(?!\\/))(.*))?$",
+                    "match": "^(.*?)(?:(\\$)(?=\\s*~?\\s*[-\\w]+\\s*(?:[,=]|$))(.*))?$",
                     "captures": {
                         "1": {
                             "patterns": [
@@ -504,13 +597,13 @@
                                 }
                             ]
                         },
-                        "3": {
+                        "2": {
                             "name": "keyword.control.adblock"
                         },
-                        "4": {
+                        "3": {
                             "patterns": [
                                 {
-                                    "include": "#basicRulesOptions"
+                                    "include": "#modifierList"
                                 }
                             ]
                         }
@@ -524,25 +617,256 @@
                     "begin": "(/)",
                     "beginCaptures": {
                         "1": {
-                            "name": "keyword.other.regex.begin"
+                            "name": "punctuation.definition.string.begin.regexp.adblock"
                         }
                     },
                     "end": "((?<!\\\\)/)([dgimsuy]*)?",
                     "endCaptures": {
                         "1": {
-                            "name": "keyword.other.regex.end"
+                            "name": "punctuation.definition.string.end.regexp.adblock"
                         },
                         "2": {
-                            "name": "keyword.other.regex"
+                            "name": "keyword.other.regexp.adblock"
                         }
                     },
-                    "contentName": "string.regexp",
+                    "contentName": "string.regexp.adblock",
                     "patterns": [
                         {
-                            "match": "(?<!\\\\)([/\\^\\$\\|])",
-                            "name": "keyword.control.regex"
+                            "include": "#regexp"
                         }
                     ]
+                }
+            ]
+        },
+        "regexp": {
+            "patterns": [
+                {
+                    "name": "constant.other.character-class.set.regexp",
+                    "match": "\\\\[DPSWdpsw]"
+                },
+                {
+                    "name": "constant.character.escape.regexp",
+                    "match": "\\\\[0Bbfnrtv]"
+                },
+                {
+                    "name": "constant.character.escape.regexp",
+                    "match": "\\\\x\\h{2}"
+                },
+                {
+                    "name": "constant.character.escape.regexp",
+                    "match": "\\\\u\\h{4}"
+                },
+                {
+                    "name": "constant.character.escape.regexp",
+                    "match": "\\\\."
+                },
+                {
+                    "begin": "(\\[)(\\^)?",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "punctuation.definition.character-class.regexp"
+                        },
+                        "2": {
+                            "name": "keyword.operator.negation.regexp"
+                        }
+                    },
+                    "end": "(])",
+                    "endCaptures": {
+                        "1": {
+                            "name": "punctuation.definition.character-class.regexp"
+                        }
+                    },
+                    "name": "constant.other.character-class.regexp",
+                    "patterns": [
+                        {
+                            "match": "\\\\[-\\]\\\\]",
+                            "name": "constant.character.escape.regexp"
+                        },
+                        {
+                            "match": "[^]]"
+                        }
+                    ]
+                },
+                {
+                    "begin": "(\\()(\\?(?:[!:<=]|<[!=]|P?<[^>]+>))?",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "punctuation.definition.group.regexp"
+                        },
+                        "2": {
+                            "name": "punctuation.definition.group.assertion.regexp"
+                        }
+                    },
+                    "end": "(\\))",
+                    "endCaptures": {
+                        "1": {
+                            "name": "punctuation.definition.group.regexp"
+                        }
+                    },
+                    "patterns": [
+                        {
+                            "include": "#regexp"
+                        }
+                    ]
+                },
+                {
+                    "name": "keyword.operator.or.regexp",
+                    "match": "\\|"
+                },
+                {
+                    "name": "keyword.operator.quantifier.regexp",
+                    "match": "[*+?]\\??"
+                },
+                {
+                    "name": "keyword.operator.quantifier.regexp",
+                    "match": "\\{\\d+(,\\d*)?}\\??"
+                },
+                {
+                    "name": "keyword.control.anchor.regexp",
+                    "match": "[$^]"
+                },
+                {
+                    "name": "keyword.control.anchor.regexp",
+                    "match": "\\\\[Bb]"
+                },
+                {
+                    "name": "keyword.other.back-reference.regexp",
+                    "match": "\\\\[1-9]\\d*"
+                }
+            ]
+        },
+        "headerValue": {
+            "patterns": [
+                {
+                    "match": "([-\\w]+)(:)(~?)(/.+?(?<!\\\\)/[a-z]*)",
+                    "captures": {
+                        "1": {
+                            "name": "entity.name.tag.adblock"
+                        },
+                        "2": {
+                            "name": "punctuation.separator.key-value.adblock"
+                        },
+                        "3": {
+                            "name": "keyword.operator.logical.adblock"
+                        },
+                        "4": {
+                            "patterns": [
+                                {
+                                    "match": "(/)(.+?(?<!\\\\))(/)([a-z]*)",
+                                    "captures": {
+                                        "1": {
+                                            "name": "punctuation.definition.string.begin.regexp.adblock"
+                                        },
+                                        "2": {
+                                            "name": "string.regexp.adblock"
+                                        },
+                                        "3": {
+                                            "name": "punctuation.definition.string.end.regexp.adblock"
+                                        },
+                                        "4": {
+                                            "name": "keyword.other.regexp.adblock"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "match": "([-\\w]+)(:)(~?)([^/]+)",
+                    "captures": {
+                        "1": {
+                            "name": "entity.name.tag.adblock"
+                        },
+                        "2": {
+                            "name": "punctuation.separator.key-value.adblock"
+                        },
+                        "3": {
+                            "name": "keyword.operator.logical.adblock"
+                        },
+                        "4": {
+                            "name": "string.unquoted.adblock"
+                        }
+                    }
+                },
+                {
+                    "match": "([-\\w]+)",
+                    "captures": {
+                        "1": {
+                            "name": "entity.name.tag.adblock"
+                        }
+                    }
+                }
+            ]
+        },
+        "urlskipValue": {
+            "patterns": [
+                {
+                    "include": "#regularExpression"
+                },
+                {
+                    "match": ".+",
+                    "name": "string.unquoted.adblock"
+                }
+            ]
+        },
+        "replaceValue": {
+            "patterns": [
+                {
+                    "begin": "(/)",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    },
+                    "end": "((?<!\\\\)/)([gimsuy]*)?",
+                    "endCaptures": {
+                        "1": {
+                            "name": "keyword.operator.adblock"
+                        },
+                        "2": {
+                            "name": "keyword.other.adblock"
+                        }
+                    },
+                    "patterns": [
+                        {
+                            "begin": "\\G",
+                            "end": "((?<!\\\\)/)",
+                            "endCaptures": {
+                                "1": {
+                                    "name": "keyword.operator.adblock"
+                                }
+                            },
+                            "contentName": "string.regexp.adblock",
+                            "patterns": [
+                                {
+                                    "include": "#regexp"
+                                }
+                            ]
+                        },
+                        {
+                            "begin": "(?=.)",
+                            "end": "(?=(?<!\\\\)/)",
+                            "contentName": "string.unquoted.adblock",
+                            "patterns": [
+                                {
+                                    "include": "#replaceReplacement"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        "replaceReplacement": {
+            "patterns": [
+                {
+                    "match": "\\\\.",
+                    "name": "constant.character.escape.adblock"
+                },
+                {
+                    "match": "\\d+",
+                    "name": "keyword.other.adblock"
                 }
             ]
         },
@@ -550,10 +874,17 @@
             "patterns": [
                 {
                     "name": "string.regexp.adblock",
-                    "match": "^(@@)?(\\/)(.+)\\/$",
+                    "match": "^(@@)?((/)(.+)/)$",
                     "captures": {
                         "1": {
                             "name": "keyword.other.adblock"
+                        },
+                        "2": {
+                            "patterns": [
+                                {
+                                    "include": "#regularExpression"
+                                }
+                            ]
                         }
                     }
                 },
@@ -583,19 +914,10 @@
                 }
             ]
         },
-        "basicRulesOptions": {
+        "modifierList": {
             "patterns": [
                 {
-                    "match": "replace=((\\/)(((\\\\\\/)|[^,/]|(\\\\,))+?)(\\/)(((\\\\\\/)|[^,/]|(\\\\,))*?)(\\/)([a-z]*))",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "string.regexp.adblock"
-                        }
-                    }
-                },
-                {
-                    "match": "(domain|denyallow|from|to)(=)([^,]+)",
+                    "match": "(~?\\s*header)\\s*(=)\\s*([-\\w]+)(:)(~?)(/)(.+?)(?<!\\\\)(/)([a-z]*)(?:\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$)",
                     "captures": {
                         "1": {
                             "name": "keyword.other.adblock"
@@ -604,308 +926,190 @@
                             "name": "keyword.operator.adblock"
                         },
                         "3": {
-                            "patterns": [
-                                {
-                                    "include": "#domainListPipeSeparated"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(app)(=)([^,]+)",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "patterns": [
-                                {
-                                    "include": "#appListPipeSeparated"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(dnstype)(=)([^,]+)",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "patterns": [
-                                {
-                                    "include": "#dnsTypesPipeSeparated"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(client|ctag)(=)(((\\\\,)|[^,])+)",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "patterns": [
-                                {
-                                    "include": "#dnsClientsPipeSeparated"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(redirect|redirect-rule|csp|cookie)(=)(((\\\\,)|[^,])+)",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "name": "string.unquoted.adblock"
-                        }
-                    }
-                },
-                {
-                    "match": "(dnsrewrite)(=)(((\\\\,)|[^,])+)",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "patterns": [
-                                {
-                                    "name": "keyword.other.delimiter",
-                                    "match": ";"
-                                },
-                                {
-                                    "name": "string.unquoted.adblock",
-                                    "match": "[^;]*"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(removeheader)(=)(((\\\\,)|[^,])+)",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "patterns": [
-                                {
-                                    "name": "keyword.other.delimiter",
-                                    "match": ":"
-                                },
-                                {
-                                    "name": "string.unquoted.adblock",
-                                    "match": "[^:]*"
-                                }
-                            ]
-                        }
-                    }
-                },
-                {
-                    "match": "(rewrite)(=)(abp-resource:)([^,]+)",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
-                            "name": "keyword.other.adblock"
+                            "name": "entity.name.tag.adblock"
                         },
                         "4": {
-                            "name": "string.unquoted.adblock"
-                        }
-                    }
-                },
-                {
-                    "match": "(removeparam|queryprune)(=)(~)?(((\\\\,)|[^,])+)",
-                    "name": "keyword.other.adblock",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
+                            "name": "punctuation.separator.key-value.adblock"
                         },
-                        "2": {
-                            "name": "keyword.operator.adblock"
+                        "5": {
+                            "name": "keyword.operator.logical.adblock"
                         },
-                        "3": {
-                            "name": "keyword.other.adblock"
+                        "6": {
+                            "name": "punctuation.definition.string.begin.regexp.adblock"
                         },
-                        "4": {
-                            "name": "string.unquoted.adblock"
-                        }
-                    }
-                },
-                {
-                    "match": "(method)(=)([^,]+)",
-                    "captures": {
-                        "1": {
-                            "name": "keyword.other.adblock"
-                        },
-                        "2": {
-                            "name": "keyword.operator.adblock"
-                        },
-                        "3": {
+                        "7": {
                             "patterns": [
                                 {
-                                    "match": "(?i)(connect|delete|get|head|options|patch|post|put)",
-                                    "name": "string.unquoted.adblock"
-                                },
-                                {
-                                    "match": "~|\\|",
-                                    "name": "keyword.operator.adblock"
+                                    "include": "#regexp"
                                 },
                                 {
                                     "match": ".+",
-                                    "name": "invalid.illegal.method-value"
+                                    "name": "string.regexp.adblock"
                                 }
                             ]
+                        },
+                        "8": {
+                            "name": "punctuation.definition.string.end.regexp.adblock"
+                        },
+                        "9": {
+                            "name": "keyword.other.regexp.adblock"
+                        },
+                        "10": {
+                            "name": "keyword.operator.adblock"
                         }
                     }
                 },
                 {
-                    "match": "(inline-script|inline-font|mp4|empty|badfilter|genericblock|generichide|network|popup|popunder|important|cookie|csp|replace|stealth|removeparam|queryprune)",
-                    "name": "keyword.other.adblock"
+                    "match": "(~?\\s*header)\\s*(=)\\s*([-\\w]+)(?:(:)(~?)([^,/]+))?(?:\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$)",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.adblock"
+                        },
+                        "2": {
+                            "name": "keyword.operator.adblock"
+                        },
+                        "3": {
+                            "name": "entity.name.tag.adblock"
+                        },
+                        "4": {
+                            "name": "punctuation.separator.key-value.adblock"
+                        },
+                        "5": {
+                            "name": "keyword.operator.logical.adblock"
+                        },
+                        "6": {
+                            "name": "string.unquoted.adblock"
+                        },
+                        "7": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    }
                 },
                 {
-                    "match": "(~?)(xhr|first-party|third-party|match-case|elemhide|content|jsinject|urlblock|document|image|stylesheet|script|object-subrequest|object|font|media|subdocument|xmlhttprequest|websocket|other|webrtc|ping|extension|all|1p|3p|css|frame|ghide|ehide|shide|specifichide)",
-                    "name": "keyword.other.adblock"
-                },
-                {
-                    "match": ",",
-                    "name": "punctuation.definition.adblock"
-                },
-                {
-                    "match": "\\$",
-                    "name": "invalid.illegal.redundant.modifier.separator"
-                }
-            ]
-        },
-        "cosmeticRulesOptions": {
-            "match": "(\\[)(.+?)(\\])",
-            "captures": {
-                "1": {
-                    "name": "keyword.control.adblock"
-                },
-                "2": {
+                    "begin": "(~?\\s*(?:domain|to|from|app|denyallow))\\s*(=)\\s*",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "keyword.other.adblock"
+                        },
+                        "2": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    },
+                    "end": "\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$",
+                    "endCaptures": {
+                        "1": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    },
                     "patterns": [
                         {
-                            "match": "(path)(=)(((\\\\,)|[^,])+)",
-                            "captures": {
-                                "1": {
-                                    "name": "keyword.other.adblock"
-                                },
-                                "2": {
-                                    "name": "keyword.operator.adblock"
-                                },
-                                "3": {
-                                    "name": "string.unquoted.adblock"
+                            "match": "~",
+                            "name": "keyword.operator.logical.adblock"
+                        },
+                        {
+                            "match": "\\|",
+                            "name": "keyword.operator.adblock"
+                        },
+                        {
+                            "begin": "/",
+                            "beginCaptures": {
+                                "0": {
+                                    "name": "punctuation.definition.string.begin.regexp.adblock"
                                 }
-                            }
-                        },
-                        {
-                            "match": "(domain)(=)([^,]+)",
-                            "captures": {
-                                "1": {
-                                    "name": "keyword.other.adblock"
-                                },
-                                "2": {
-                                    "name": "keyword.operator.adblock"
-                                },
-                                "3": {
-                                    "patterns": [
-                                        {
-                                            "include": "#domainListPipeSeparated"
-                                        }
-                                    ]
+                            },
+                            "end": "(?<!\\\\)/",
+                            "endCaptures": {
+                                "0": {
+                                    "name": "punctuation.definition.string.end.regexp.adblock"
                                 }
-                            }
-                        },
-                        {
-                            "match": "(app)(=)([^,]+)",
-                            "captures": {
-                                "1": {
-                                    "name": "keyword.other.adblock"
+                            },
+                            "contentName": "string.regexp.adblock",
+                            "patterns": [
+                                {
+                                    "include": "#regexp"
                                 },
-                                "2": {
-                                    "name": "keyword.operator.adblock"
+                                {
+                                    "match": "[^/\\\\]+",
+                                    "name": "string.regexp.adblock"
                                 },
-                                "3": {
-                                    "patterns": [
-                                        {
-                                            "include": "#appListPipeSeparated"
-                                        }
-                                    ]
+                                {
+                                    "match": "\\\\.",
+                                    "name": "string.regexp.adblock"
                                 }
-                            }
+                            ]
                         },
                         {
-                            "match": "\\$",
-                            "name": "keyword.control.adblock"
-                        },
-                        {
-                            "match": ",",
-                            "name": "punctuation.definition.adblock"
-                        },
-                        {
-                            "name": "invalid.illegal.adblock",
-                            "match": ".*"
+                            "match": "[^,/|~\\s]+",
+                            "name": "string.unquoted.adblock"
                         }
                     ]
                 },
-                "3": {
-                    "name": "keyword.control.adblock"
-                }
-            }
-        },
-        "contentAttributes": {
-            "patterns": [
                 {
-                    "match": "(\\[)([^\"=]+?)(\\=)(\".+?\")(\\])",
+                    "match": "(~?\\s*(?:replace|urltransform))\\s*(=)\\s*((/)(?:[^/\\\\]|\\\\.)*(/)(?:[^/\\\\]|\\\\.)*(/)([a-z]*))(?:\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$)",
                     "captures": {
                         "1": {
-                            "name": "punctuation.section.adblock"
-                        },
-                        "2": {
                             "name": "keyword.other.adblock"
                         },
-                        "3": {
+                        "2": {
                             "name": "keyword.operator.adblock"
                         },
+                        "3": {
+                            "patterns": [
+                                {
+                                    "include": "#replaceValue"
+                                }
+                            ]
+                        },
                         "4": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    }
+                },
+                {
+                    "match": "(~?\\s*urlskip)\\s*(=)\\s*((?:/(?:[^/\\\\]|\\\\.)+/|\\?[-\\w]+|&\\d+|#|\\+https:?|-(?:base64|safebase64|uricomponent|blocked)|\\s+)+?)(?:\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$)",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.adblock"
+                        },
+                        "2": {
+                            "name": "keyword.operator.adblock"
+                        },
+                        "3": {
+                            "patterns": [
+                                {
+                                    "include": "#urlskipValue"
+                                }
+                            ]
+                        },
+                        "4": {
+                            "name": "keyword.operator.adblock"
+                        }
+                    }
+                },
+                {
+                    "match": "(~?\\s*[-\\w]+)(?:\\s*(=)\\s*(?:('(?:[^'\\\\]|\\\\.)*')|(/(?:[^/\\\\]|\\\\.)+/(?:(?:[^/\\\\]|\\\\.)+/)?[a-z]*)|((?:\\\\.|[^,\\\\]|,(?!\\s*~?\\s*[-\\w]))+?)))?(?:\\s*(?<!\\\\)(,)\\s*(?=~?\\s*[-\\w])|$)",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.other.adblock"
+                        },
+                        "2": {
+                            "name": "keyword.operator.adblock"
+                        },
+                        "3": {
                             "name": "string.quoted.adblock"
                         },
+                        "4": {
+                            "patterns": [
+                                {
+                                    "include": "#regularExpression"
+                                }
+                            ]
+                        },
                         "5": {
-                            "name": "punctuation.section.adblock"
+                            "name": "string.unquoted.adblock"
+                        },
+                        "6": {
+                            "name": "keyword.operator.adblock"
                         }
                     }
                 },
@@ -915,10 +1119,39 @@
                 }
             ]
         },
+        "cosmeticRulesOptions": {
+            "match": "(\\[)\\s*(\\$)\\s*(.*)\\s*(])",
+            "captures": {
+                "1": {
+                    "name": "keyword.control.adblock"
+                },
+                "2": {
+                    "name": "keyword.control.adblock"
+                },
+                "3": {
+                    "patterns": [
+                        {
+                            "include": "#modifierList"
+                        }
+                    ]
+                },
+                "4": {
+                    "name": "keyword.control.adblock"
+                }
+            }
+        },
+        "emptyScriptletFunction": {
+            "patterns": [
+                {
+                    "match": "\\s*\\z",
+                    "name": "entity.name.section.adblock.empty-scriptlet"
+                }
+            ]
+        },
         "scriptletFunction": {
             "patterns": [
                 {
-                    "match": "((['|\"])(.*?)(?<!\\\\)(\\2))(,\\s*)?",
+                    "match": "(([\"'|])(.*?)(?<!\\\\)(\\2))(,\\s*)?",
                     "captures": {
                         "1": {
                             "name": "string.quoted.adblock"
@@ -937,7 +1170,7 @@
         "scriptletFunctionUBO": {
             "patterns": [
                 {
-                    "match": "([^,]*)(,\\s*)?",
+                    "match": "((?:[^,\\\\]|\\\\.?)*)(,|$)",
                     "captures": {
                         "1": {
                             "name": "string.quoted.adblock"
@@ -956,7 +1189,7 @@
         "cssStyle": {
             "patterns": [
                 {
-                    "match": "(@media[\\s]+[^\\{]*)(\\{)([\\s]*[^\\{]*)(\\{)([\\s]*[^\\}]*)(\\})[\\s]*(\\})",
+                    "match": "(@media\\s+[^{]*)(\\{)(\\s*[^{]*)(\\{)(\\s*[^}]*)(})\\s*(})",
                     "captures": {
                         "1": {
                             "name": "entity.name.function.adblock"
@@ -982,7 +1215,7 @@
                     }
                 },
                 {
-                    "match": "([^{}]+)\\s*((\\{)(.+?)(\\}))",
+                    "match": "([^{}]+)\\s*((\\{)(.+?)(}))",
                     "captures": {
                         "1": {
                             "name": "entity.name.function.adblock"
@@ -1009,6 +1242,163 @@
                 {
                     "name": "entity.name.function.adblock",
                     "match": ".+"
+                }
+            ]
+        },
+        "htmlFilteringCssSelector": {
+            "patterns": [
+                {
+                    "match": "(#)-?[A-Z_a-z][-0-9A-Z_a-z]*",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.entity.css"
+                        }
+                    },
+                    "name": "entity.other.attribute-name.id.css"
+                },
+                {
+                    "match": "(\\.)-?[A-Z_a-z][-0-9A-Z_a-z]*",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.entity.css"
+                        }
+                    },
+                    "name": "entity.other.attribute-name.class.css"
+                },
+                {
+                    "match": "\\*",
+                    "name": "entity.name.tag.wildcard.css"
+                },
+                {
+                    "match": "-?[A-Z_a-z][-0-9A-Z_a-z]*",
+                    "name": "entity.name.tag.css"
+                },
+                {
+                    "match": "(\\[)\\s*(-?[A-Z_a-z][-0-9A-Z_a-z]*)\\s*(?:([$*^|~]?=)\\s*(?:((\")(?:\\\\.|\"\"|[^\"\\\\])*(\"))|((')(?:\\\\.|[^'\\\\])*('))|([^]\\s]+))\\s*([is])?)?\\s*(])",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.entity.begin.bracket.square.css"
+                        },
+                        "2": {
+                            "name": "entity.other.attribute-name.css"
+                        },
+                        "3": {
+                            "name": "keyword.operator.pattern.css"
+                        },
+                        "4": {
+                            "name": "string.quoted.double.css"
+                        },
+                        "5": {
+                            "name": "punctuation.definition.string.begin.css"
+                        },
+                        "6": {
+                            "name": "punctuation.definition.string.end.css"
+                        },
+                        "7": {
+                            "name": "string.quoted.single.css"
+                        },
+                        "8": {
+                            "name": "punctuation.definition.string.begin.css"
+                        },
+                        "9": {
+                            "name": "punctuation.definition.string.end.css"
+                        },
+                        "10": {
+                            "name": "string.unquoted.attribute-value.css"
+                        },
+                        "11": {
+                            "name": "keyword.other.flag.css"
+                        },
+                        "12": {
+                            "name": "punctuation.definition.entity.end.bracket.square.css"
+                        }
+                    },
+                    "name": "meta.attribute-selector.css"
+                },
+                {
+                    "match": "(::)-?[A-Z_a-z][-0-9A-Z_a-z]*",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.entity.css"
+                        }
+                    },
+                    "name": "entity.other.attribute-name.pseudo-element.css"
+                },
+                {
+                    "match": "(:)-?[A-Z_a-z][-0-9A-Z_a-z]*(?:(\\()(?:\\s*((\")(?:\\\\.|[^\"\\\\])*(\"))\\s*|\\s*((')(?:\\\\.|[^'\\\\])*('))\\s*|\\s*((/)(?:\\\\.|[^/\\\\])*(/)([dgimsuy]*))\\s*|((?:[^()]|\\((?:[^()]|\\((?:[^()]|\\([^()]+\\))*\\))*\\))*))?(\\)))?",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.definition.entity.css"
+                        },
+                        "2": {
+                            "name": "punctuation.section.function.begin.bracket.round.css"
+                        },
+                        "3": {
+                            "name": "string.quoted.double.css"
+                        },
+                        "4": {
+                            "name": "punctuation.definition.string.begin.css"
+                        },
+                        "5": {
+                            "name": "punctuation.definition.string.end.css"
+                        },
+                        "6": {
+                            "name": "string.quoted.single.css"
+                        },
+                        "7": {
+                            "name": "punctuation.definition.string.begin.css"
+                        },
+                        "8": {
+                            "name": "punctuation.definition.string.end.css"
+                        },
+                        "9": {
+                            "name": "string.regexp.js"
+                        },
+                        "10": {
+                            "name": "punctuation.definition.string.begin.js"
+                        },
+                        "11": {
+                            "name": "punctuation.definition.string.end.js"
+                        },
+                        "12": {
+                            "name": "keyword.other.regex"
+                        },
+                        "13": {
+                            "name": "constant.numeric.css"
+                        },
+                        "14": {
+                            "name": "punctuation.section.function.end.bracket.round.css"
+                        }
+                    },
+                    "name": "entity.other.attribute-name.pseudo-class.css"
+                },
+                {
+                    "match": "\\s*([+>~])\\s*",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.operator.combinator.css"
+                        }
+                    }
+                },
+                {
+                    "match": "(\\s+)",
+                    "captures": {
+                        "1": {
+                            "name": "keyword.operator.combinator.css"
+                        }
+                    }
+                },
+                {
+                    "match": "\\s*(,)\\s*",
+                    "captures": {
+                        "1": {
+                            "name": "punctuation.separator.list.comma.css"
+                        }
+                    }
+                },
+                {
+                    "match": ".*",
+                    "name": "invalid.illegal.adblock"
                 }
             ]
         },
@@ -1059,7 +1449,7 @@
         "appListPipeSeparated": {
             "patterns": [
                 {
-                    "match": "((~?)([a-zA-Z0-9.-_]+)(\\|?))",
+                    "match": "((~?)([.-_a-z]+)(\\|?))",
                     "captures": {
                         "2": {
                             "name": "keyword.other.adblock"
@@ -1081,7 +1471,7 @@
         "dnsTypesPipeSeparated": {
             "patterns": [
                 {
-                    "match": "((~?)([a-zA-Z0-9.-_]+)(\\|?))",
+                    "match": "((~?)([.-_a-z]+)(\\|?))",
                     "captures": {
                         "2": {
                             "name": "keyword.other.adblock"
@@ -1122,6 +1512,5 @@
                 }
             ]
         }
-    },
-    "scopeName": "text.adblock"
+    }
 }

@@ -1,18 +1,24 @@
-export { getFullTokenizer } from './tokenizers/getFullTokenizer';
-export { default as wasm } from 'onigasm/lib/onigasm.wasm';
+export { getTokenizer } from './tokenizers/tokenizer';
+export { inspectLine } from './tokenizers/inspect-line';
+export type { WasmSource } from './lib/registry';
 export {
-    initEditor, type EditorFromTextArea, getRulesFromEditor, setEditorValue, configureEditorMode,
-} from './initEditor';
-export { simpleTokenizer } from './tokenizers/simpleTokenizer';
+    initEditor,
+    getRulesFromEditor,
+    setEditorValue,
+    type InitEditorConfig,
+    type HighlightMode,
+} from './init-editor';
+export {
+    renderTokensToHtml,
+    mountHighlightStyle,
+    type RenderOptions,
+    type SearchHighlightOptions,
+} from './highlight/render-html';
+export { getHtmlRenderer } from './tokenizers/get-html-renderer';
 export { normalizeTokens, Token } from './lib/utils';
 export type { RuleTokens } from './lib/utils';
-export { RulesBuilder, type RuleType, type DnsRuleType } from './rulesBuilder/RulesBuilder';
+export type { TokenSegment } from './lib/types';
 export {
-    BlockContentTypeModifiers, UnblockContentTypeModifier, DomainModifiers, ExceptionSelectModifiers,
-} from './rulesBuilder/rules/utils';
-export { BlockRequestRule } from './rulesBuilder/rules/BlockRequestRule';
-export { UnblockRequestRule } from './rulesBuilder/rules/UnblockRequestRule';
-export { NoFilteringRule } from './rulesBuilder/rules/NoFilteringRule';
-export { Comment } from './rulesBuilder/rules/Comment';
-export { CustomRule } from './rulesBuilder/rules/CustomRule';
-export { DNSRule } from './rulesBuilder/rules/DNSRule';
+    WasmLoadError,
+    GrammarNotFoundError,
+} from './lib/errors';
