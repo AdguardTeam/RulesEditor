@@ -8,8 +8,13 @@
 ## Setup
 
 ```sh
-git clone <repo-url>
-cd rules-editor
+# Private source repo (for contributors with access)
+git clone https://github.com/AdGuardSoftwareLimited/ext-rules-editor.git
+cd ext-rules-editor
+
+# Public mirror (read-only)
+# git clone https://github.com/AdguardTeam/RulesEditor.git
+
 pnpm install
 ```
 
@@ -24,7 +29,15 @@ pnpm install
 | `pnpm run test:watch` | Run Vitest in watch mode |
 | `pnpm run lint` | Lint `./src` with ESLint |
 | `pnpm run update-grammars` | Download + optimize TextMate grammars from upstream |
-| `pnpm run increment` | Bump patch version |
+
+`package.json` intentionally has no `version` field — the release version is
+derived from `CHANGELOG.md` and injected by CI before packing. See
+[DEPLOYMENT.md](DEPLOYMENT.md) for details.
+
+## Releasing
+
+Releases are fully automated via GitHub Actions. See
+[DEPLOYMENT.md](DEPLOYMENT.md) for the complete release pipeline documentation.
 
 ## Demo
 

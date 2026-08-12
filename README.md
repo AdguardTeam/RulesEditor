@@ -1,5 +1,8 @@
 # AdGuard Rules Editor
 
+> **Note:** This package is developed in [AdGuardSoftwareLimited/ext-rules-editor].
+> The [AdguardTeam/RulesEditor] repository is a public mirror.
+
 A browser-based library for editing and tokenizing AdGuard filter rules.
 It provides a **CodeMirror 6** text editor with TextMate syntax highlighting
 (via WebAssembly Oniguruma backed by `vscode-textmate` + `vscode-oniguruma`)
@@ -286,3 +289,13 @@ custom editor theme.
 | `@codemirror/state` | `^6.6.0` |
 | `@codemirror/view` | `^6.43.0` |
 | `@lezer/highlight` | `^1.2.3` |
+
+## Documentation
+
+- [Development](DEVELOPMENT.md)
+- [Deployment](DEPLOYMENT.md)
+- [LLM agent rules](AGENTS.md)
+- [Changelog](CHANGELOG.md)
+
+[AdGuardSoftwareLimited/ext-rules-editor]: https://github.com/AdGuardSoftwareLimited/ext-rules-editor
+[AdguardTeam/RulesEditor]: https://github.com/AdguardTeam/RulesEditor

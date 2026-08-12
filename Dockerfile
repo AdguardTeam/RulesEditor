@@ -1,8 +1,13 @@
+# Multi-stage Dockerfile for rules-editor
+# Dependencies are cached until package.json/pnpm-lock.yaml change
+# Each stage can be built independently via --target
+
 FROM adguard/node-ssh:22.22--0 AS base
 SHELL ["/bin/bash", "-lc"]
 
 WORKDIR /rules-editor
 
+# pnpm store directory — set once here, no need for pnpm config set in every RUN
 ENV npm_config_store_dir=/pnpm-store
 
 # ============================================================================
@@ -13,10 +18,12 @@ FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
-# --ignore-scripts: package.json has "prepare": "husky install" which must not
-# run in CI (requires a git repo and husky setup).
+# --ignore-scripts: skips husky install (prepare script) which requires a git repo
 RUN --mount=type=cache,target=/pnpm-store,id=rules-editor-pnpm \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install \
+        --frozen-lockfile \
+        --ignore-scripts \
+        --prefer-offline
 
 # ============================================================================
 # Stage: source
@@ -27,53 +34,41 @@ FROM deps AS source
 COPY . /rules-editor
 
 # ============================================================================
-# Stage: lint
-# Runs ESLint
+# Stage: test-output
+# Runs lint, builds the library, and runs vitest unit tests.
+# Used as the CI validation target: `docker build --target test-output .`
+# fails if lint, build, or tests fail.
 # ============================================================================
-FROM source AS lint
+FROM source AS test-output
 
 ARG BUILD_RUN_ID=""
 
 RUN --mount=type=cache,target=/pnpm-store,id=rules-editor-pnpm \
     echo "${BUILD_RUN_ID}" > /tmp/.build-run-id && \
-    mkdir -p /out && \
-    touch /out/lint.txt && \
-    pnpm lint
-
-FROM scratch AS lint-output
-COPY --from=lint /out/ /
-
-# ============================================================================
-# Stage: test
-# Runs Jest tests
-# Always exits 0 — exit code stored in /out/exit-code.txt for Bamboo to check
-# ============================================================================
-FROM source AS test
-
-ARG BUILD_RUN_ID=""
-
-RUN --mount=type=cache,target=/pnpm-store,id=rules-editor-pnpm \
-    echo "${BUILD_RUN_ID}" > /tmp/.build-run-id && \
-    mkdir -p /out && \
-    pnpm test; echo $? > /out/exit-code.txt
-
-FROM scratch AS test-output
-COPY --from=test /out/ /
+    pnpm lint && \
+    pnpm build && \
+    pnpm test
 
 # ============================================================================
 # Stage: build
-# Creates library build and packs .tgz for npm publish
+# Builds the library and creates the npm package tarball for publishing
 # ============================================================================
 FROM source AS build
 
 ARG BUILD_RUN_ID=""
 
+# Optional package version for local builds. CI injects the release version
+# into package.json before building the image; locally this arg is required
+# because package.json has no version field and pnpm pack needs one.
+ARG VERSION=""
+
 RUN --mount=type=cache,target=/pnpm-store,id=rules-editor-pnpm \
     echo "${BUILD_RUN_ID}" > /tmp/.build-run-id && \
+    if [ -n "${VERSION}" ]; then npm pkg set version="${VERSION}"; fi && \
     pnpm build && \
     pnpm pack --out rules-editor.tgz && \
     mkdir -p /out/artifacts && \
     mv rules-editor.tgz /out/artifacts/
 
 FROM scratch AS build-output
-COPY --from=build /out/ /
+COPY --from=build /out/artifacts/ /

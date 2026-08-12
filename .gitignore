@@ -1,4 +1,8 @@
-node_modules
-dist
+node_modules/
+dist/
 .eslintcache
 .DS_Store
+.idea
+
+# SDD specs
+.sdd/

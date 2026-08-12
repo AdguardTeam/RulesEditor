@@ -1,6 +1,5 @@
 {
   "name": "@adguard/rules-editor",
-  "version": "2.0.0",
   "description": "User rules text editor based on Codemirror and AdGuard textmate highlight",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,8 +29,7 @@
     "lint": "pnpm run lint:code && pnpm run lint:types",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky install",
-    "increment": "pnpm version patch --no-git-tag-version"
+    "prepare": "husky install"
   },
   "engines": {
     "node": ">=22",

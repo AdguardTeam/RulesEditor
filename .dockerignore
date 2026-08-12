@@ -23,6 +23,15 @@ Dockerfile*
 # Logs
 *.log
 
+# Git hooks
+.husky
+
+# GitHub workflows
+.github/
+
+# SDD specs
+.sdd/
+
 # Test coverage
 coverage/
 
