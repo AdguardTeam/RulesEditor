@@ -74,11 +74,16 @@ filter rules. It provides:
 │   ├── index.ts                  # Editor bootstrap with sample rules
 │   ├── rspack.config.ts          # Dev-server config (bundles CodeMirror)
 │   └── tsconfig.json             # TypeScript config for the demo build
+├── .github/
+│   └── workflows/                # GitHub Actions CI/CD pipelines
 ├── rspack.config.ts              # UMD bundle config
 ├── tsconfig.json                 # Main TypeScript config
 ├── vitest.config.ts              # Vitest config
-├── package.json                  # Package manifest
-└── eslint.config.mjs             # ESLint flat config (airbnb via FlatCompat)
+├── package.json                  # Package manifest (no version — changelog-driven)
+├── eslint.config.mjs             # ESLint flat config (airbnb via FlatCompat)
+├── Dockerfile                    # Multi-stage Docker build
+├── CHANGELOG.md                  # Version history
+└── DEPLOYMENT.md                 # Release pipeline documentation
 ```
 
 ## Build And Test Commands
@@ -92,7 +97,12 @@ filter rules. It provides:
 | `pnpm lint:types` | Run TypeScript type checking |
 | `pnpm lint` | Run all linters (ESLint + TypeScript) |
 | `pnpm update-grammars` | Download + optimize TextMate grammars from upstream |
-| `pnpm increment` | Bump patch version |
+
+`package.json` intentionally has no `version` field — the release version is
+derived from `CHANGELOG.md` and injected by CI before packing. To pack
+locally, set a temporary version first (`npm pkg set version=0.0.0-dev`,
+revert with `git checkout package.json`) or use the Docker build with the
+`VERSION` build arg (see DEPLOYMENT.md).
 
 ## Contribution Instructions
 
@@ -106,7 +116,24 @@ filter rules. It provides:
 - You MUST update the unit tests for changed code.
 
 - You MUST run tests with `pnpm test` to verify that your changes do
-  not break existing functionality.
+  not break existing functionality. Both `pnpm lint` and `pnpm test` are
+  enforced by the Husky pre-commit hook.
+
+- When the task changes code in `src/`, update `CHANGELOG.md` in the
+  `Unreleased` section. Add entries to the appropriate subsection (`Added`,
+  `Changed`, or `Fixed`); do not create duplicate subsections.
+  Documentation-only changes (e.g., `AGENTS.md`, `DEVELOPMENT.md`, `README.md`)
+  do NOT belong in the changelog.
+
+- When adding an `## [Unreleased]` section to `CHANGELOG.md`, always add the
+  corresponding link reference immediately after the section's last entry,
+  pointing to `HEAD` from the latest released version, e.g.:
+
+  ```markdown
+  [Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/vX.Y.Z...HEAD
+  ```
+
+  where `vX.Y.Z` is the latest versioned tag in the changelog.
 
 - When making changes to the project structure, ensure the Project
   Structure section in `AGENTS.md` is updated and remains valid.

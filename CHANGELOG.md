@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 2.0.0 - 2026-07-10
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.0] - 2026-07-10
 
 ### Added
 
@@ -50,35 +64,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BlockRequestRule` and `UnblockRequestRule` now correctly include the `important` modifier in rule output
 - `NoFilteringRule` no longer appends a trailing `$`
 
-## 1.3.3 - 2026-06-08
+## [1.3.3] - 2026-06-08
 
 - Fix @adguard/scriplets dependency
 
-## 1.3.2 - 2026-06-03
+## [1.3.2] - 2026-06-03
 
 - Export `normalizeTokens` from the package
 
-## 1.3.1 - 2026-02-05
+## [1.3.1] - 2026-02-05
 
 - Fix bug with moving lines up and down
 
-## 1.3.0 - 2025-12-01
+## [1.3.0] - 2025-12-01
 
 - Refactor initEditor, add modes for work with gutter markers and hotkey for macOS
 
-## 1.2.10 - 2024-09-03
+## [1.2.10] - 2024-09-03
 
 - Add multiplatform support for comment and save hotkey
 
-## 1.2.9 - 2024-09-02
+## [1.2.9] - 2024-09-02
 
 - Add hotkeys support for editor
 
-## 1.2.8 - 2024-04-01
+## [1.2.8] - 2024-04-01
 
 - Add a check to ensure that the tokenizer correctly returns a null token and the original string in cases where the cosmetic rules' marker logic would not be applicable.
 
-## 1.2.7 - 2024-03-26
+## [1.2.7] - 2024-03-26
 
 - Changed the `isBlockingRule` property in the `DNSRule` class to public.
 
@@ -86,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed a bug in the `buildRule` method for `NoFilteringRule`, where it previously added an unnecessary `$` at the end of the rule. The method has been updated to omit the `$`, aligning the output with the correct rule syntax and expected behavior.
 
-## 1.2.6 - 2024-02-26
+## [1.2.6] - 2024-02-26
 
 ### Changed
 
@@ -94,39 +108,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor some strings to consts
 
 
-## 1.2.5 - 2024-02-16
+## [1.2.5] - 2024-02-16
 
 ### Changed
 
 - fix noFiltering parsing
 
-## 1.2.4 - 2023-06-12
+## [1.2.4] - 2023-06-12
 
 ### Changed
 
 - fix comment parsing
 
-## 1.2.3 - 2023-06-12
+## [1.2.3] - 2023-06-12
 
 ### Changed
 
 - add validation support for dns rules
 
-## 1.2.2 - 2023-06-12
+## [1.2.2] - 2023-06-12
 
 ### Changed
 
 - refactor `getDnsRule -> getDnsRuleByType` for dns rules.
 
 
-## 1.2.1 - 2023-01-12
+## [1.2.1] - 2023-01-12
 
 ### Changed
 
 - export `DNSRule` builder.
 - fix `getRuleFromRuleString` for dns rules.
 
-## 1.2.0 - 2023-27-11
+## [1.2.0] - 2023-27-11
 
 ### Changed
 
@@ -134,22 +148,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RulesBuilder` add support for DNS rules.
 
 
-## 1.1.1 - 2023-11-10
+## [1.1.1] - 2023-11-10
 
 ### Changed
 
 - `RulesBuilder` bug fixes.
 
 
-## 1.1.0 - 2023-10-24
+## [1.1.0] - 2023-10-24
 
 ### Changed
 
 - `RulesBuilder` class.
 
 
-## 1.0.0 - 2023-10-12
+## [1.0.0] - 2023-10-12
 
 ### Changed
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
+
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.3...v2.0.0
+[1.3.3]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.10...v1.3.0
+[1.2.10]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.9...v1.2.10
+[1.2.9]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.8...v1.2.9
+[1.2.8]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.7...v1.2.8
+[1.2.7]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.6...v1.2.7
+[1.2.6]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.5...v1.2.6
+[1.2.5]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.4...v1.2.5
+[1.2.4]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.3...v1.2.4
+[1.2.3]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.2...v1.2.3
+[1.2.2]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.1...v1.2.2
+[1.2.1]: https://github.com/AdguardTeam/RulesEditor/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/AdguardTeam/RulesEditor/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/AdguardTeam/RulesEditor/releases/tag/v1.0.0
