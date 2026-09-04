@@ -19,8 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Redo via `Ctrl+Shift+Z` (`Cmd+Shift+Z` on macOS) now works on every
   platform; previously `historyKeymap` left the shortcut unbound on
-  Windows, so the redo hotkey did nothing there (AdGuard Browser
-  Extension AG-58535).
+  Windows, so the redo hotkey did nothing there (AG-58535).
 
 ### Security
 
