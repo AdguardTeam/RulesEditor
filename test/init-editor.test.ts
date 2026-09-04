@@ -97,10 +97,13 @@ test('Ctrl+Shift+Z redoes the last undone change', async () => {
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('');
 
-    // Simulate Ctrl+Shift+Z. Real browsers report `key` as uppercase 'Z'
-    // while Shift is held; CM6 then resolves the binding through
-    // `base[event.keyCode]`. jsdom never populates the legacy `keyCode`,
-    // so stub it (90 = Z).
+    // Simulate Ctrl+Shift+Z. jsdom's `navigator.platform` is empty, so
+    // CM6 resolves keymaps on its generic "key" platform, where `Mod`
+    // means Ctrl — reproducing the Windows binding set (the
+    // `hotkeys.mode` config does not affect keymap resolution). Real
+    // browsers report `key` as uppercase 'Z' while Shift is held; CM6
+    // then resolves the binding through `base[event.keyCode]`. jsdom
+    // never populates the legacy `keyCode`, so stub it (90 = Z).
     const event = new KeyboardEvent('keydown', {
         key: 'Z',
         ctrlKey: true,
