@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [2.0.2] - 2026-09-07
+
+### Fixed
+
 - Redo via `Ctrl+Shift+Z` (`Cmd+Shift+Z` on macOS) now works on every
   platform; previously `historyKeymap` left the shortcut unbound on
   Windows, so the redo hotkey did nothing there (AG-58535).
-
-### Security
 
 ## [2.0.1] - 2026-08-19
 
@@ -174,7 +178,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...HEAD
+[2.0.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.3...v2.0.0
 [1.3.3]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.2...v1.3.3
