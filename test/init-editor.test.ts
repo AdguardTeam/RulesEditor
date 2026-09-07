@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { undo } from '@codemirror/commands';
 import {
     beforeEach,
     expect,
@@ -82,4 +83,38 @@ test('HighlightMode is exported from the package entry point', async () => {
     const value: import('../src/index').HighlightMode = 'none';
     expect(mod.initEditor).toBeTypeOf('function');
     expect(value).toBe('none');
+});
+
+test('Ctrl+Shift+Z redoes the last undone change', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+    });
+
+    view.dispatch({ changes: { from: 0, insert: '||example.com^' } });
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('');
+
+    // Simulate Ctrl+Shift+Z. jsdom's `navigator.platform` is empty, so
+    // CM6 resolves keymaps on its generic "key" platform, where `Mod`
+    // means Ctrl — reproducing the Windows binding set (the
+    // `hotkeys.mode` config does not affect keymap resolution). Real
+    // browsers report `key` as uppercase 'Z' while Shift is held; CM6
+    // then resolves the binding through `base[event.keyCode]`. jsdom
+    // never populates the legacy `keyCode`, so stub it (90 = Z).
+    const event = new KeyboardEvent('keydown', {
+        key: 'Z',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+    });
+    Object.defineProperty(event, 'keyCode', { get: () => 90 });
+    view.contentDOM.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe('||example.com^');
+    view.destroy();
 });

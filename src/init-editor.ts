@@ -1,4 +1,9 @@
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import {
+    defaultKeymap,
+    history,
+    historyKeymap,
+    redo,
+} from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
@@ -116,7 +121,15 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+            ...defaultKeymap,
+            ...historyKeymap,
+            // AG-58535: `historyKeymap` binds redo to `Mod-y` on Windows
+            // (its `Ctrl-Shift-z` entry is scoped to Linux only), so
+            // Ctrl+Shift+Z did nothing on Windows. Bind the conventional
+            // redo shortcut on every platform.
+            { key: 'Mod-Shift-z', run: redo, preventDefault: true },
+        ]),
         search(),
         configureHotKeys({
             onToggleRule: conf.hotkeys.toggleRule,
