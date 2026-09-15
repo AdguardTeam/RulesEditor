@@ -85,6 +85,32 @@ export function toggleAdblockComment(view: EditorView): boolean {
 }
 
 /**
+ * Opens the search panel with the focus placed in the replace field, so the
+ * Ctrl+H shortcut lands the user directly in the "find & replace" UI.
+ *
+ * The default CodeMirror search panel always renders both the find and the
+ * replace fields; `openSearchPanel` focuses the find field, so after opening
+ * the panel the focus is moved to the replace field explicitly.
+ *
+ * @param view The editor view.
+ *
+ * @returns `true` so the keymap consumes the event.
+ */
+export const openFindAndReplace = (view: EditorView): boolean => {
+    openSearchPanel(view);
+
+    // The replace field is part of the default search panel DOM and is stable
+    // across @codemirror/search versions (rendered with `name="replace"`).
+    const replaceField = view.dom.querySelector<HTMLInputElement>(
+        '.cm-panel.cm-search input[name="replace"]',
+    );
+    replaceField?.focus();
+    replaceField?.select();
+
+    return true;
+};
+
+/**
  * Builds the editor keymap, wiring line operations, search, comment toggle,
  * the enabled-rule toggle, and save.
  *
@@ -103,7 +129,12 @@ export function configureHotKeys(handlers: {
         { key: 'Alt-ArrowDown', run: moveLineDown },
         { key: 'Shift-Alt-ArrowUp', run: copyLineUp },
         { key: 'Shift-Alt-ArrowDown', run: copyLineDown },
-        { key: 'Mod-h', run: openSearchPanel },
+        // AG-58146: Ctrl+H opens the search panel with the focus in the
+        // replace field ("find & replace"). On macOS this binding is inert —
+        // Cmd+H is reserved by the OS/browser ("hide application"). The scope
+        // matches the search panel so the shortcut also works while the focus
+        // is inside the open panel.
+        { key: 'Mod-h', run: openFindAndReplace, scope: 'editor search-panel' },
         {
             key: 'Mod-/',
             run: (view): boolean => {

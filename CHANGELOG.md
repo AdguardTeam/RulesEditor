@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Search hotkeys are restored in the editor: `Ctrl+F` opens the search panel
+  and `Ctrl+H` opens it with the focus in the replace field ("find & replace").
+  The editor is now focused on initialization, so the shortcuts work
+  immediately after the editor is opened, and the search panel is rendered at
+  the bottom of the editor (AG-58146).
+
 ### Security
 
 ## [2.0.2] - 2026-09-07

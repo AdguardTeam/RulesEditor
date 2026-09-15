@@ -5,7 +5,7 @@ import {
     redo,
 } from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { search } from '@codemirror/search';
+import { search, searchKeymap } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 
@@ -95,6 +95,9 @@ export interface InitEditorConfig {
  * Initializes a CodeMirror 6 editor with adblock TextMate highlighting and the
  * AdGuard rule-editing extensions, replacing the provided textarea.
  *
+ * The created editor is focused immediately, so editor hotkeys (Ctrl+F/Ctrl+H,
+ * Ctrl+S, etc.) work right after this promise resolves.
+ *
  * @param element The textarea to replace.
  * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
  *   Promise/thunk); URL/string inputs are fetched. Only required when
@@ -130,7 +133,17 @@ export async function initEditor(
             // redo shortcut on every platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
-        search(),
+        // AG-58146: enable the standard CodeMirror search keymap. `search()`
+        // only sets up the search state and panel — it does NOT include the
+        // keymap — so without `searchKeymap` Ctrl+F (and F3/Mod-g/Mod-d/etc.)
+        // were unbound and the search panel was unreachable by keyboard.
+        //
+        // The panel is rendered at the bottom of the editor (`top: false`):
+        // the default search UI shows both the find and the replace fields,
+        // and the extension previously relied on the Ace search box, which
+        // was also positioned at the bottom.
+        keymap.of(searchKeymap),
+        search({ top: false }),
         configureHotKeys({
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
@@ -182,6 +195,13 @@ export async function initEditor(
             element.value = view.state.doc.toString();
         });
     }
+
+    // AG-58146: focus the editor as soon as it is created so that keyboard
+    // shortcuts (Ctrl+F find, Ctrl+H find & replace, Ctrl+S save, etc.) work
+    // immediately after the editor is opened, without requiring the user to
+    // click inside it first. CodeMirror keymaps only respond to keydown events
+    // dispatched on the focused content DOM.
+    view.focus();
 
     return view;
 }

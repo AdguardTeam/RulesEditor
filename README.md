@@ -140,6 +140,18 @@ Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
 [keymaps](https://codemirror.net/6/docs/ref/#commands).
 
+The editor is focused as soon as it is created, so editor hotkeys work
+immediately:
+
+- `Ctrl+F` (`Cmd+F`) opens the search panel at the bottom of the editor
+- `Ctrl+H` opens the search panel with the focus in the replace field
+  ("find & replace"; on macOS `Cmd+H` is reserved by the OS/browser)
+- `F3`/`Ctrl+G` find next, `Shift+F3`/`Ctrl+Shift+G` find previous
+- `Ctrl+D` selects the next occurrence of the current selection
+- `Escape` closes the search panel
+- `Ctrl+S` triggers the `conf.hotkeys.onSave` callback
+- `Ctrl+/` toggles `!`/`#` comments on the selected lines
+
 ### `getTokenizer`
 
 ```typescript

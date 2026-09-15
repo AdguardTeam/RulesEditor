@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { undo } from '@codemirror/commands';
+import { searchPanelOpen } from '@codemirror/search';
+import { type EditorView } from '@codemirror/view';
 import {
     beforeEach,
     expect,
@@ -19,6 +21,25 @@ const wasm = readFileSync(
 ).buffer;
 
 beforeEach(() => RegistryManager.resetForTests());
+
+/**
+ * Dispatches a Ctrl+<key> keydown event on the editor's content DOM.
+ *
+ * @param view The editor view to dispatch the event on.
+ * @param key The letter pressed with Ctrl held down.
+ *
+ * @returns The dispatched event.
+ */
+const pressCtrlKey = (view: EditorView, key: string): KeyboardEvent => {
+    const event = new KeyboardEvent('keydown', {
+        key,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+    });
+    view.contentDOM.dispatchEvent(event);
+    return event;
+};
 
 test('mounts an editor and highlights a comment', async () => {
     const textarea = document.createElement('textarea');
@@ -116,5 +137,61 @@ test('Ctrl+Shift+Z redoes the last undone change', async () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.doc.toString()).toBe('||example.com^');
+    view.destroy();
+});
+
+test('focuses the editor on initialization so hotkeys work immediately', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+    });
+    // AG-58146: the editor must be focused as soon as it is created,
+    // otherwise CodeMirror keymaps (Ctrl+F/Ctrl+H) ignore keydown events
+    // until the user clicks inside the editor.
+    expect(view.hasFocus).toBe(true);
+    expect(document.activeElement).toBe(view.contentDOM);
+    view.destroy();
+});
+
+test('Ctrl+F opens the search panel at the bottom of the editor', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+    });
+
+    const event = pressCtrlKey(view, 'f');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(searchPanelOpen(view.state)).toBe(true);
+    expect(view.dom.querySelector('.cm-panel.cm-search')).not.toBeNull();
+    // AG-58146: the default search UI is pinned to the bottom of the editor.
+    expect(view.dom.querySelector('.cm-panels-bottom')).not.toBeNull();
+    expect(view.dom.querySelector('.cm-panels-top')).toBeNull();
+    view.destroy();
+});
+
+test('Ctrl+H opens the search panel with the focus in the replace field', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+    });
+
+    const event = pressCtrlKey(view, 'h');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(searchPanelOpen(view.state)).toBe(true);
+    const replaceField = view.dom.querySelector<HTMLInputElement>(
+        '.cm-panel.cm-search input[name="replace"]',
+    );
+    expect(replaceField).not.toBeNull();
+    // AG-58146: Ctrl+H is "find & replace", so the replace field must get the
+    // focus (unlike Ctrl+F which focuses the find field).
+    expect(document.activeElement).toBe(replaceField);
     view.destroy();
 });
