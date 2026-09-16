@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `Ctrl+H` opens it with the focus in the replace field ("find & replace").
   The editor is now focused on initialization, so the shortcuts work
   immediately after the editor is opened, and the search panel is rendered at
-  the bottom of the editor (AG-58146).
+  the bottom of the editor.
 
 ### Security
 
