@@ -8,6 +8,30 @@ It provides a **CodeMirror 6** text editor with TextMate syntax highlighting
 (via WebAssembly Oniguruma backed by `vscode-textmate` + `vscode-oniguruma`)
 and a WASM-backed tokenizer for custom rule rendering.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Key Concepts](#key-concepts)
+- [Quick Start](#quick-start)
+    - [Editor](#editor)
+        - [Theming](#theming)
+        - [Highlighting strategy](#highlighting-strategy)
+    - [Tokenizing a Rule](#tokenizing-a-rule)
+    - [Inspecting a Line (scope debugging)](#inspecting-a-line-scope-debugging)
+- [API](#api)
+    - [`initEditor`](#initeditor)
+        - [Hotkeys](#hotkeys)
+    - [`getTokenizer`](#gettokenizer)
+    - [`inspectLine`](#inspectline)
+    - [Rendering tokens to HTML (display-only)](#rendering-tokens-to-html-display-only)
+        - [`renderTokensToHtml`](#rendertokenstohtml)
+        - [`getHtmlRenderer`](#gethtmlrenderer)
+        - [`mountHighlightStyle`](#mounthighlightstyle)
+        - [`RenderOptions`](#renderoptions)
+    - [Error Classes](#error-classes)
+- [Peer Dependencies](#peer-dependencies)
+- [Documentation](#documentation)
+
 ## Installation
 
 `vscode-oniguruma` and CodeMirror/Lezer packages are peer dependencies —
@@ -139,6 +163,8 @@ async function initEditor(
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
 [keymaps](https://codemirror.net/6/docs/ref/#commands).
+
+#### Hotkeys
 
 The editor is focused as soon as it is created, so editor hotkeys work
 immediately. `Ctrl` means Windows/Linux, `Cmd` means macOS:
