@@ -149,10 +149,13 @@ immediately. `Ctrl` means Windows/Linux, `Cmd` means macOS:
   so this shortcut only works on Windows/Linux)
 - `F3` or `Ctrl+G` finds the next match; `Shift+F3` or `Ctrl+Shift+G`
   finds the previous one (on macOS: `Cmd+G` / `Cmd+Shift+G`)
-- `Ctrl+D` / `Cmd+D` selects the next occurrence of the current selection
 - `Escape` closes the search panel
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
 - `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines
+
+CodeMirror's "select next occurrence" binding (`Mod-d`) is not listed here:
+browsers reserve `Ctrl+D`/`Cmd+D` for "Bookmark this page" on every platform,
+so the keydown never reaches the editor.
 
 ### `getTokenizer`
 
