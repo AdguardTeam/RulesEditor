@@ -141,16 +141,18 @@ Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [keymaps](https://codemirror.net/6/docs/ref/#commands).
 
 The editor is focused as soon as it is created, so editor hotkeys work
-immediately:
+immediately. `Ctrl` means Windows/Linux, `Cmd` means macOS:
 
-- `Ctrl+F` (`Cmd+F`) opens the search panel at the bottom of the editor
-- `Ctrl+H` opens the search panel with the focus in the replace field
-  ("find & replace"; on macOS `Cmd+H` is reserved by the OS/browser)
-- `F3`/`Ctrl+G` find next, `Shift+F3`/`Ctrl+Shift+G` find previous
-- `Ctrl+D` selects the next occurrence of the current selection
+- `Ctrl+F` / `Cmd+F` opens the search panel at the bottom of the editor
+- `Ctrl+H` / `Cmd+H` opens the search panel with the focus in the replace
+  field ("find & replace"; on macOS `Cmd+H` is reserved by the OS/browser,
+  so this shortcut only works on Windows/Linux)
+- `F3` or `Ctrl+G` finds the next match; `Shift+F3` or `Ctrl+Shift+G`
+  finds the previous one (on macOS: `Cmd+G` / `Cmd+Shift+G`)
+- `Ctrl+D` / `Cmd+D` selects the next occurrence of the current selection
 - `Escape` closes the search panel
-- `Ctrl+S` triggers the `conf.hotkeys.onSave` callback
-- `Ctrl+/` toggles `!`/`#` comments on the selected lines
+- `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
+- `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines
 
 ### `getTokenizer`
 

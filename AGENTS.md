@@ -104,6 +104,11 @@ locally, set a temporary version first (`npm pkg set version=0.0.0-dev`,
 revert with `git checkout package.json`) or use the Docker build with the
 `VERSION` build arg (see DEPLOYMENT.md).
 
+Do not add a `packageManager` field to `package.json`. Corepack appends it
+automatically when pnpm runs in a repo without one; the `engines.pnpm`
+constraint is enough for version pinning. If Corepack added the field,
+revert it before committing (`git checkout package.json`).
+
 ## Contribution Instructions
 
 - You MUST verify it with linter, formatter, and type checker.
