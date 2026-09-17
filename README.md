@@ -282,15 +282,15 @@ custom editor theme.
 
 ## Peer Dependencies
 
-| Package                | Version  |
-| ---------------------- | ---------|
-| `vscode-oniguruma`     | `2.0.1`  |
-| `@codemirror/commands` | `6.10.3` |
-| `@codemirror/language` | `6.12.3` |
-| `@codemirror/search`   | `6.7.0`  |
-| `@codemirror/state`    | `6.6.0`  |
-| `@codemirror/view`     | `6.43.0` |
-| `@lezer/highlight`     | `1.2.3`  |
+| Package                | Version   |
+| ---------------------- | --------- |
+| `vscode-oniguruma`     | `^2.0.1`  |
+| `@codemirror/commands` | `^6.10.3` |
+| `@codemirror/language` | `^6.12.3` |
+| `@codemirror/search`   | `^6.7.0`  |
+| `@codemirror/state`    | `^6.6.0`  |
+| `@codemirror/view`     | `^6.43.0` |
+| `@lezer/highlight`     | `^1.2.3`  |
 
 ## Documentation
 
