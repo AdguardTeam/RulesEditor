@@ -41,19 +41,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `getHtmlRenderer`, and `mountHighlightStyle` — tokenize a rule and produce
   colorized HTML with editor-identical syntax highlighting, no CodeMirror
   instance required
-- `SearchHighlightOptions` type for `getHtmlRenderer` and `renderTokensToHtml` to allow specifying a search term and CSS class for highlighting search hits in the rendered HTML. The `searchTerm` is HTML-escaped, and the `searchClassName` is applied to each matched chunk.
+- `SearchHighlightOptions` type for `getHtmlRenderer` and `renderTokensToHtml`
+  to allow specifying a search term and CSS class for highlighting search hits
+  in the rendered HTML. The `searchTerm` is HTML-escaped, and the `searchClassName`
+  is applied to each matched chunk.
 
 ### Changed
 
-- **Breaking:** Migrated editor from CodeMirror 5 to CodeMirror 6; `initEditor` now returns `EditorView` with a new configuration shape
-- **Breaking:** Token enum values aligned with `@lezer/highlight` tag taxonomy (e.g. `Def` → `Definition`, `String2` → `Regexp`, `Tag` → `TagName`)
-- **Breaking:** WASM backend changed from `onigasm` to `vscode-oniguruma` + `vscode-textmate`; the library no longer exports a `wasm` URL — pass a flexible `WasmSource` instead
+- **Breaking:** Migrated editor from CodeMirror 5 to CodeMirror 6; `initEditor`
+  now returns `EditorView` with a new configuration shape
+- **Breaking:** Token enum values aligned with `@lezer/highlight` tag taxonomy
+  (e.g. `Def` → `Definition`, `String2` → `Regexp`, `Tag` → `TagName`)
+- **Breaking:** WASM backend changed from `onigasm` to `vscode-oniguruma` +
+  `vscode-textmate`; the library no longer exports a `wasm` URL — pass a
+  flexible `WasmSource` instead
 - **Breaking:** `getFullTokenizer` renamed to `getTokenizer`
 - **Breaking:** `HighlightMode` is now `'full' | 'none'`
-- **Breaking:** CodeMirror packages (`@codemirror/*`, `@lezer/*`) moved to `peerDependencies`; the consumer's bundler must supply them
-- **Breaking:** Removed `configureEditorMode` and `EDITOR_DEFAULT_MODE` — syntax highlighting is now always active
-- The package now ships with a standards-compliant `exports` map and emitted type declarations under `dist/types`
-- Editor commands (comment toggle, line move/copy, search) now use CodeMirror 6 built-ins
+- **Breaking:** CodeMirror packages (`@codemirror/*`, `@lezer/*`) moved to
+  `peerDependencies`; the consumer's bundler must supply them
+- **Breaking:** Removed `configureEditorMode` and `EDITOR_DEFAULT_MODE` — syntax
+  highlighting is now always active
+- The package now ships with a standards-compliant `exports` map and emitted
+  type declarations under `dist/types`
+- Editor commands (comment toggle, line move/copy, search) now use CodeMirror 6
+  built-ins
 - Grammars are now optimized at build time via `oniguruma-parser`
 - Grammars are updated
 
@@ -100,15 +111,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.2.8] - 2024-04-01
 
-- Add a check to ensure that the tokenizer correctly returns a null token and the original string in cases where the cosmetic rules' marker logic would not be applicable.
+- Add a check to ensure that the tokenizer correctly returns a null token
+  and the original string in cases where the cosmetic rules' marker logic
+  would not be applicable.
 
 ## [1.2.7] - 2024-03-26
 
 - Changed the `isBlockingRule` property in the `DNSRule` class to public.
 
-- Fixed a bug in the `buildRule` for `BlockRequestRule` and `UnblockRequestRule` function where using the `important` modifier resulted in an empty string. The function now properly considers and integrates the `important` modifier, ensuring accurate rule construction.
+- Fixed a bug in the `buildRule` for `BlockRequestRule` and `UnblockRequestRule`
+  function where using the `important` modifier resulted in an empty string.
+  The function now properly considers and integrates the `important` modifier,
+  ensuring accurate rule construction.
 
-- Fixed a bug in the `buildRule` method for `NoFilteringRule`, where it previously added an unnecessary `$` at the end of the rule. The method has been updated to omit the `$`, aligning the output with the correct rule syntax and expected behavior.
+- Fixed a bug in the `buildRule` method for `NoFilteringRule`, where it
+  previously added an unnecessary `$` at the end of the rule. The method has been
+  updated to omit the `$`, aligning the output with the correct rule syntax and
+  expected behavior.
 
 ## [1.2.6] - 2024-02-26
 
@@ -116,7 +135,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split RequestRule to two separate classes for block and unblock rules
 - Refactor some strings to consts
-
 
 ## [1.2.5] - 2024-02-16
 
