@@ -256,6 +256,11 @@ Shared library (lib/registry, lib/utils, lib/errors)
   ranges that allow automatic upgrades to untested versions. When
   pinning, keep at least the version already resolved in
   `pnpm-lock.yaml` — never downgrade a dependency.
+- **Peer dependencies keep semver ranges** — `peerDependencies`
+  declare compatibility with the versions the *consumer* installs, so
+  they use semver ranges (e.g. `^6.10.3`) instead of exact pins.
+  Exact versions would force consumers onto a single patch release
+  and break installs (npm `ERESOLVE`).
 - **Prefer vanilla solutions** — use the language's standard library
   and built-in APIs when they adequately solve the problem. Only add a
   dependency when it provides significant value over a vanilla
