@@ -164,6 +164,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.onChange`            | Called after each document change                                                                                |
 | `conf.extensions`          | Extra CodeMirror 6 extensions appended last                                                                      |
 | `conf.highlight`           | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
+| `conf.autofocus`           | Focus the editor on creation (default `true`); pass `false` to manage focus yourself                             |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
@@ -171,8 +172,10 @@ Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 
 #### Hotkeys
 
-The editor is focused as soon as it is created, so editor hotkeys work
-immediately. `Ctrl` means Windows/Linux, `Cmd` means macOS:
+By default the editor is focused as soon as it is created (pass
+`conf.autofocus: false` to opt out, e.g. when the host page mounts several
+editors), so editor hotkeys work immediately. `Ctrl` means Windows/Linux,
+`Cmd` means macOS:
 
 - `Ctrl+F` / `Cmd+F` opens the search panel at the bottom of the editor
 - `Ctrl+H` / `Cmd+H` opens the search panel with the focus in the replace

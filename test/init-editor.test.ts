@@ -155,6 +155,26 @@ test('focuses the editor on initialization so hotkeys work immediately', async (
     view.destroy();
 });
 
+test('does not steal focus when autofocus is disabled', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+        // AG-58146: pages with several editors (or a focused element
+        // elsewhere) opt out so the editor does not steal focus on creation.
+        autofocus: false,
+    });
+
+    expect(view.hasFocus).toBe(false);
+    expect(document.activeElement).toBe(input);
+    view.destroy();
+});
+
 test('Ctrl+F opens the search panel at the bottom of the editor', async () => {
     const textarea = document.createElement('textarea');
     document.body.appendChild(textarea);

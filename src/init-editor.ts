@@ -46,6 +46,14 @@ export interface InitEditorConfig {
     highlight?: HighlightMode;
 
     /**
+     * Whether to focus the editor as soon as it is created so that hotkeys
+     * (Ctrl+F/Ctrl+H/Ctrl+S, etc.) work immediately. Defaults to `true`.
+     * Pass `false` when the host page manages focus itself, e.g. when
+     * several editors are mounted on one page.
+     */
+    autofocus?: boolean;
+
+    /**
      * Enables the enabled-rule gutter.
      */
     withBreakpoints?: boolean;
@@ -95,8 +103,9 @@ export interface InitEditorConfig {
  * Initializes a CodeMirror 6 editor with adblock TextMate highlighting and the
  * AdGuard rule-editing extensions, replacing the provided textarea.
  *
- * The created editor is focused immediately, so editor hotkeys (Ctrl+F/Ctrl+H,
- * Ctrl+S, etc.) work right after this promise resolves.
+ * The created editor is focused immediately by default (unless
+ * {@link InitEditorConfig.autofocus} is `false`), so editor hotkeys
+ * (Ctrl+F/Ctrl+H, Ctrl+S, etc.) work right after this promise resolves.
  *
  * @param element The textarea to replace.
  * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
@@ -200,8 +209,12 @@ export async function initEditor(
     // shortcuts (Ctrl+F find, Ctrl+H find & replace, Ctrl+S save, etc.) work
     // immediately after the editor is opened, without requiring the user to
     // click inside it first. CodeMirror keymaps only respond to keydown events
-    // dispatched on the focused content DOM.
-    view.focus();
+    // dispatched on the focused content DOM. Consumers that manage focus
+    // themselves (e.g. multiple editors on one page) opt out with
+    // `autofocus: false`.
+    if (conf.autofocus !== false) {
+        view.focus();
+    }
 
     return view;
 }

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `conf.autofocus` option for `initEditor` — the editor still focuses itself
+  on creation by default (so hotkeys work immediately), but host pages that
+  manage focus themselves (e.g. several editors on one page) can pass
+  `autofocus: false` to prevent the editor from stealing focus.
+
 ### Changed
 
 ### Deprecated
