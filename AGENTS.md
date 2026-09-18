@@ -10,12 +10,13 @@
 - [Build And Test Commands](#build-and-test-commands)
 - [Contribution Instructions](#contribution-instructions)
 - [Code Guidelines](#code-guidelines)
-  - [System Design](#system-design)
-  - [Architecture](#architecture)
-  - [Code Quality](#code-quality)
-  - [Testing](#testing)
-  - [Configuration \& Documentation](#configuration--documentation)
-  - [Markdown Formatting](#markdown-formatting)
+    - [System Design](#system-design)
+    - [Architecture](#architecture)
+    - [Code Quality](#code-quality)
+    - [Testing](#testing)
+    - [Dependencies](#dependencies)
+    - [Configuration \& Documentation](#configuration--documentation)
+    - [Markdown Formatting](#markdown-formatting)
 
 ## Project Overview
 
@@ -29,18 +30,17 @@ filter rules. It provides:
 
 ## Technical Context
 
-| Field | Value |
-| --- | --- |
-| Language/Version | TypeScript 5.2, targeting ES6 |
-| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma
-  (WASM — peer), vscode-textmate, @adguard/tsurlfilter 2 |
-| Storage | None (client-side library) |
-| Testing | Vitest |
-| Target Platform | Browser (bundled as UMD via Rspack) |
-| Project Type | Library / Package |
-| Performance Goals | N/A |
-| Constraints | Requires WASM for full tokenization; must support browsers without native Oniguruma |
-| Scale/Scope | Consumed by AdGuard products for user rule editing UIs |
+| Field                | Value                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Language/Version     | TypeScript 5.2, targeting ES6                                                                   |
+| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma (WASM — peer), vscode-textmate, style-mod |
+| Storage              | None (client-side library)                                                                      |
+| Testing              | Vitest                                                                                          |
+| Target Platform      | Browser (bundled as ESM via Rspack)                                                             |
+| Project Type         | Library / Package                                                                               |
+| Performance Goals    | N/A                                                                                             |
+| Constraints          | Requires WASM for full tokenization; must support browsers without native Oniguruma             |
+| Scale/Scope          | Consumed by AdGuard products for user rule editing UIs                                          |
 
 ## Project Structure
 
@@ -78,7 +78,9 @@ filter rules. It provides:
 │   └── tsconfig.json             # TypeScript config for the demo build
 ├── .github/
 │   └── workflows/                # GitHub Actions CI/CD pipelines
-├── rspack.config.ts              # UMD bundle config
+├── .markdownlint.json            # markdownlint config for lint:md
+├── .markdownlintignore           # markdownlint ignore file (lint:md runs --dot)
+├── rspack.config.ts              # ESM bundle config
 ├── tsconfig.json                 # Main TypeScript config
 ├── vitest.config.ts              # Vitest config
 ├── package.json                  # Package manifest (no version — changelog-driven)
@@ -90,21 +92,15 @@ filter rules. It provides:
 
 ## Build And Test Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm build` | Build bundle + type declarations to `dist/` via Rspack + tsc |
-| `pnpm run demo` | Start a dev server with a live editor in the browser |
-| `pnpm test` | Run all Vitest tests |
-| `pnpm lint:code` | Run ESLint |
-| `pnpm lint:types` | Run TypeScript type checking |
-| `pnpm lint` | Run all linters (ESLint + TypeScript) |
-| `pnpm update-grammars` | Download + optimize TextMate grammars from upstream |
+| Command      | Purpose                                                          |
+| ------------ | ---------------------------------------------------------------- |
+| `pnpm build` | Build ESM bundle + type declarations to `dist/` via Rspack + tsc |
+| `pnpm test`  | Run all Vitest tests                                             |
+| `pnpm lint`  | Run all linters (ESLint + TypeScript + Markdown)                 |
 
-`package.json` intentionally has no `version` field — the release version is
-derived from `CHANGELOG.md` and injected by CI before packing. To pack
-locally, set a temporary version first (`npm pkg set version=0.0.0-dev`,
-revert with `git checkout package.json`) or use the Docker build with the
-`VERSION` build arg (see DEPLOYMENT.md).
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the full command list and for how
+`package.json` derives its release version from `CHANGELOG.md` (it has no
+`version` field).
 
 ## Contribution Instructions
 
@@ -123,9 +119,17 @@ revert with `git checkout package.json`) or use the Docker build with the
 
 - When the task changes code in `src/`, update `CHANGELOG.md` in the
   `Unreleased` section. Add entries to the appropriate subsection (`Added`,
-  `Changed`, or `Fixed`); do not create duplicate subsections.
-  Documentation-only changes (e.g., `AGENTS.md`, `DEVELOPMENT.md`, `README.md`)
-  do NOT belong in the changelog.
+  `Changed`, or `Fixed`); do not create duplicate subsections. Do NOT add
+  changelog entries for documentation-only changes (e.g., `AGENTS.md`,
+  `DEVELOPMENT.md`, `README.md`), CI changes, or test changes.
+
+- Use ticket-prefixed commit messages — `AG-XXX <short description in present tense>`, so
+  commits auto-link with the task tracker. Automated commits made by CI (e.g.
+  the CHANGELOG finalization in release PRs, which has no ticket number) use
+  a [Conventional Commits] prefix such as `docs:` instead. See
+  [DEVELOPMENT.md](DEVELOPMENT.md) for the full convention with examples.
+
+[Conventional Commits]: https://www.conventionalcommits.org/en/v1.0.0/
 
 - When adding an `## [Unreleased]` section to `CHANGELOG.md`, always add the
   corresponding link reference immediately after the section's last entry,
@@ -217,6 +221,7 @@ Shared library (lib/registry, lib/utils, lib/errors)
   `jsdoc/require-description` (complete sentence), and
   `jsdoc/require-returns` on classes, class properties, functions, and
   methods.
+
 - **Strict TypeScript** — `strict: true`, `noImplicitAny: true` in
   tsconfig.
 - **Airbnb style** — ESLint extends `airbnb-typescript/base`; follow
@@ -224,8 +229,9 @@ Shared library (lib/registry, lib/utils, lib/errors)
 - **No modification of linter config** without explicit approval —
   the `eslint.config.mjs` rules are intentional.
 - **Error handling** — throw errors; let consumers catch. The
-  `initGrammar` singleton silently catches "already loaded" errors
-  to allow safe repeated calls.
+  registry's `ensureRegistry` memoizes its `readyPromise`, so the
+  WASM and registry initialization runs at most once per page; the
+  try/catch only wraps load failures into `WasmLoadError`.
 - **Naming** — files use kebab-case; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
   **Exception**: generated TextMate grammar files in `src/grammars/` use
@@ -246,12 +252,17 @@ Shared library (lib/registry, lib/utils, lib/errors)
 - Tokenizer tests verify token output against expected arrays.
 - No mocking is used — tests exercise real module code.
 
-- **Error handling** — throw errors; let consumers catch. The
-  registry's `ensureRegistry` catches duplicate `loadWASM` calls
-  to allow safe repeated initialization.
+### Dependencies
 
 - **Pin all dependency versions explicitly** — do not use version
-  ranges that allow automatic upgrades to untested versions.
+  ranges that allow automatic upgrades to untested versions. When
+  pinning, keep at least the version already resolved in
+  `pnpm-lock.yaml` — never downgrade a dependency.
+- **Peer dependencies keep semver ranges** — `peerDependencies`
+  declare compatibility with the versions the *consumer* installs, so
+  they use semver ranges (e.g. `^6.10.3`) instead of exact pins.
+  Exact versions would force consumers onto a single patch release
+  and break installs (npm `ERESOLVE`).
 - **Prefer vanilla solutions** — use the language's standard library
   and built-in APIs when they adequately solve the problem. Only add a
   dependency when it provides significant value over a vanilla
@@ -269,11 +280,6 @@ Shared library (lib/registry, lib/utils, lib/errors)
 **Rationale**: Fewer, well-vetted dependencies reduce security
 vulnerabilities, supply chain risks, and long-term maintenance costs.
 
-**Known exclusions** (to be fixed):
-
-- All dependencies use caret (`^`) version ranges instead of exact
-  pinning.
-
 ### Configuration & Documentation
 
 - No runtime configuration — the library is configured via function
@@ -287,40 +293,47 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 
 ### Markdown Formatting
 
-All Markdown files MUST follow these formatting rules:
+All Markdown files MUST pass `pnpm lint:md` (markdownlint, configured in
+`.markdownlint.json`; the PR template in `.github/` is excluded via
+`.markdownlintignore`). The formatting rules below follow that configuration:
 
-- **Line length**: Keep lines at most 80 characters. This is not a hard
-  lint gate, but SHOULD be followed for readability. Lines inside fenced
-  code blocks are exempt from this limit.
+- **Line length**: Keep lines at most 120 characters (enforced by
+  markdownlint in `stern` mode). Lines inside fenced code blocks and
+  table rows are exempt from this limit (`code_blocks: false`,
+  `tables: false`).
 - **Unordered lists**: Use dashes (`-`) for bullet points. Indent nested
   list items by 4 spaces.
-- No runtime configuration — the library is configured via function
-  parameters (`initEditor` accepts a config object, tokenizers accept
-  a `WasmSource`).
-  `**bold**`). Do NOT use underscores.
-- **Headings**: Duplicate heading names are allowed only among sibling
-  headings (same parent level). Avoid duplicates across different levels.
+- **Bold**: Use double asterisks (`**bold**`). Do NOT use underscores
+  (enforced by markdownlint `strong-style`).
+- **Headings**: Duplicate heading names among sibling headings (same level,
+  same parent) are rejected (`no-duplicate-heading` with `siblings_only`);
+  identical headings under different parents or levels are allowed.
 - **Inline HTML**: Avoid raw HTML in Markdown. The only allowed elements
-  are `<a>`, `<p>`, `<details>`, `<summary>`, and `<img>`.
+  are `<a>`, `<p>`, `<details>`, `<summary>`, and `<img>` (enforced by
+  markdownlint `no-inline-html`).
 - **Trailing spaces**: Do NOT leave trailing whitespace on any line. Do
-  NOT use two-space line breaks — use a blank line instead.
+  NOT use two-space line breaks — use a blank line instead (enforced by
+  markdownlint `no-trailing-spaces`).
+- **Blank lines**: At most two consecutive blank lines are allowed
+  (enforced by markdownlint `no-multiple-blanks`; the CHANGELOG release
+  sections use the full two).
 - **Bare URLs**: Bare URLs are permitted and do not need to be wrapped
   in angle brackets.
-- **Table formatting**: Align table columns with padding when the table
-  fits within 80 characters. If the table exceeds 80 characters or
-  triggers an MD060 linter warning, switch to a compact format using
-  single spaces only. This applies to the separator row as well — it
-  should be written as `| --- |`, not `|--|`.
+- **Table formatting**: Align table columns with padding so that pipes
+  line up with the header row (`table-column-style: aligned`). This
+  applies to the separator row as well — pad it with dashes to match
+  the column widths.
 
   Example of correct layout:
 
   ```markdown
-  | Col1 | Col2 |
-  | --- | --- |
+  | Col1   | Col2   |
+  | ------ | ------ |
   | Value1 | Value2 |
   ```
 
-  Do NOT use extra padding or alignment characters beyond single spaces.
+  Do NOT use compact single-space tables — they fail the markdownlint
+  aligned style check.
 
 **Rationale**: Uniform Markdown formatting improves readability for both
 humans and AI agents that consume project documentation.
