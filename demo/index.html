@@ -4,9 +4,54 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AdGuard Rules Editor — Demo</title>
+    <script>
+        // Apply the persisted theme before first paint so a dark appearance
+        // does not flash as light while the editor bundle (and WASM) loads.
+        // `document.documentElement` exists at this point: the script lives in
+        // `<head>`, inside `<html>`.
+        // Mirrors the storage key and the dark-resolution logic in
+        // demo/theme.ts — keep both copies in sync when either changes.
+        (() => {
+            let mode = 'system';
+            try {
+                const stored = localStorage.getItem('rules-editor-demo-theme');
+                if (stored === 'light' || stored === 'dark') {
+                    mode = stored;
+                }
+            } catch {
+                // Storage can be blocked (sandboxed iframe, strict privacy
+                // settings); fall back to the system appearance.
+            }
+            const dark = mode === 'dark'
+                || (mode !== 'light'
+                    && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.classList.toggle('dark', dark);
+            document.documentElement.classList.toggle('light', !dark);
+        })();
+    </script>
   </head>
   <body>
     <div id="app">
+      <div id="toolbar">
+        <span id="theme-label">Theme:</span>
+        <div id="theme" role="radiogroup" aria-labelledby="theme-label">
+          <button
+            type="button"
+            role="radio"
+            data-theme="system"
+            aria-checked="true"
+            tabindex="0"
+          >
+            System
+          </button>
+          <button type="button" role="radio" data-theme="light" aria-checked="false" tabindex="-1">
+            Light
+          </button>
+          <button type="button" role="radio" data-theme="dark" aria-checked="false" tabindex="-1">
+            Dark
+          </button>
+        </div>
+      </div>
       <div id="editor-container">
         <textarea id="textarea"></textarea>
       </div>

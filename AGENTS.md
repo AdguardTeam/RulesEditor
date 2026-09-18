@@ -72,6 +72,8 @@ filter rules. It provides:
 ├── demo/                         # Browser demo (pnpm run demo)
 │   ├── index.html                # Demo page template
 │   ├── index.ts                  # Editor bootstrap with sample rules
+│   ├── theme.ts                  # Theme switcher (System / Light / Dark)
+│   ├── styles.css                # Demo page styles (light/dark tokens)
 │   ├── rspack.config.ts          # Dev-server config (bundles CodeMirror)
 │   └── tsconfig.json             # TypeScript config for the demo build
 ├── .github/
