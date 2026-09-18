@@ -41,10 +41,12 @@ are required because the library returns a live `EditorView` instance.
 CodeMirror's `@codemirror/state` relies on `instanceof` checks for
 extensions and facets — if your bundler duplicates `@codemirror/state`
 (the library bundles one copy and your app another), these checks will
-fail. Externalizing the peer deps ensures a single shared copy.`
+fail. Externalizing the peer deps ensures a single shared copy.
 
 ```sh
-pnpm add @adguard/rules-editor vscode-oniguruma @codemirror/state @codemirror/view @codemirror/language @codemirror/commands @codemirror/search @lezer/highlight
+pnpm add @adguard/rules-editor vscode-oniguruma @codemirror/state \
+    @codemirror/view @codemirror/language @codemirror/commands \
+    @codemirror/search @lezer/highlight
 ```
 
 ## Key Concepts
@@ -146,19 +148,22 @@ async function initEditor(
 ): Promise<EditorView>
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `element` | Textarea element to attach the editor to |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these. Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
-| `conf.hotkeys.mode` | OS mode for hotkey mapping (`'windows'` or `'mac'`) |
-| `conf.hotkeys.toggleRule` | Callback for Ctrl/Cmd+/ (toggle rule breakpoint) |
-| `conf.hotkeys.onSave` | Callback for Ctrl/Cmd+S |
-| `conf.hotkeys.markerColor` | CSS color for the breakpoint marker |
-| `conf.hotkeys.markerHTML` | Custom innerHTML for the breakpoint marker |
-| `conf.withBreakpoints` | Enable breakpoint gutter |
-| `conf.onChange` | Called after each document change |
-| `conf.extensions` | Extra CodeMirror 6 extensions appended last |
-| `conf.highlight` | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM) |
+A `WasmSource` is a URL/string (fetched at runtime), `Response`,
+`ArrayBuffer`, or a `Promise`/thunk resolving to any of these.
+
+| Parameter                  | Description                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `element`                  | Textarea element to attach the editor to                                                                         |
+| `wasm`                     | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
+| `conf.hotkeys.mode`        | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
+| `conf.hotkeys.toggleRule`  | Callback for Ctrl/Cmd+/ (toggle rule breakpoint)                                                                 |
+| `conf.hotkeys.onSave`      | Callback for Ctrl/Cmd+S                                                                                          |
+| `conf.hotkeys.markerColor` | CSS color for the breakpoint marker                                                                              |
+| `conf.hotkeys.markerHTML`  | Custom innerHTML for the breakpoint marker                                                                       |
+| `conf.withBreakpoints`     | Enable breakpoint gutter                                                                                         |
+| `conf.onChange`            | Called after each document change                                                                                |
+| `conf.extensions`          | Extra CodeMirror 6 extensions appended last                                                                      |
+| `conf.highlight`           | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
@@ -191,9 +196,9 @@ async function getTokenizer(
 ): Promise<(rule: string) => RuleTokens>
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
+| Parameter | Description                |
+| --------- | -------------------------- |
+| `wasm`    | A `WasmSource` (see above) |
 
 Returns a function that accepts a rule string and returns `RuleTokens`
 (`{ str: string, token: Token | null }[]`).
@@ -208,10 +213,10 @@ async function inspectLine(
 ): Promise<TokenSegment[]>
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `wasm` | WASM source — URL/string (fetched), `Response`, `ArrayBuffer`, or a `Promise`/thunk of these |
-| `line` | The line of filter rule text to tokenize |
+| Parameter   | Description                               |
+| ----------- | ----------------------------------------- |
+| `wasm`      | A `WasmSource` (see above)                |
+| `line`      | The line of filter rule text to tokenize  |
 | `scopeName` | Grammar scope; defaults to `text.adblock` |
 
 Returns a contiguous, gap-free array of `TokenSegment` objects covering
@@ -234,9 +239,9 @@ function renderTokensToHtml(
 ): string
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `tokens` | Token list from `getTokenizer` |
+| Parameter                | Description                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| `tokens`                 | Token list from `getTokenizer`                                 |
 | `options.highlightStyle` | `HighlightStyle` or array; defaults to `defaultHighlightStyle` |
 
 Returns an HTML string safe for `innerHTML`/`dangerouslySetInnerHTML`.
@@ -250,9 +255,9 @@ async function getHtmlRenderer(
 ): Promise<(rule: string, search?: SearchHighlightOptions) => string>
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `wasm` | WASM source — URL/string/`Response`/`ArrayBuffer`/Promise/thunk |
+| Parameter                | Description                  |
+| ------------------------ | ---------------------------- |
+| `wasm`                   | A `WasmSource` (see above)   |
 | `options.highlightStyle` | Same as `renderTokensToHtml` |
 
 Returns an async factory that initializes the grammar once, then returns a
@@ -295,10 +300,10 @@ function mountHighlightStyle(
 ): void
 ```
 
-| Parameter | Description |
-| --- | --- |
-| `highlightStyle` | Style whose CSS to mount; defaults to `defaultHighlightStyle` |
-| `root` | Target document or shadow root; defaults to `document` (no-ops in non-browser envs) |
+| Parameter        | Description                                                                         |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `highlightStyle` | Style whose CSS to mount; defaults to `defaultHighlightStyle`                       |
+| `root`           | Target document or shadow root; defaults to `document` (no-ops in non-browser envs) |
 
 Mounts a `HighlightStyle`'s CSS so emitted classes are colorized without an
 editor. Call once; repeated calls are idempotent.
@@ -316,22 +321,22 @@ custom editor theme.
 
 ### Error Classes
 
-| Class | Description |
-| --- | --- |
-| `WasmLoadError` | Thrown when the Oniguruma WASM binary fails to load |
-| `GrammarNotFoundError` | Thrown when a grammar scope has no registration |
+| Class                  | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `WasmLoadError`        | Thrown when the Oniguruma WASM binary fails to load   |
+| `GrammarNotFoundError` | Thrown when a grammar scope has no registration       |
 
 ## Peer Dependencies
 
-| Package | Version |
-| --- | --- |
-| `vscode-oniguruma` | `^2.0.1` |
+| Package                | Version   |
+| ---------------------- | --------- |
+| `vscode-oniguruma`     | `^2.0.1`  |
 | `@codemirror/commands` | `^6.10.3` |
 | `@codemirror/language` | `^6.12.3` |
-| `@codemirror/search` | `^6.7.0` |
-| `@codemirror/state` | `^6.6.0` |
-| `@codemirror/view` | `^6.43.0` |
-| `@lezer/highlight` | `^1.2.3` |
+| `@codemirror/search`   | `^6.7.0`  |
+| `@codemirror/state`    | `^6.6.0`  |
+| `@codemirror/view`     | `^6.43.0` |
+| `@lezer/highlight`     | `^1.2.3`  |
 
 ## Documentation
 

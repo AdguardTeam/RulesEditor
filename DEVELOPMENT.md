@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- Node.js v22
-- pnpm v10.33.4
+- Node.js >= 22.22.2 (matches `engines.node` — required by the
+  `markdownlint-cli` toolchain via `ini@7.0.0`)
+- pnpm >= 10.33.4 < 11 (matches `engines.pnpm`)
 
 ## Setup
 
@@ -20,24 +21,25 @@ pnpm install
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm run build` | Build ESM bundle + type declarations to `dist/` via Rspack + tsc |
-| `ANALYZE=true pnpm run build` | Build with bundle analysis report |
-| `pnpm run demo` | Start a dev server with a live editor in the browser |
-| `pnpm test` | Run all Vitest tests |
-| `pnpm run test:watch` | Run Vitest in watch mode |
-| `pnpm run lint` | Lint `./src` with ESLint |
-| `pnpm run update-grammars` | Download + optimize TextMate grammars from upstream |
+| Command                         | Purpose                                                            |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `pnpm run build`                | Build ESM bundle + type declarations to `dist/` via Rspack + tsc   |
+| `ANALYZE=true pnpm run build`   | Build with bundle analysis report                                  |
+| `pnpm run demo`                 | Start a dev server with a live editor in the browser               |
+| `pnpm test`                     | Run all Vitest tests                                               |
+| `pnpm run test:watch`           | Run Vitest in watch mode                                           |
+| `pnpm run lint`                 | Run all linters (ESLint + TypeScript + Markdown)                   |
+| `pnpm run lint:code`            | Run ESLint                                                         |
+| `pnpm run lint:types`           | Run TypeScript type checking                                       |
+| `pnpm run lint:md`              | Run Markdown linting                                               |
+| `pnpm run update-grammars`      | Download + optimize TextMate grammars from upstream                |
 
 `package.json` intentionally has no `version` field — the release version is
-derived from `CHANGELOG.md` and injected by CI before packing. See
-[DEPLOYMENT.md](DEPLOYMENT.md) for details.
-
-## Releasing
-
-Releases are fully automated via GitHub Actions. See
-[DEPLOYMENT.md](DEPLOYMENT.md) for the complete release pipeline documentation.
+derived from `CHANGELOG.md` and injected by CI before packing. To pack
+locally, set a temporary version first (`npm pkg set version=0.0.0-dev`,
+revert with `git checkout package.json`) or use the Docker build with the
+`VERSION` build arg. Releases are fully automated via GitHub Actions — see
+[DEPLOYMENT.md](DEPLOYMENT.md) for the complete release pipeline.
 
 ## Demo
 
@@ -48,7 +50,9 @@ out against live source. Start the dev server with:
 pnpm run demo
 ```
 
-This launches an Rspack dev server (default [http://localhost:8080](http://localhost:8080)). The demo imports the editor directly from
+This launches an Rspack dev server (default
+[http://localhost:8080](http://localhost:8080)). The demo imports the
+editor directly from
 `src`, so changes to the library are reflected on reload without a
 separate build step. The Oniguruma WASM asset is resolved from
 `vscode-oniguruma/release/onig.wasm` and emitted by Rspack.
@@ -58,15 +62,18 @@ Demo sources live in the `demo/` directory.
 ## Updating Grammars
 
 Filter rule highlighting uses a TextMate grammar from the
-[AdGuard VSCode extension](https://github.com/AdguardTeam/VscodeAdblockSyntax/blob/master/syntaxes/adblock.yaml-tmlanguage).
+[AdGuard VSCode extension][adguard-vscode-extension].
 The JavaScript grammar is based on
-[TypeScript-tmLanguage](https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage).
+[TypeScript-tmLanguage][typescript-tmlanguage].
 
 To update to the latest version:
 
 ```sh
 pnpm run update-grammars
 ```
+
+[adguard-vscode-extension]: https://github.com/AdguardTeam/VscodeAdblockSyntax/blob/master/syntaxes/adblock.yaml-tmlanguage
+[typescript-tmlanguage]: https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage
 
 This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
 every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
@@ -76,6 +83,29 @@ embedded grammar, register its scope in `src/lib/constants.ts`
 `scripts/update-grammars.mts`.
 
 Do not edit `src/grammars/*.json` files manually — they are generated.
+
+## Commit Message Convention
+
+Every commit message MUST start with the ticket number (`AG-XXX`) so it
+auto-links with the task tracker, followed by a short description in the
+present tense:
+
+```text
+AG-XXX <short description in present tense>
+```
+
+Examples:
+
+- `AG-55716 Add reusable publish-release workflow`
+- `AG-4321 Fix redirect after login`
+- `AG-99 Update dependencies`
+
+Automated commits that CI creates on its own (for example, the CHANGELOG
+finalization in release PRs, which has no ticket number) use a
+[Conventional Commits] prefix such as `docs:` — e.g.
+`docs: finalize changelog for release`.
+
+[Conventional Commits]: https://www.conventionalcommits.org/en/v1.0.0/
 
 ## Project Structure
 

@@ -1,0 +1,29 @@
+{
+    "ul-indent": { "indent": 4 },
+    "line-length": {
+        "stern": true,
+        "line_length": 120,
+        "code_blocks": false,
+        "tables": false
+    },
+    "no-trailing-spaces": { "br_spaces": 0 },
+    "no-multiple-blanks": { "maximum": 2 },
+    "no-duplicate-heading": { "siblings_only": true },
+    "no-inline-html": {
+        "allowed_elements": [
+            "a",
+            "p",
+            "details",
+            "summary",
+            "img"
+        ]
+    },
+    "no-bare-urls": false,
+    "strong-style": {
+        "style": "asterisk"
+    },
+    "table-column-style": {
+        "style": "aligned"
+    },
+    "ul-style": { "style": "dash" }
+}

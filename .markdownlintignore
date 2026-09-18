@@ -1,0 +1,5 @@
+node_modules/
+
+# The PR template is a form with intentionally flat (####) headings, not a
+# document — MD041 would require a top-level heading in every PR body.
+.github/pull_request_template.md
