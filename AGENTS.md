@@ -180,6 +180,13 @@ Design for a library:
   consumers should not need to read source code to use the library.
 - Handle errors by throwing specific, documented error classes — let the
   consumer decide how to recover.
+- **Respect consumer configuration** — when composing built-in CodeMirror
+  extensions with consumer-provided ones (`conf.extensions`), rely on the
+  extension's defaults instead of passing explicit option values: an
+  explicit value emits a facet that clashes with the consumer's own facet
+  value and CodeMirror throws `Config merge conflict for field ...`. For
+  example, call `search()` without a config rather than
+  `search({ top: false })` — the panel defaults to the bottom anyway.
 
 ### Architecture
 
@@ -237,6 +244,10 @@ Shared library (lib/registry, lib/utils, lib/errors)
   registry's `ensureRegistry` memoizes its `readyPromise`, so the
   WASM and registry initialization runs at most once per page; the
   try/catch only wraps load failures into `WasmLoadError`.
+- **Comments describe the current state** — code comments explain how the
+  code works now, not how it got here. Do not reference ticket numbers
+  (e.g. `AG-12345`) or change history in comments; the ticket is linked via
+  the commit message and the history is recorded by git.
 - **Naming** — files use kebab-case; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
   **Exception**: generated TextMate grammar files in `src/grammars/` use
