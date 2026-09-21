@@ -142,15 +142,12 @@ export async function initEditor(
             // redo shortcut on every platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
-        // AG-58146: enable the standard CodeMirror search keymap. `search()`
-        // only sets up the search state and panel — it does NOT include the
-        // keymap — so without `searchKeymap` Ctrl+F (and F3/Mod-g/Mod-d/etc.)
-        // were unbound and the search panel was unreachable by keyboard.
-        //
-        // The panel is rendered at the bottom of the editor (`top: false`):
-        // the default search UI shows both the find and the replace fields,
-        // and the extension previously relied on the Ace search box, which
-        // was also positioned at the bottom.
+        // `search()` provides the search state and the panel, but does not
+        // include the keymap — the standard search bindings (Ctrl+F, F3/Mod-g,
+        // Mod-d, Escape) are registered here. The panel defaults to the
+        // bottom of the editor, and no config is passed on purpose: an
+        // explicit `top` would conflict with a consumer's own
+        // `search({ top: ... })` extension.
         keymap.of(searchKeymap),
         search(),
         configureHotKeys({
