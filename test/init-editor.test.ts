@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { undo } from '@codemirror/commands';
-import { searchPanelOpen } from '@codemirror/search';
+import { search, searchPanelOpen } from '@codemirror/search';
 import { type EditorView } from '@codemirror/view';
 import {
     beforeEach,
@@ -191,6 +191,27 @@ test('Ctrl+F opens the search panel at the bottom of the editor', async () => {
     // AG-58146: the default search UI is pinned to the bottom of the editor.
     expect(view.dom.querySelector('.cm-panels-bottom')).not.toBeNull();
     expect(view.dom.querySelector('.cm-panels-top')).toBeNull();
+    view.destroy();
+});
+
+test('allows consumers to configure the search panel via conf.extensions', async () => {
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    const view = await initEditor(textarea, undefined, {
+        hotkeys: { mode: 'windows' },
+        highlight: 'none',
+        // Consumers may pass their own search extension (e.g. to pin the
+        // panel to the top); the built-in `search()` must not clash with it.
+        extensions: [search({ top: true })],
+    });
+
+    const event = pressCtrlKey(view, 'f');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(searchPanelOpen(view.state)).toBe(true);
+    // The consumer's `top: true` config wins over the editor default.
+    expect(view.dom.querySelector('.cm-panels-top')).not.toBeNull();
+    expect(view.dom.querySelector('.cm-panels-bottom')).toBeNull();
     view.destroy();
 });
 

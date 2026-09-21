@@ -152,7 +152,7 @@ export async function initEditor(
         // and the extension previously relied on the Ace search box, which
         // was also positioned at the bottom.
         keymap.of(searchKeymap),
-        search({ top: false }),
+        search(),
         configureHotKeys({
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
