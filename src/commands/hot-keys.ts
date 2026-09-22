@@ -1,10 +1,16 @@
 import {
     copyLineDown,
     copyLineUp,
+    deleteLine,
     moveLineDown,
     moveLineUp,
 } from '@codemirror/commands';
-import { openSearchPanel } from '@codemirror/search';
+import {
+    findNext,
+    findPrevious,
+    gotoLine,
+    openSearchPanel,
+} from '@codemirror/search';
 import type { ChangeSpec, Extension } from '@codemirror/state';
 import { type EditorView, keymap } from '@codemirror/view';
 
@@ -86,33 +92,86 @@ export function toggleAdblockComment(view: EditorView): boolean {
 
 /**
  * Opens the search panel with the focus placed in the replace field, so the
- * Ctrl+H shortcut lands the user directly in the "find & replace" UI.
+ * "find & replace" shortcuts land the user directly in the replace input.
  *
- * The default CodeMirror search panel always renders both the find and the
- * replace fields; `openSearchPanel` focuses the find field, so after opening
- * the panel the focus is moved to the replace field explicitly.
+ * The default CodeMirror search panel renders the replace field only when the
+ * editor is editable (a read-only editor drops it), and a custom panel may
+ * not render an input named `replace` at all. When no replace field is found,
+ * the focus falls back to the find field, so the shortcut still lands the
+ * user inside the panel instead of being swallowed with the focus left
+ * wherever it was.
  *
  * @param view The editor view.
  *
  * @returns `true` so the keymap consumes the event.
  */
-export const openFindAndReplace = (view: EditorView): boolean => {
+const openFindAndReplace = (view: EditorView): boolean => {
     openSearchPanel(view);
 
-    // The replace field is part of the default search panel DOM and is stable
-    // across @codemirror/search versions (rendered with `name="replace"`).
+    // The input names are part of the default panel DOM rendered by
+    // @codemirror/search and are stable across minor versions.
     const replaceField = view.dom.querySelector<HTMLInputElement>(
         '.cm-panel.cm-search input[name="replace"]',
     );
-    replaceField?.focus();
-    replaceField?.select();
+    if (replaceField) {
+        replaceField.focus();
+        replaceField.select();
+        return true;
+    }
+
+    view.dom.querySelector<HTMLInputElement>(
+        '.cm-panel.cm-search input[name="search"]',
+    )?.focus();
 
     return true;
 };
 
 /**
+ * Builds the keymap that restores the shortcut set of the previous
+ * (Ace-based) editor, so filter maintainers keep their muscle memory:
+ * `Ctrl+K` / `Ctrl+Shift+K` for find next / previous, `Ctrl+L` / `Cmd+L`
+ * for go to line, `Cmd+Option+ArrowUp/Down` for copying lines, and
+ * `Ctrl+D` / `Cmd+D` for deleting a line.
+ *
+ * These chords intentionally supersede CodeMirror defaults that reuse them
+ * ("select next occurrence" on `Mod-d`, "add cursor above" / "below" on
+ * `Mod-Alt-Arrow`), so this keymap must be registered before the built-in
+ * `defaultKeymap` / `searchKeymap` — see `init-editor.ts`.
+ *
+ * @returns A CodeMirror 6 keymap extension.
+ */
+export function configureAceParityKeys(): Extension {
+    return keymap.of([
+        // The Windows/Linux chords of Ace's `findnext` / `findprevious`;
+        // macOS keeps `Cmd+G` / `Cmd+Shift+G` from `searchKeymap`.
+        {
+            key: 'Ctrl-k',
+            run: findNext,
+            shift: findPrevious,
+            scope: 'editor search-panel',
+        },
+        // Ace's `gotoline`; `Ctrl+Alt+G` / `Cmd+Alt+G` from `searchKeymap`
+        // stays available as well.
+        { key: 'Mod-l', run: gotoLine, scope: 'editor search-panel' },
+        // Ace copied lines with `Cmd+Option+Arrow` on macOS
+        // (`Mod-Alt-Arrow` there); Windows keeps `Shift-Alt-Arrow` from
+        // `configureHotKeys`.
+        { key: 'Mod-Alt-ArrowUp', run: copyLineUp },
+        { key: 'Mod-Alt-ArrowDown', run: copyLineDown },
+        // Ace's `removeline`, which CodeMirror replaces with "select next
+        // occurrence" on the same chord.
+        { key: 'Mod-d', run: deleteLine },
+    ]);
+}
+
+/**
  * Builds the editor keymap, wiring line operations, search, comment toggle,
  * the enabled-rule toggle, and save.
+ *
+ * The find & replace, comment-toggle, and save bindings are scoped to
+ * `editor search-panel`, so they keep working while the focus is inside the
+ * open search panel — without the scope the keydown consumes nothing there
+ * and falls through to the browser.
  *
  * @param handlers Optional toggle-rule and save callbacks.
  * @param handlers.onToggleRule Invoked when a rule is toggled.
@@ -129,12 +188,14 @@ export function configureHotKeys(handlers: {
         { key: 'Alt-ArrowDown', run: moveLineDown },
         { key: 'Shift-Alt-ArrowUp', run: copyLineUp },
         { key: 'Shift-Alt-ArrowDown', run: copyLineDown },
-        // AG-58146: Ctrl+H opens the search panel with the focus in the
-        // replace field ("find & replace"). On macOS this binding is inert —
-        // Cmd+H is reserved by the OS/browser ("hide application"). The scope
-        // matches the search panel so the shortcut also works while the focus
-        // is inside the open panel.
+        // Ctrl+H opens the search panel with the focus in the replace field
+        // ("find & replace"). On macOS this binding is inert — Cmd+H is
+        // reserved by the OS/browser ("hide application") — so Cmd+Alt+F
+        // covers find & replace there, matching the previous editor.
+        // The scope matches the search panel so the shortcut also works
+        // while the focus is inside the open panel.
         { key: 'Mod-h', run: openFindAndReplace, scope: 'editor search-panel' },
+        { key: 'Mod-Alt-f', run: openFindAndReplace, scope: 'editor search-panel' },
         {
             key: 'Mod-/',
             run: (view): boolean => {
@@ -145,6 +206,7 @@ export function configureHotKeys(handlers: {
                 }
                 return toggleAdblockComment(view);
             },
+            scope: 'editor search-panel',
         },
         {
             key: 'Mod-s',
@@ -152,6 +214,7 @@ export function configureHotKeys(handlers: {
                 handlers.onSave?.(view);
                 return true;
             },
+            scope: 'editor search-panel',
         },
     ]);
 }

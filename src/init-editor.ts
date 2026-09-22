@@ -16,7 +16,7 @@ import {
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
-import { configureHotKeys, createMarker } from './commands/hot-keys';
+import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
@@ -68,7 +68,10 @@ export interface InitEditorConfig {
      */
     hotkeys: {
         /**
-         * Keyboard shortcut style, determines modifier keys used.
+         * Has no effect on the resolved bindings: CodeMirror maps `Mod` to
+         * `Cmd` on macOS and `Ctrl` elsewhere based on the user's platform
+         * automatically. The option is kept for compatibility with existing
+         * integrations.
          */
         mode: 'windows' | 'mac';
 
@@ -133,13 +136,17 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
+        // The previous editor's chords are registered before the CodeMirror
+        // defaults: some of them intentionally supersede a default that
+        // binds the same chord (`Mod-d` — select next occurrence,
+        // `Mod-Alt-Arrow` — add cursor above/below).
+        configureAceParityKeys(),
         keymap.of([
             ...defaultKeymap,
             ...historyKeymap,
-            // AG-58535: `historyKeymap` binds redo to `Mod-y` on Windows
-            // (its `Ctrl-Shift-z` entry is scoped to Linux only), so
-            // Ctrl+Shift+Z did nothing on Windows. Bind the conventional
-            // redo shortcut on every platform.
+            // `historyKeymap` binds redo to `Mod-y` on Windows only — its
+            // `Ctrl-Shift-z` entry is scoped to Linux — so the conventional
+            // redo shortcut is bound on every platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
         // `search()` provides the search state and the panel, but does not
@@ -202,12 +209,12 @@ export async function initEditor(
         });
     }
 
-    // AG-58146: focus the editor as soon as it is created so that keyboard
-    // shortcuts (Ctrl+F find, Ctrl+H find & replace, Ctrl+S save, etc.) work
+    // Focus the editor as soon as it is created so that keyboard shortcuts
+    // (Ctrl+F find, Ctrl+H find & replace, Ctrl+S save, etc.) work
     // immediately after the editor is opened, without requiring the user to
-    // click inside it first. CodeMirror keymaps only respond to keydown events
-    // dispatched on the focused content DOM. Consumers that manage focus
-    // themselves (e.g. multiple editors on one page) opt out with
+    // click inside it first. CodeMirror keymaps only respond to keydown
+    // events dispatched on the focused content DOM. Consumers that manage
+    // focus themselves (e.g. multiple editors on one page) opt out with
     // `autofocus: false`.
     if (conf.autofocus !== false) {
         view.focus();
