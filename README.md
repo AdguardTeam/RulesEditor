@@ -155,7 +155,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `element`                  | Textarea element to attach the editor to                                                                         |
 | `wasm`                     | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
-| `conf.hotkeys.mode`        | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
+| `conf.hotkeys.mode`        | Unused: CodeMirror resolves `Ctrl`/`Cmd` from the user's platform automatically                                  |
 | `conf.hotkeys.toggleRule`  | Callback for Ctrl/Cmd+/ (toggle rule breakpoint)                                                                 |
 | `conf.hotkeys.onSave`      | Callback for Ctrl/Cmd+S                                                                                          |
 | `conf.hotkeys.markerColor` | CSS color for the breakpoint marker                                                                              |
@@ -175,21 +175,55 @@ Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 By default the editor is focused as soon as it is created (pass
 `conf.autofocus: false` to opt out, e.g. when the host page mounts several
 editors), so editor hotkeys work immediately. `Ctrl` means Windows/Linux,
-`Cmd` means macOS:
+`Cmd` means macOS — CodeMirror resolves the modifier from the user's platform
+automatically, so `conf.hotkeys.mode` has no effect on the bindings. The
+search panel is rendered at the bottom of the editor by default; pass your own
+`search({ top: true })` through `conf.extensions` to change that.
 
-- `Ctrl+F` / `Cmd+F` opens the search panel at the bottom of the editor
-- `Ctrl+H` / `Cmd+H` opens the search panel with the focus in the replace
-  field ("find & replace"; on macOS `Cmd+H` is reserved by the OS/browser,
-  so this shortcut only works on Windows/Linux)
-- `F3` or `Ctrl+G` finds the next match; `Shift+F3` or `Ctrl+Shift+G`
-  finds the previous one (on macOS: `Cmd+G` / `Cmd+Shift+G`)
+- `Ctrl+F` / `Cmd+F` opens the search panel
+- `Ctrl+H` opens the search panel with the focus in the replace field
+  ("find & replace"; on Windows/Linux only — on macOS `Cmd+H` is reserved
+  by the OS/browser, so `Cmd+Alt+F` is the "find & replace" shortcut there)
+- `Ctrl+Alt+F` / `Cmd+Alt+F` opens the search panel with the focus in the
+  replace field ("find & replace") on every platform
+- `F3`, `Ctrl+G`, or `Ctrl+K` finds the next match; `Shift+F3`,
+  `Ctrl+Shift+G`, or `Ctrl+Shift+K` finds the previous one (on macOS:
+  `Cmd+G` / `Cmd+Shift+G`)
 - `Escape` closes the search panel
+- `Ctrl+Alt+G` / `Cmd+Alt+G` moves the cursor to a line with a given number
+  ("go to line"); the previous editor's `Ctrl+L` / `Cmd+L` works as well
+- `Alt+Up` / `Alt+Down` moves the selected lines up or down
+- `Shift+Alt+Up` / `Shift+Alt+Down` copies the selected lines up or down
+  (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor)
+- `Ctrl+D` / `Cmd+D` deletes the current line or selection
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
 - `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines
 
-CodeMirror's "select next occurrence" binding (`Mod-d`) is not listed here:
-browsers reserve `Ctrl+D`/`Cmd+D` for "Bookmark this page" on every platform,
-so the keydown never reaches the editor.
+> **Note:** the chords restored from the previous (Ace-based) editor are
+> registered before the CodeMirror defaults, so they win where both bind the
+> same key: the macOS copy-lines chord `Cmd+Option+Arrow` supersedes "add
+> cursor above/below", and `Ctrl+D` / `Cmd+D` supersedes "select next
+> occurrence" with "delete line". "Select all occurrences"
+> (`Ctrl+Shift+L` / `Cmd+Shift+L`) is left as CodeMirror binds it — it acts
+> on the current selection and does nothing while no text is selected.
+
+Like the search bindings (`Ctrl+F`, `F3`, `Ctrl+G`, `Escape`), the
+find & replace, save, and comment-toggle shortcuts also work while the focus
+is inside the open search panel.
+
+The built-in keymaps are registered before `conf.extensions`, and CodeMirror
+checks keymaps in that order, so a binding added through `conf.extensions`
+cannot shadow a built-in binding of the same key. To override a built-in,
+raise the precedence of your keymap with `Prec.high(...)`:
+
+```typescript
+import { Prec } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
+
+extensions: [
+    Prec.high(keymap.of([{ key: 'Mod-f', run: myFindCommand }])),
+]
+```
 
 ### `getTokenizer`
 

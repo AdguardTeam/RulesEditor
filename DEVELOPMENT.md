@@ -107,9 +107,9 @@ finalization in release PRs, which has no ticket number) use a
 
 [Conventional Commits]: https://www.conventionalcommits.org/en/v1.0.0/
 
-Ticket references and change history belong in commit messages, not in code
-comments — code comments must describe the current behavior of the code (see
-the Code Quality guidelines in [AGENTS.md](AGENTS.md)).
+Ticket references belong in the commit message; the rules for code
+comments are defined in the Code Quality guidelines of
+[AGENTS.md](AGENTS.md).
 
 ## Project Structure
 

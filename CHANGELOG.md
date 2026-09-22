@@ -13,8 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on creation by default (so hotkeys work immediately), but host pages that
   manage focus themselves (e.g. several editors on one page) can pass
   `autofocus: false` to prevent the editor from stealing focus.
+- `Cmd+Alt+F` shortcut that opens the search panel with the focus in the
+  replace field ("find & replace") — on macOS `Cmd+H` is reserved by the
+  OS/browser, so `Cmd+Alt+F` covers find & replace there. It works alongside
+  the `Ctrl+H` binding on Windows/Linux.
+- Shortcuts of the previous (Ace-based) editor: `Ctrl+K` / `Ctrl+Shift+K`
+  (find next / previous), `Ctrl+L` / `Cmd+L` (go to line), `Cmd+Option+ArrowUp`
+  / `Cmd+Option+ArrowDown` on macOS (copy lines) and `Ctrl+D` / `Cmd+D`
+  (delete line). They are registered before the CodeMirror defaults, so they
+  take precedence where both bind the same chord.
 
 ### Changed
+
+- The macOS copy-lines chord `Cmd+Option+Arrow` supersedes CodeMirror's
+  "add cursor above/below" default, and `Ctrl+D` / `Cmd+D` now deletes the
+  current line instead of selecting the next occurrence — both matching the
+  previous editor.
 
 ### Deprecated
 
@@ -23,10 +37,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Search hotkeys are restored in the editor: `Ctrl+F` opens the search panel
-  and `Ctrl+H` opens it with the focus in the replace field ("find & replace").
-  The editor is now focused on initialization, so the shortcuts work
-  immediately after the editor is opened, and the search panel is rendered at
-  the bottom of the editor.
+  and `Ctrl+H` opens it with the focus in the replace field ("find & replace",
+  `Cmd+Alt+F` on macOS). The editor is now focused on initialization, so
+  the shortcuts work immediately after the editor is opened, and the search
+  panel is rendered at the bottom of the editor. When the panel has no
+  replace field (a read-only editor or a custom search panel), the shortcut
+  focuses the find field instead of being swallowed.
+- The save (`Ctrl+S` / `Cmd+S`) and comment-toggle (`Ctrl+/` / `Cmd+/`)
+  shortcuts now also work while the focus is inside the open search panel,
+  instead of falling through to the browser.
 
 ### Security
 
