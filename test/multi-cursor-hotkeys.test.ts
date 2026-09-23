@@ -263,6 +263,62 @@ test('selectMoreAfter selects every occurrence and then stops', () => {
     view.destroy();
 });
 
+test('selectMoreAfter matches a needle that spans a line break', () => {
+    // Every line is a separate chunk of the document's rope, so a needle that
+    // crosses a line break exercises the chunk overlap of the scan.
+    const doc = 'a.com\nb.com\na.com\nb.com';
+    const view = makeView(doc, { anchor: 0, head: 11 });
+    expect(selectMoreAfter(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 11 }, { from: 12, to: 23 }]);
+    view.destroy();
+});
+
+test('selectMoreBefore matches a needle that spans a line break', () => {
+    const doc = 'a.com\nb.com\na.com\nb.com';
+    const view = makeView(doc, { anchor: 12, head: 23 });
+    expect(selectMoreBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 11 }, { from: 12, to: 23 }]);
+    view.destroy();
+});
+
+test('selectMoreBefore crosses scan windows in a large document', () => {
+    // The backward scan reads the document in windows of 4096 characters, so
+    // this occurrence is only reachable after crossing a window boundary.
+    const needle = '||target.com^';
+    const filler = Array.from({ length: 400 }, (_, i) => `||filler-${i}.com^`);
+    const doc = [needle, ...filler, needle].join('\n');
+    const last = doc.lastIndexOf(needle);
+    expect(last).toBeGreaterThan(4096);
+    const view = makeView(doc, { anchor: last, head: last + needle.length });
+    expect(selectMoreBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([
+        { from: 0, to: needle.length },
+        { from: last, to: last + needle.length },
+    ]);
+    view.destroy();
+});
+
+test('the occurrence scan does not copy the whole document', () => {
+    // The scan walks the document in chunks instead of calling
+    // `doc.toString()`, which would allocate a copy of the whole document on
+    // every keypress.
+    const original = Text.prototype.toString;
+    Text.prototype.toString = () => {
+        throw new Error('the document must not be copied');
+    };
+    try {
+        const doc = 'a.com\nb.com\na.com';
+        const view = makeView(doc, { anchor: 0, head: 5 });
+        expect(selectMoreAfter(view)).toBe(true);
+        expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
+        expect(selectMoreBefore(view)).toBe(true);
+        expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
+        view.destroy();
+    } finally {
+        Text.prototype.toString = original;
+    }
+});
+
 test('singleSelection collapses to the main range', () => {
     const view = makeView(DOC, { anchor: 3, head: 3 });
     addCursorBelow(view);

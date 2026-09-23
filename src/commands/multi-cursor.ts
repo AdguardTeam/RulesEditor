@@ -116,63 +116,97 @@ function isSelected(ranges: readonly SelectionRange[], from: number, to: number)
 }
 
 /**
- * Finds the first occurrence of `needle` at or after `from` that is not covered
- * by `ranges`. The scan stops at the first free match.
+ * Finds the first occurrence of `needle` in `[from, to)` that is not covered by
+ * `ranges`.
  *
- * @param text The document text.
+ * The document is walked chunk by chunk with an overlap of
+ * `needle.length - 1` characters, so an occurrence that spans a chunk boundary
+ * is still found, matching stays exact, and no copy of the document is made.
+ * The scan returns as soon as it finds a free occurrence.
+ *
+ * @param doc The document to scan.
  * @param ranges The ranges that are already selected.
  * @param needle The text to search for.
- * @param from The position to start the scan at.
+ * @param from The start of the range to scan.
+ * @param to The end of the range to scan.
  *
  * @returns The occurrence position, or `null` when there is none.
  */
-function nextFreeMatch(
-    text: string,
+function findFirstFreeMatch(
+    doc: Text,
     ranges: readonly SelectionRange[],
     needle: string,
     from: number,
+    to: number,
 ): number | null {
-    for (let pos = text.indexOf(needle, from); pos >= 0; pos = text.indexOf(needle, pos + 1)) {
-        if (!isSelected(ranges, pos, pos + needle.length)) {
-            return pos;
+    const overlap = needle.length - 1;
+    let tail = '';
+    let tailStart = from;
+
+    for (const chunk of doc.iterRange(from, to)) {
+        const text = tail + chunk;
+        for (let pos = text.indexOf(needle); pos >= 0; pos = text.indexOf(needle, pos + 1)) {
+            const start = tailStart + pos;
+            if (!isSelected(ranges, start, start + needle.length)) {
+                return start;
+            }
         }
+        // Keep the tail so an occurrence spanning two chunks stays complete.
+        tail = overlap > 0 ? text.slice(-overlap) : '';
+        tailStart += text.length - tail.length;
     }
     return null;
 }
 
 /**
- * Finds the last occurrence of `needle` that ends at or before `end` and is not
- * covered by `ranges`. The scan moves backwards and stops at the first free
- * match.
+ * Finds the last occurrence of `needle` in `[0, end)` that is not covered by
+ * `ranges`.
  *
- * @param text The document text.
+ * `Text` cannot be iterated backwards, so instead of copying the whole document
+ * the scan reads it in windows, walking from the search position towards the
+ * start of the document and stopping at the first free occurrence. Every window
+ * reaches `needle.length - 1` characters into the previous one, so an
+ * occurrence that spans a window boundary is still complete.
+ *
+ * @param doc The document to scan.
  * @param ranges The ranges that are already selected.
  * @param needle The text to search for.
  * @param end The position the occurrence must end at or before.
  *
  * @returns The occurrence position, or `null` when there is none.
  */
-function previousFreeMatch(
-    text: string,
+function findLastFreeMatch(
+    doc: Text,
     ranges: readonly SelectionRange[],
     needle: string,
     end: number,
 ): number | null {
-    const maxStart = end - needle.length;
-    if (maxStart < 0) {
-        return null;
-    }
-    let pos = text.lastIndexOf(needle, maxStart);
-    while (pos > 0) {
-        if (!isSelected(ranges, pos, pos + needle.length)) {
-            return pos;
+    const overlap = needle.length - 1;
+    let windowEnd = end;
+
+    while (windowEnd > 0) {
+        const windowStart = Math.max(0, windowEnd - BACKWARD_WINDOW);
+        const sliceStart = Math.max(0, windowStart - overlap);
+        const text = doc.sliceString(sliceStart, windowEnd);
+
+        let pos = text.lastIndexOf(needle);
+        while (pos >= 0) {
+            const start = sliceStart + pos;
+            if (!isSelected(ranges, start, start + needle.length)) {
+                return start;
+            }
+            // `lastIndexOf` clamps a negative position to 0, so the scan has to
+            // stop explicitly instead of stepping past the first occurrence.
+            if (pos === 0) {
+                break;
+            }
+            pos = text.lastIndexOf(needle, pos - 1);
         }
-        pos = text.lastIndexOf(needle, pos - 1);
-    }
-    // `lastIndexOf` clamps a negative position to 0, so the loop would find a
-    // match at index 0 again and again; it is checked once, outside the loop.
-    if (pos === 0 && !isSelected(ranges, 0, needle.length)) {
-        return 0;
+
+        if (windowStart === 0) {
+            return null;
+        }
+        windowEnd = windowStart;
     }
     return null;
 }
@@ -183,7 +217,7 @@ function previousFreeMatch(
  *
  * Only the nearest free occurrence in the search direction and the wrap-around
  * target are needed, so the document is scanned lazily and both scans stop at
- * the first free match instead of collecting every occurrence.
+ * the first free occurrence instead of collecting every one.
  *
  * @param state The editor state.
  * @param ranges The ranges that are already selected.
@@ -200,16 +234,16 @@ function findOccurrence(
     direction: -1 | 1,
     anchor: SelectionRange,
 ): SelectionRange | null {
-    const text = state.doc.toString();
+    const { doc } = state;
     let pos: number | null;
     if (direction === 1) {
-        // The wrap-around target is the first free match in the document.
-        pos = nextFreeMatch(text, ranges, needle, anchor.to)
-            ?? nextFreeMatch(text, ranges, needle, 0);
+        // The wrap-around target is the first free occurrence in the document.
+        pos = findFirstFreeMatch(doc, ranges, needle, anchor.to, doc.length)
+            ?? findFirstFreeMatch(doc, ranges, needle, 0, anchor.to);
     } else {
-        // The wrap-around target is the last free match in the document.
-        pos = previousFreeMatch(text, ranges, needle, anchor.from)
-            ?? previousFreeMatch(text, ranges, needle, text.length);
+        // The wrap-around target is the last free occurrence in the document.
+        pos = findLastFreeMatch(doc, ranges, needle, anchor.from)
+            ?? findLastFreeMatch(doc, ranges, needle, doc.length);
     }
     if (pos === null) {
         return null;
