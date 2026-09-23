@@ -105,7 +105,8 @@ it is `Cmd+Alt` (`⌘⌥`) — use that in place of `Ctrl+Alt` below:
 
 - `Ctrl+Alt+Up` / `Ctrl+Alt+Down` — add a cursor on the line above / below;
 - `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` — move the last cursor up / down
-  instead of adding one;
+  instead of adding one; with a single cursor the first press adds one, as in
+  Ace;
 - `Ctrl+Alt+Right` / `Ctrl+Alt+Left` — add the next / previous occurrence of
   the selection;
 - `Ctrl+Alt+Shift+Right` / `Ctrl+Alt+Shift+Left` — move the main cursor to the

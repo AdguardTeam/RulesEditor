@@ -112,6 +112,16 @@ test('addCursorAboveSkipCurrent moves the last cursor instead of adding one', ()
     view.destroy();
 });
 
+test('addCursorBelowSkipCurrent adds a cursor on the first press, as in Ace', () => {
+    // Ace's `selectMoreLines` only skips the current range in multi-select
+    // mode, so with a single cursor the first press adds one.
+    const view = makeView(DOC, { anchor: 3, head: 3 });
+    expect(addCursorBelowSkipCurrent(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 3, to: 3 }, { from: 12, to: 12 }]);
+    expect(view.state.selection.main.head).toBe(12);
+    view.destroy();
+});
+
 test('selectMoreAfter adds the next occurrence of the selected text', () => {
     const doc = 'a.com\nb.com\na.com';
     const view = makeView(doc, { anchor: 0, head: 5 });

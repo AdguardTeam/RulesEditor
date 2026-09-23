@@ -51,8 +51,11 @@ function applySelection(view: EditorView, ranges: readonly SelectionRange[], mai
 
 /**
  * Moves the main range one line up or down while keeping its column, and adds
- * the moved range to the selection. With `skipCurrent` the cursor is moved
- * instead of added, mirroring Ace's `addCursorAbove`/`addCursorBelow`.
+ * the moved range to the selection. With `skipCurrent` the cursor that was
+ * added last is moved instead of adding a new one. On the first press there is
+ * no added cursor to move yet, so a cursor is added — exactly like Ace's
+ * `selectMoreLines`, which only skips the current range when the editor is
+ * already in multi-select mode.
  *
  * @param view The editor view.
  * @param direction `-1` for the line above, `1` for the line below.
@@ -136,7 +139,9 @@ function findOccurrence(
  * Selects the next or previous occurrence of the current selection and adds it
  * to the selection. When the main range is empty, the word under the cursor is
  * selected first, as Ace's `selectMore` does. With `skipCurrent` the main range
- * is moved to the occurrence instead of adding one.
+ * is moved to the occurrence instead of adding one; unlike the line commands
+ * this also holds for a single range, because Ace drops the range it started
+ * from after adding the occurrence.
  *
  * @param view The editor view.
  * @param direction `1` to search forward, `-1` to search backward.
@@ -207,7 +212,8 @@ export function addCursorBelow(view: EditorView): boolean {
 
 /**
  * Moves the last cursor one line up instead of adding one
- * (Ace `addCursorAboveSkipCurrent`, `Ctrl+Alt+Shift+Up`).
+ * (Ace `addCursorAboveSkipCurrent`, `Ctrl+Alt+Shift+Up`). With a single cursor
+ * the first press adds one, as in Ace.
  *
  * @param view The editor view.
  *
@@ -219,7 +225,8 @@ export function addCursorAboveSkipCurrent(view: EditorView): boolean {
 
 /**
  * Moves the last cursor one line down instead of adding one
- * (Ace `addCursorBelowSkipCurrent`, `Ctrl+Alt+Shift+Down`).
+ * (Ace `addCursorBelowSkipCurrent`, `Ctrl+Alt+Shift+Down`). With a single
+ * cursor the first press adds one, as in Ace.
  *
  * @param view The editor view.
  *
@@ -255,7 +262,8 @@ export function selectMoreAfter(view: EditorView): boolean {
 
 /**
  * Moves the main range to the previous occurrence instead of adding one
- * (Ace `selectNextBefore`, `Ctrl+Alt+Shift+Left`).
+ * (Ace `selectNextBefore`, `Ctrl+Alt+Shift+Left`). A single range is replaced
+ * too, as in Ace.
  *
  * @param view The editor view.
  *
@@ -267,7 +275,8 @@ export function selectNextBefore(view: EditorView): boolean {
 
 /**
  * Moves the main range to the next occurrence instead of adding one
- * (Ace `selectNextAfter`, `Ctrl+Alt+Shift+Right`).
+ * (Ace `selectNextAfter`, `Ctrl+Alt+Shift+Right`). A single range is replaced
+ * too, as in Ace.
  *
  * @param view The editor view.
  *
