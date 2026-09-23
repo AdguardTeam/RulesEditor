@@ -50,6 +50,53 @@ function ranges(view: EditorView): { from: number; to: number }[] {
     return view.state.selection.ranges.map((range) => ({ from: range.from, to: range.to }));
 }
 
+/**
+ * Creates an editor through `initEditor`, the way a consumer does, so the real
+ * keymap precedence is exercised.
+ *
+ * @param mode Hotkey mode passed to `initEditor`.
+ *
+ * @returns The created editor view.
+ */
+async function createEditor(mode: 'windows' | 'mac' = 'windows'): Promise<EditorView> {
+    const textarea = document.createElement('textarea');
+    textarea.value = DOC;
+    document.body.appendChild(textarea);
+    return initEditor(textarea, undefined, {
+        hotkeys: { mode },
+        highlight: 'none',
+    });
+}
+
+/**
+ * Dispatches a `keydown` event on the editor's content element.
+ *
+ * @param view The editor view.
+ * @param key The `KeyboardEvent.key` value.
+ * @param modifiers Modifier keys held down.
+ * @param modifiers.ctrl Whether Ctrl is held down.
+ * @param modifiers.alt Whether Alt is held down.
+ * @param modifiers.shift Whether Shift is held down.
+ *
+ * @returns The dispatched event, so `defaultPrevented` can be inspected.
+ */
+function pressKey(
+    view: EditorView,
+    key: string,
+    modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean } = {},
+): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+        key,
+        ctrlKey: modifiers.ctrl ?? false,
+        altKey: modifiers.alt ?? false,
+        shiftKey: modifiers.shift ?? false,
+        bubbles: true,
+        cancelable: true,
+    });
+    view.contentDOM.dispatchEvent(event);
+    return event;
+}
+
 test('addCursorBelow adds a cursor one line below at the same column', () => {
     const view = makeView(DOC, { anchor: 3, head: 3 });
     expect(addCursorBelow(view)).toBe(true);
@@ -367,15 +414,9 @@ test('singleSelection leaves a single range alone', () => {
 });
 
 test('initEditor registers the Ace multi-cursor keybindings', async () => {
-    const textarea = document.createElement('textarea');
-    textarea.value = DOC;
-    document.body.appendChild(textarea);
-    const view = await initEditor(textarea, undefined, {
-        hotkeys: { mode: 'windows' },
-        highlight: 'none',
-    });
+    const view = await createEditor();
     const keys = view.state.facet(keymap).flat().map((binding) => binding.key);
-    // `Mod` is Ctrl on Windows/Linux and Cmd on macOS.
+    // `Mod` is Ctrl on Windows/Linux; macOS keeps Ace's literal `Ctrl-Alt`.
     expect(keys).toEqual(expect.arrayContaining([
         'Mod-Alt-ArrowUp',
         'Mod-Alt-ArrowDown',
@@ -387,5 +428,71 @@ test('initEditor registers the Ace multi-cursor keybindings', async () => {
         'Mod-Alt-Shift-ArrowRight',
         'Escape',
     ]));
+    view.destroy();
+});
+
+test("macOS mode keeps Ace's Ctrl+Alt bindings", async () => {
+    // `Cmd+Alt+ArrowLeft/Right` is the browsers' previous/next tab shortcut, so
+    // macOS uses Ace's literal `Ctrl-Alt` instead of `Mod-Alt` (= `Cmd-Alt`).
+    const view = await createEditor('mac');
+    const keys = view.state.facet(keymap).flat().map((binding) => binding.key);
+    expect(keys).toEqual(expect.arrayContaining([
+        'Ctrl-Alt-ArrowUp',
+        'Ctrl-Alt-ArrowDown',
+        'Ctrl-Alt-Shift-ArrowUp',
+        'Ctrl-Alt-Shift-ArrowDown',
+        'Ctrl-Alt-ArrowLeft',
+        'Ctrl-Alt-ArrowRight',
+        'Ctrl-Alt-Shift-ArrowLeft',
+        'Ctrl-Alt-Shift-ArrowRight',
+        'Escape',
+    ]));
+    expect(keys).not.toContain('Mod-Alt-ArrowLeft');
+    view.destroy();
+});
+
+test('the multi-cursor bindings take precedence over defaultKeymap', async () => {
+    // `defaultKeymap` binds `Mod-Alt-ArrowUp`/`Mod-Alt-ArrowDown` and `Escape`
+    // too. Keymaps run in facet order, so the first binding for a key is the
+    // one that is consulted — it has to be the Ace command.
+    const view = await createEditor();
+    const bindings = view.state.facet(keymap).flat();
+    const expected: [string, unknown][] = [
+        ['Mod-Alt-ArrowUp', addCursorAbove],
+        ['Mod-Alt-ArrowDown', addCursorBelow],
+        ['Mod-Alt-Shift-ArrowUp', addCursorAboveSkipCurrent],
+        ['Mod-Alt-Shift-ArrowDown', addCursorBelowSkipCurrent],
+        ['Mod-Alt-ArrowLeft', selectMoreBefore],
+        ['Mod-Alt-ArrowRight', selectMoreAfter],
+        ['Mod-Alt-Shift-ArrowLeft', selectNextBefore],
+        ['Mod-Alt-Shift-ArrowRight', selectNextAfter],
+        ['Escape', singleSelection],
+    ];
+    for (const [key, command] of expected) {
+        expect(bindings.find((binding) => binding.key === key)?.run, key).toBe(command);
+    }
+    view.destroy();
+});
+
+test('Ctrl+Alt+ArrowDown copies the selected range instead of adding a cursor', async () => {
+    const view = await createEditor();
+    // The whole first line is selected, so the copy lands on the second one.
+    view.dispatch({ selection: EditorSelection.range(0, 8) });
+    const event = pressKey(view, 'ArrowDown', { ctrl: true, alt: true });
+    expect(event.defaultPrevented).toBe(true);
+    // CodeMirror's built-in add-cursor command would add a bare cursor here.
+    expect(ranges(view)).toEqual([{ from: 0, to: 8 }, { from: 9, to: 17 }]);
+    expect(view.state.selection.mainIndex).toBe(1);
+    view.destroy();
+});
+
+test('a declined multi-cursor binding still swallows the browser default', async () => {
+    const view = await createEditor();
+    // A cursor on the first line cannot move up, so the command returns false —
+    // the chord must not reach the browser as a tab switch or a window-manager
+    // shortcut.
+    const event = pressKey(view, 'ArrowUp', { ctrl: true, alt: true });
+    expect(event.defaultPrevented).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 0 }]);
     view.destroy();
 });

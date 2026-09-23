@@ -99,9 +99,16 @@ secondary cursor, and typing inserts the same text at all cursors. A single
 clicking an existing secondary cursor removes it; a plain click collapses back
 to a single cursor.
 
+Set `withMultipleSelections: false` to switch multi-cursor editing off; without
+it the editor cannot be turned back to single-selection mode from
+`conf.extensions`, because `EditorState.allowMultipleSelections` combines its
+values with `some`.
+
 The same commands are available on the keyboard, with the bindings the previous
-Ace-based editor used. On Windows and Linux the modifier is `Ctrl+Alt`; on macOS
-it is `Cmd+Alt` (`⌘⌥`) — use that in place of `Ctrl+Alt` below:
+Ace-based editor used. Ace binds them to `Ctrl+Alt` on every platform, and on
+macOS this library does the same — `Cmd+Alt` is deliberately not used there,
+because Chrome and Firefox intercept `Cmd+Option+Left/Right` for previous/next
+tab, so those shortcuts would never reach the editor:
 
 - `Ctrl+Alt+Up` / `Ctrl+Alt+Down` — add a cursor on the line above / below;
 - `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` — move the last cursor up / down

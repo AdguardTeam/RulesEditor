@@ -147,6 +147,7 @@ export async function initEditor(
         ]),
         search(),
         configureHotKeys({
+            mode: conf.hotkeys.mode,
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
         }),
