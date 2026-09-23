@@ -41,17 +41,37 @@ function wordRangeAt(state: EditorState, pos: number): SelectionRange | null {
 }
 
 /**
- * Dispatches a selection, letting CodeMirror sort and merge the ranges while
- * tracking which range must become the main one.
+ * Clamps a character column to `text` and moves it out of the middle of a
+ * surrogate pair, so the resulting offset is a valid code point boundary.
+ *
+ * @param text The line the column is placed in.
+ * @param column The column, counted in UTF-16 code units.
+ *
+ * @returns A column that can be used as an offset into `text`.
+ */
+function snapColumn(text: string, column: number): number {
+    const clamped = Math.min(Math.max(column, 0), text.length);
+    if (clamped > 0 && clamped < text.length) {
+        const code = text.charCodeAt(clamped);
+        // A low surrogate here means the column sits between the halves of a
+        // surrogate pair; moving forward leaves the pair intact.
+        if (code >= 0xdc00 && code <= 0xdfff) {
+            return clamped + 1;
+        }
+    }
+    return clamped;
+}
+
+/**
+ * Dispatches a selection, letting CodeMirror sort and merge the ranges.
  *
  * @param view The editor view.
  * @param ranges The ranges to apply.
- * @param main The range that becomes the main one.
+ * @param mainIndex The index of the range that becomes the main one.
  */
-function applySelection(view: EditorView, ranges: readonly SelectionRange[], main: SelectionRange): void {
-    const mainIndex = ranges.indexOf(main);
+function applySelection(view: EditorView, ranges: readonly SelectionRange[], mainIndex: number): void {
     view.dispatch({
-        selection: EditorSelection.create(ranges.slice(), mainIndex < 0 ? 0 : mainIndex),
+        selection: EditorSelection.create(ranges.slice(), mainIndex),
         scrollIntoView: true,
     });
 }
@@ -64,6 +84,11 @@ function applySelection(view: EditorView, ranges: readonly SelectionRange[], mai
  * `selectMoreLines`, which only skips the current range when the editor is
  * already in multi-select mode.
  *
+ * The column is taken from the caret itself. CodeMirror's `goalColumn` is a
+ * pixel x-offset rather than a column, so it is never interpreted here; when
+ * the caret carries one it is only passed on to the moved range, keeping the
+ * goal column CodeMirror set for later vertical motion.
+ *
  * @param view The editor view.
  * @param direction `-1` for the line above, `1` for the line below.
  * @param skipCurrent Whether to move the last cursor instead of adding one.
@@ -75,30 +100,31 @@ function addCursorVertically(view: EditorView, direction: -1 | 1, skipCurrent: b
     const { selection } = state;
     const { main } = selection;
     const line = state.doc.lineAt(main.head);
-    const column = main.goalColumn ?? main.head - line.from;
     const targetNumber = line.number + direction;
     if (targetNumber < 1 || targetNumber > state.doc.lines) {
         return false;
     }
 
     const target = state.doc.line(targetNumber);
-    const head = target.from + Math.min(column, target.length);
+    const head = target.from + snapColumn(target.text, main.head - line.from);
     let anchor = head;
     if (!main.empty) {
         const anchorLine = state.doc.lineAt(main.anchor);
         const anchorNumber = Math.min(Math.max(anchorLine.number + direction, 1), state.doc.lines);
         const anchorTarget = state.doc.line(anchorNumber);
-        anchor = anchorTarget.from + Math.min(main.anchor - anchorLine.from, anchorTarget.length);
+        anchor = anchorTarget.from + snapColumn(anchorTarget.text, main.anchor - anchorLine.from);
     }
 
-    const moved = EditorSelection.range(anchor, head, column);
+    const moved = EditorSelection.range(anchor, head, main.goalColumn);
     const ranges = selection.ranges.slice();
+    let { mainIndex } = selection;
     if (skipCurrent && ranges.length > 1) {
-        ranges[selection.mainIndex] = moved;
+        ranges[mainIndex] = moved;
     } else {
         ranges.push(moved);
+        mainIndex = ranges.length - 1;
     }
-    applySelection(view, ranges, moved);
+    applySelection(view, ranges, mainIndex);
     return true;
 }
 

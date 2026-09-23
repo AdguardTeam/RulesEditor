@@ -75,6 +75,38 @@ test('addCursorBelow clamps the column to the target line length', () => {
     view.destroy();
 });
 
+test('addCursorBelow treats the goal column as pixels, not as a character column', () => {
+    // `goalColumn` holds a pixel x-offset set by CodeMirror's own vertical
+    // motion, so reading it as a column would jump to the end of the line.
+    const view = makeView(DOC, { anchor: 3, head: 3 });
+    view.dispatch({ selection: EditorSelection.create([EditorSelection.range(3, 3, 120)]) });
+    expect(addCursorBelow(view)).toBe(true);
+    expect(view.state.selection.main.head).toBe(12);
+    // The pixel value is carried over instead of being overwritten with a
+    // character offset, so a later ArrowDown keeps CodeMirror's goal column.
+    expect(view.state.selection.main.goalColumn).toBe(120);
+    view.destroy();
+
+    // Without a goal column on the source range, none is invented either.
+    const plain = makeView(DOC, { anchor: 3, head: 3 });
+    expect(addCursorBelow(plain)).toBe(true);
+    expect(plain.state.selection.main.goalColumn).toBeUndefined();
+    plain.destroy();
+});
+
+test('addCursorBelow does not land inside a surrogate pair', () => {
+    // Column 1 of the emoji line is between the halves of the surrogate pair.
+    const doc = 'a\n\u{1F600}.com';
+    const view = makeView(doc, { anchor: 1, head: 1 });
+    expect(addCursorBelow(view)).toBe(true);
+    expect(view.state.selection.main.head).toBe(doc.indexOf('.com'));
+    // Typing at the new cursor must not split the emoji in two.
+    const { head } = view.state.selection.main;
+    view.dispatch({ changes: { from: head, insert: '!' } });
+    expect(view.state.doc.toString()).toBe('a\n\u{1F600}!.com');
+    view.destroy();
+});
+
 test('addCursorAbove on the first line does nothing', () => {
     const view = makeView(DOC, { anchor: 3, head: 3 });
     expect(addCursorAbove(view)).toBe(false);
