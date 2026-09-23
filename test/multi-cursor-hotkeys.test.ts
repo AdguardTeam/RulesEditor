@@ -145,6 +145,15 @@ test('selectMoreAfter selects a non-ASCII word and its next occurrence', () => {
     view.destroy();
 });
 
+test('selectMoreAfter selects the word next to a cursor on a non-word character', () => {
+    // A cursor on `^` expands to the domain to its left.
+    const doc = '||a.com^\n||a.com^';
+    const view = makeView(doc, { anchor: 7, head: 7 });
+    selectMoreAfter(view);
+    expect(ranges(view)).toEqual([{ from: 2, to: 7 }, { from: 11, to: 16 }]);
+    view.destroy();
+});
+
 test('selectNextAfter moves to the next occurrence instead of adding one', () => {
     const doc = 'a.com\nb.com\na.com';
     const view = makeView(doc, { anchor: 2, head: 2 });

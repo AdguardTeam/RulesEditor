@@ -10,12 +10,15 @@ import { type EditorView } from '@codemirror/view';
 const WORD_CHAR = /[\p{L}\p{N}_.-]/u;
 
 /**
- * Finds the word around a position.
+ * Finds the word around a position. The position itself does not have to be on
+ * a word character — the search expands to the word on either side, so a cursor
+ * on the `^` of `||example.com^` selects `example.com`.
  *
  * @param state The editor state.
  * @param pos The position to inspect.
  *
- * @returns The word range, or `null` when the position is not on a word character.
+ * @returns The word range, or `null` when there is no word character on either
+ *   side of the position.
  */
 function wordRangeAt(state: EditorState, pos: number): SelectionRange | null {
     const line = state.doc.lineAt(pos);

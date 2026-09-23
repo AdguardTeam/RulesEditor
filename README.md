@@ -113,11 +113,14 @@ it is `Cmd+Alt` (`⌘⌥`) — use that in place of `Ctrl+Alt` below:
 - `Esc` — collapse back to a single cursor.
 
 With an empty cursor the occurrence shortcuts select the word under the cursor
-first. Letters and digits are matched with Unicode property escapes, so
-non-ASCII domains are selected as well. On Linux desktops `Ctrl+Alt+Arrow` is
-usually captured by the window manager for workspace switching, so those keys
-never reach the browser there; the mouse gesture and the remaining shortcuts
-are unaffected.
+first — the search expands to the adjacent word when the cursor itself is not
+on a word character, so it selects `example.com` on the `^` of
+`||example.com^`. Letters and digits are matched with Unicode property escapes,
+so non-ASCII domains are selected as well.
+
+On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
+for workspace switching, so those keys never reach the browser there; the mouse
+gesture and the remaining shortcuts are unaffected.
 
 ### Tokenizing a Rule
 
