@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState, Text } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { expect, test } from 'vitest';
 
@@ -11,6 +11,7 @@ import {
     selectMoreAfter,
     selectMoreBefore,
     selectNextAfter,
+    selectNextBefore,
     singleSelection,
 } from '../src/commands/multi-cursor';
 import { initEditor } from '../src/init-editor';
@@ -155,6 +156,20 @@ test('selectMoreAfter selects a non-ASCII word and its next occurrence', () => {
     view.destroy();
 });
 
+test('selectMoreAfter selects a word that contains a combining mark', () => {
+    // NFD `é` is `e` plus U+0301, which only `\p{M}` matches.
+    const rule = '||e\u0301xample.com^';
+    const doc = `${rule}\n${rule}`;
+    const word = { from: 2, to: 2 + 'e\u0301xample.com'.length };
+    const view = makeView(doc, { anchor: 3, head: 3 });
+    expect(selectMoreAfter(view)).toBe(true);
+    expect(ranges(view)).toEqual([
+        word,
+        { from: word.from + rule.length + 1, to: word.to + rule.length + 1 },
+    ]);
+    view.destroy();
+});
+
 test('selectMoreAfter selects the word next to a cursor on a non-word character', () => {
     // A cursor on `^` expands to the domain to its left.
     const doc = '||a.com^\n||a.com^';
@@ -169,6 +184,38 @@ test('selectNextAfter moves to the next occurrence instead of adding one', () =>
     const view = makeView(doc, { anchor: 2, head: 2 });
     expect(selectNextAfter(view)).toBe(true);
     expect(ranges(view)).toEqual([{ from: 12, to: 17 }]);
+    view.destroy();
+});
+
+test('selectNextBefore moves to the previous occurrence instead of adding one', () => {
+    const doc = 'a.com\nb.com\na.com';
+    const view = makeView(doc, { anchor: 12, head: 17 });
+    expect(selectNextBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }]);
+    view.destroy();
+});
+
+test('selectNextBefore wraps around to the last occurrence', () => {
+    const doc = 'a.com\nb.com\na.com';
+    const view = makeView(doc, { anchor: 0, head: 5 });
+    expect(selectNextBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 12, to: 17 }]);
+    view.destroy();
+});
+
+test('selectNextBefore stops when every occurrence is already selected', () => {
+    // The backward scan must terminate when the selected match at index 0 is
+    // the only candidate left.
+    const doc = 'a.com\na.com';
+    const view = makeView(doc, { anchor: 6, head: 11 });
+    view.dispatch({
+        selection: EditorSelection.create(
+            [EditorSelection.range(0, 5), EditorSelection.range(6, 11)],
+            1,
+        ),
+    });
+    expect(selectNextBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 6, to: 11 }]);
     view.destroy();
 });
 

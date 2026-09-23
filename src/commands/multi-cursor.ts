@@ -1,13 +1,20 @@
-import { EditorSelection, type EditorState, type SelectionRange } from '@codemirror/state';
-import { type EditorView } from '@codemirror/view';
+import { EditorSelection } from '@codemirror/state';
+import type { EditorState, SelectionRange, Text } from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
 
 /**
  * Characters treated as part of a word by the select-more commands. `-` and
  * `.` are included so that whole domains (`example.com`) are selected as a
- * single word in adblock rules. Letters and digits are matched with Unicode
- * property escapes, so non-ASCII domains (`пример.рф`) work as well.
+ * single word in adblock rules. Letters, digits and combining marks are
+ * matched with Unicode property escapes, so non-ASCII domains (`пример.рф`) and
+ * decomposed text (`e` + `\u0301`) work as well.
  */
-const WORD_CHAR = /[\p{L}\p{N}_.-]/u;
+const WORD_CHAR = /[\p{L}\p{M}\p{N}_.-]/u;
+
+/**
+ * Number of characters read per window of a backward occurrence scan.
+ */
+const BACKWARD_WINDOW = 4096;
 
 /**
  * Finds the word around a position. The position itself does not have to be on
@@ -222,13 +229,17 @@ function findOccurrence(
  * @param direction `1` to search forward, `-1` to search backward.
  * @param skipCurrent Whether to move the main range instead of adding one.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when the command applied. That does not mean the selection
+ *   changed: with every occurrence already selected there is nothing to add, so
+ *   the selection is left as it is and the event is still consumed. `false` is
+ *   returned only when the main range is empty and there is no word next to it
+ *   to select, leaving the key event to the browser.
  */
 function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: boolean): boolean {
     const { state } = view;
     const { selection } = state;
     const ranges = selection.ranges.slice();
-    const { mainIndex } = selection;
+    let { mainIndex } = selection;
     let { main } = selection;
 
     if (main.empty) {
@@ -245,7 +256,7 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
     if (found === null) {
         if (ranges[mainIndex] !== selection.main) {
             // The word selection is still worth applying even without a match.
-            applySelection(view, ranges, main);
+            applySelection(view, ranges, mainIndex);
         }
         return true;
     }
@@ -254,11 +265,9 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
         ranges[mainIndex] = found;
     } else {
         ranges.push(found);
+        mainIndex = ranges.length - 1;
     }
-    main = found;
-    // `applySelection` looks the range up by identity, so no index bookkeeping
-    // is needed for the pushed occurrence.
-    applySelection(view, ranges, main);
+    applySelection(view, ranges, mainIndex);
     return true;
 }
 
@@ -318,7 +327,8 @@ export function addCursorBelowSkipCurrent(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` unless the empty cursor has no word to select. The selection
+ *   is left untouched when every occurrence is already selected.
  */
 export function selectMoreBefore(view: EditorView): boolean {
     return selectOccurrence(view, -1, false);
@@ -330,7 +340,8 @@ export function selectMoreBefore(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` unless the empty cursor has no word to select. The selection
+ *   is left untouched when every occurrence is already selected.
  */
 export function selectMoreAfter(view: EditorView): boolean {
     return selectOccurrence(view, 1, false);
@@ -343,7 +354,8 @@ export function selectMoreAfter(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` unless the empty cursor has no word to select. The selection
+ *   is left untouched when every occurrence is already selected.
  */
 export function selectNextBefore(view: EditorView): boolean {
     return selectOccurrence(view, -1, true);
@@ -356,7 +368,8 @@ export function selectNextBefore(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` unless the empty cursor has no word to select. The selection
+ *   is left untouched when every occurrence is already selected.
  */
 export function selectNextAfter(view: EditorView): boolean {
     return selectOccurrence(view, 1, true);
