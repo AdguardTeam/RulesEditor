@@ -11,6 +11,17 @@ import { type EditorView, keymap } from '@codemirror/view';
 import { isCommentLine } from '../lib/utils';
 
 import { isBreakpointAt, toggleBreakpoint } from './breakpoints';
+import {
+    addCursorAbove,
+    addCursorAboveSkipCurrent,
+    addCursorBelow,
+    addCursorBelowSkipCurrent,
+    selectMoreAfter,
+    selectMoreBefore,
+    selectNextAfter,
+    selectNextBefore,
+    singleSelection,
+} from './multi-cursor';
 
 const COMMENT_MARKER = '!';
 const HASH_COMMENT_MARKER = '#';
@@ -85,8 +96,8 @@ export function toggleAdblockComment(view: EditorView): boolean {
 }
 
 /**
- * Builds the editor keymap, wiring line operations, search, comment toggle,
- * the enabled-rule toggle, and save.
+ * Builds the editor keymap, wiring line operations, multi-cursor editing,
+ * search, comment toggle, the enabled-rule toggle, and save.
  *
  * @param handlers Optional toggle-rule and save callbacks.
  * @param handlers.onToggleRule Invoked when a rule is toggled.
@@ -103,6 +114,18 @@ export function configureHotKeys(handlers: {
         { key: 'Alt-ArrowDown', run: moveLineDown },
         { key: 'Shift-Alt-ArrowUp', run: copyLineUp },
         { key: 'Shift-Alt-ArrowDown', run: copyLineDown },
+        // AG-57986: multi-cursor commands with the Ace editor's bindings.
+        // `Mod` resolves to Ctrl on Windows/Linux (identical to Ace) and to
+        // Cmd on macOS, like the rest of the editor's shortcuts.
+        { key: 'Mod-Alt-ArrowUp', run: addCursorAbove },
+        { key: 'Mod-Alt-ArrowDown', run: addCursorBelow },
+        { key: 'Mod-Alt-Shift-ArrowUp', run: addCursorAboveSkipCurrent },
+        { key: 'Mod-Alt-Shift-ArrowDown', run: addCursorBelowSkipCurrent },
+        { key: 'Mod-Alt-ArrowLeft', run: selectMoreBefore },
+        { key: 'Mod-Alt-ArrowRight', run: selectMoreAfter },
+        { key: 'Mod-Alt-Shift-ArrowLeft', run: selectNextBefore },
+        { key: 'Mod-Alt-Shift-ArrowRight', run: selectNextAfter },
+        { key: 'Escape', run: singleSelection },
         { key: 'Mod-h', run: openSearchPanel },
         {
             key: 'Mod-/',

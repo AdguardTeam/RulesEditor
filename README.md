@@ -99,6 +99,24 @@ secondary cursor, and typing inserts the same text at all cursors. A single
 clicking an existing secondary cursor removes it; a plain click collapses back
 to a single cursor.
 
+The same commands are available on the keyboard, with the bindings the previous
+Ace-based editor used. On Windows and Linux the modifier is `Ctrl+Alt`; on macOS
+it is `Cmd+Alt` (`⌘⌥`) — use that in place of `Ctrl+Alt` below:
+
+- `Ctrl+Alt+Up` / `Ctrl+Alt+Down` — add a cursor on the line above / below;
+- `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` — move the last cursor up / down
+  instead of adding one;
+- `Ctrl+Alt+Right` / `Ctrl+Alt+Left` — add the next / previous occurrence of
+  the selection;
+- `Ctrl+Alt+Shift+Right` / `Ctrl+Alt+Shift+Left` — move the main cursor to the
+  next / previous occurrence instead of adding one;
+- `Esc` — collapse back to a single cursor.
+
+With an empty cursor the occurrence shortcuts select the word under the cursor
+first. On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window
+manager for workspace switching, so those keys never reach the browser there;
+the mouse gesture and the remaining shortcuts are unaffected.
+
 ### Tokenizing a Rule
 
 ```typescript

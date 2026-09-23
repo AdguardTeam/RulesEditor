@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-cursor keyboard shortcuts matching the previous Ace-based editor:
+  `Ctrl+Alt+Up` / `Ctrl+Alt+Down` add a cursor above / below, their `Shift`
+  variants move the last cursor instead, and `Ctrl+Alt+Left` / `Ctrl+Alt+Right`
+  (with `Shift` to move instead of add) select the previous / next occurrence
+  of the selection. On macOS use `Cmd+Alt` in place of `Ctrl+Alt`; `Esc`
+  collapses back to a single cursor [AdguardBrowserExtension#3607].
+
 ### Changed
 
 ### Deprecated
