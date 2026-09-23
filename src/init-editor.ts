@@ -56,6 +56,18 @@ export interface InitEditorConfig {
     withBreakpoints?: boolean;
 
     /**
+     * Enables multi-cursor editing: the built-in modifier+click gesture and the
+     * keyboard commands bound by {@link configureHotKeys}. Defaults to `true`.
+     *
+     * `EditorState.allowMultipleSelections` combines its values with `some`, so
+     * once it is enabled a consumer cannot switch it off again from
+     * `extensions` — pass `false` here instead. The `drawSelection()` extension
+     * is added either way, since it also draws the caret and the single
+     * selection.
+     */
+    withMultipleSelections?: boolean;
+
+    /**
      * Called after each document change.
      */
     onChange?: (view: EditorView) => void;
@@ -133,8 +145,10 @@ export async function initEditor(
         // secondary cursors and multi-range selection backgrounds. Together
         // they re-enable the built-in modifier+click gesture (Ctrl on
         // Windows/Linux, Cmd on macOS); the keyboard bindings live in
-        // `configureHotKeys`.
-        EditorState.allowMultipleSelections.of(true),
+        // `configureHotKeys`. Consumers that do not want multi-cursor editing
+        // opt out with `withMultipleSelections: false`, since the facet
+        // combines with `some` and cannot be disabled from `extensions`.
+        EditorState.allowMultipleSelections.of(conf.withMultipleSelections ?? true),
         drawSelection(),
         keymap.of([
             ...defaultKeymap,

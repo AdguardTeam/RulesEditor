@@ -72,6 +72,13 @@ const view = await initEditor(textarea, wasm, {
 });
 ```
 
+`initEditor` always adds CodeMirror's `drawSelection()` extension, so the caret
+and the selection are drawn by CodeMirror rather than by the browser: native
+`::selection` and caret styles do not apply, and you should not add
+`drawSelection()` yourself. Multi-cursor editing can be turned off with
+`withMultipleSelections: false`, which disables the extra selection ranges while
+leaving the drawing as it is.
+
 #### Highlighting strategy
 
 By default the editor uses full TextMate highlighting backed by Oniguruma

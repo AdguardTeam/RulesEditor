@@ -3,22 +3,25 @@ import { undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { expect, test } from 'vitest';
 
-import { initEditor } from '../src/init-editor';
+import { initEditor, type InitEditorConfig } from '../src/init-editor';
 
 const DOC = '||a.com^\n||b.com^';
 
 /**
  * Creates an editor over a two-line document without WASM.
  *
+ * @param conf Configuration overrides for `initEditor`.
+ *
  * @returns The created editor view.
  */
-async function createView() {
+async function createView(conf: Partial<InitEditorConfig> = {}) {
     const textarea = document.createElement('textarea');
     textarea.value = DOC;
     document.body.appendChild(textarea);
     return initEditor(textarea, undefined, {
         hotkeys: { mode: 'windows' },
         highlight: 'none',
+        ...conf,
     });
 }
 
@@ -47,6 +50,64 @@ test('drawSelection mounts cursor and selection layers', async () => {
     // `drawSelection()` no `.cm-cursorLayer` / `.cm-selectionLayer` exists.
     expect(view.dom.querySelector('.cm-cursorLayer')).not.toBeNull();
     expect(view.dom.querySelector('.cm-selectionLayer')).not.toBeNull();
+    view.destroy();
+});
+
+test('a secondary cursor is rendered for every range after a measure pass', async () => {
+    // jsdom has no layout, and its `Range` has no `getClientRects`, which
+    // `drawSelection` needs to place the cursors; stub it so the layers are
+    // really drawn instead of staying empty.
+    const proto = Range.prototype as unknown as { getClientRects?: () => DOMRectList };
+    const original = proto.getClientRects;
+    const rect = {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 16,
+        toJSON: () => ({}),
+    };
+    proto.getClientRects = () => Object.assign([rect], {
+        item: () => rect,
+        length: 1,
+    }) as unknown as DOMRectList;
+    try {
+        const view = await createView();
+        view.dispatch({
+            selection: EditorSelection.create(
+                [EditorSelection.cursor(0), EditorSelection.cursor(9)],
+                0,
+            ),
+        });
+        view.requestMeasure();
+        await new Promise((resolve) => { requestAnimationFrame(resolve); });
+        // One cursor per range, and the non-main one is the secondary cursor.
+        expect(view.dom.querySelectorAll('.cm-cursor-primary')).toHaveLength(1);
+        expect(view.dom.querySelectorAll('.cm-cursor-secondary')).toHaveLength(1);
+        view.destroy();
+    } finally {
+        if (original) {
+            proto.getClientRects = original;
+        } else {
+            delete proto.getClientRects;
+        }
+    }
+});
+
+test('withMultipleSelections: false leaves multi-selection off', async () => {
+    const view = await createView({ withMultipleSelections: false });
+    expect(view.state.facet(EditorState.allowMultipleSelections)).toBe(false);
+    view.dispatch({
+        selection: EditorSelection.create(
+            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
+            0,
+        ),
+    });
+    // CodeMirror collapses the extra ranges instead of keeping them.
+    expect(view.state.selection.ranges.length).toBe(1);
     view.destroy();
 });
 

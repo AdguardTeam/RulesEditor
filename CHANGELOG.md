@@ -14,12 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   variants move the last cursor instead (with a single cursor the first press
   adds one, as in Ace), and `Ctrl+Alt+Left` / `Ctrl+Alt+Right` (with `Shift` to
   move instead of add) select the previous / next occurrence of the selection,
-  starting from the word under or next to the cursor. Letters and digits are
-  matched with Unicode property escapes, so non-ASCII domains are supported.
-  On macOS use `Cmd+Alt` in place of `Ctrl+Alt`; `Esc` collapses back to a
-  single cursor [AdguardBrowserExtension#3607].
+  starting from the word under or next to the cursor. Letters, digits and
+  combining marks are matched with Unicode property escapes, so non-ASCII
+  domains and decomposed text are supported. As in Ace, the shortcuts use
+  `Ctrl+Alt` on macOS too — `Cmd+Alt` is taken by the browsers' previous/next
+  tab; `Esc` collapses back to a single cursor
+  [AdguardBrowserExtension#3607].
+- `withMultipleSelections` option for `initEditor` (default `true`); pass
+  `false` to disable multi-cursor editing.
 
 ### Changed
+
+- `Ctrl+/` / `Cmd+/` now toggles the adblock comment (and the enabled-rule
+  marker) for the line under every cursor, not only for the main one.
 
 ### Deprecated
 
@@ -32,10 +39,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration, where the editor was created without multi-selection support, so
   every selection was collapsed to a single cursor
   [AdguardBrowserExtension#3607].
+- The Ace multi-cursor shortcuts take precedence over CodeMirror's
+  `defaultKeymap`, which binds `Mod-Alt-ArrowUp` / `Mod-Alt-ArrowDown` and
+  `Escape` as well, so the custom commands were never reached.
+- `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` no longer land inside a surrogate
+  pair (for example on the line `😀.com`), where typing would split the
+  character in two, and they no longer read CodeMirror's pixel-based
+  `goalColumn` as a character column, which made the cursors jump to the end of
+  the line.
+- The multi-cursor shortcuts are swallowed even when the command declines (a
+  cursor on the first or last line, or an empty cursor with no word under it),
+  so the chord no longer reaches the browser as a tab switch.
+- Occurrence search no longer copies the whole document on every keypress: the
+  scan reads the document in chunks instead of calling `doc.toString()`, and
+  both directions stop at the first free occurrence.
 
 ### Security
-
-[AdguardBrowserExtension#3607]: https://github.com/AdguardTeam/AdguardBrowserExtension/issues/3607
 
 ## [2.0.2] - 2026-09-07
 
