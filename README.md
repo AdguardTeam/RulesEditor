@@ -90,6 +90,15 @@ const plain = await initEditor(textarea, undefined, {
 `initEditor` still returns a `Promise<EditorView>` for every strategy, so
 existing `await initEditor(...)` call sites are unaffected.
 
+#### Multi-cursor editing
+
+The editor supports editing several lines at once. Hold `Ctrl` (Windows/Linux)
+or `Cmd` (macOS) and click each line you want to edit: every click adds a
+secondary cursor, and typing inserts the same text at all cursors. A single
+`Ctrl+Z` / `Cmd+Z` reverts the whole multi-line edit. Holding the modifier and
+clicking an existing secondary cursor removes it; a plain click collapses back
+to a single cursor.
+
 ### Tokenizing a Rule
 
 ```typescript

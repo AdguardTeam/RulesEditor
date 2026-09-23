@@ -17,7 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Multi-line editing with modifier+click (`Ctrl+click` on Windows/Linux,
+  `Cmd+click` on macOS) works again: it was lost in the CodeMirror 5 → 6
+  migration, where the editor was created without multi-selection support, so
+  every selection was collapsed to a single cursor
+  [AdguardBrowserExtension#3607].
+
 ### Security
+
+[AdguardBrowserExtension#3607]: https://github.com/AdguardTeam/AdguardBrowserExtension/issues/3607
 
 ## [2.0.2] - 2026-09-07
 

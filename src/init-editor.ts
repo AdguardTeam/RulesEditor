@@ -7,7 +7,12 @@ import {
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import {
+    drawSelection,
+    EditorView,
+    keymap,
+    lineNumbers,
+} from '@codemirror/view';
 
 import {
     breakpointState,
@@ -121,6 +126,16 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
+        // AG-57986: restore multi-cursor editing lost in the CodeMirror 5→6
+        // migration, where the editor was created without multi-selection
+        // support. `allowMultipleSelections` prevents every transaction from
+        // being collapsed to a single range, and `drawSelection` renders the
+        // secondary cursors and multi-range selection backgrounds. Together
+        // they re-enable the built-in modifier+click gesture (Ctrl on
+        // Windows/Linux, Cmd on macOS); the keyboard bindings live in
+        // `configureHotKeys`.
+        EditorState.allowMultipleSelections.of(true),
+        drawSelection(),
         keymap.of([
             ...defaultKeymap,
             ...historyKeymap,
