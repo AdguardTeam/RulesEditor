@@ -228,7 +228,7 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
     const { state } = view;
     const { selection } = state;
     const ranges = selection.ranges.slice();
-    let { mainIndex } = selection;
+    const { mainIndex } = selection;
     let { main } = selection;
 
     if (main.empty) {
@@ -254,9 +254,10 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
         ranges[mainIndex] = found;
     } else {
         ranges.push(found);
-        mainIndex = ranges.length - 1;
     }
     main = found;
+    // `applySelection` looks the range up by identity, so no index bookkeeping
+    // is needed for the pushed occurrence.
     applySelection(view, ranges, main);
     return true;
 }
