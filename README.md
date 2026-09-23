@@ -123,8 +123,11 @@ tab, so those shortcuts would never reach the editor:
 With an empty cursor the occurrence shortcuts select the word under the cursor
 first — the search expands to the adjacent word when the cursor itself is not
 on a word character, so it selects `example.com` on the `^` of
-`||example.com^`. Letters and digits are matched with Unicode property escapes,
-so non-ASCII domains are selected as well.
+`||example.com^`. Letters, digits and combining marks are matched with Unicode
+property escapes, so non-ASCII domains are selected as well.
+
+`Ctrl+/` / `Cmd+/` comments (or uncomments) the line under every cursor, and
+`Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
 for workspace switching, so those keys never reach the browser there; the mouse

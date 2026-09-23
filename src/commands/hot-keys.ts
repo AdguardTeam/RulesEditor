@@ -52,9 +52,31 @@ export const createMarker = (options: { color?: string; innerHTML?: string }) =>
 };
 
 /**
- * Toggles an adblock comment (`! `) at the beginning of every selected line.
- * If all selected lines are already commented they are uncommented, otherwise
- * every line gets a `! ` prefix.
+ * Collects the 1-based numbers of the lines touched by the given ranges, in
+ * ascending order and without duplicates, so a shortcut acts on every visible
+ * cursor exactly once.
+ *
+ * @param state The editor state.
+ * @param ranges The selection ranges.
+ *
+ * @returns The distinct line numbers covered by the ranges.
+ */
+function selectedLineNumbers(state: EditorState, ranges: readonly SelectionRange[]): number[] {
+    const numbers = new Set<number>();
+    for (const range of ranges) {
+        const first = state.doc.lineAt(range.from).number;
+        const last = state.doc.lineAt(range.to).number;
+        for (let number = first; number <= last; number += 1) {
+            numbers.add(number);
+        }
+    }
+    return [...numbers].sort((a, b) => a - b);
+}
+
+/**
+ * Toggles an adblock comment (`! `) at the beginning of every selected line,
+ * for every selection range. If all selected lines are already commented they
+ * are uncommented, otherwise every line gets a `! ` prefix.
  *
  * @param view The editor view.
  *
@@ -62,24 +84,22 @@ export const createMarker = (options: { color?: string; innerHTML?: string }) =>
  */
 export function toggleAdblockComment(view: EditorView): boolean {
     const { state } = view;
-    const { from, to } = state.selection.main;
-    const startLine = state.doc.lineAt(from);
-    const endLine = state.doc.lineAt(to);
+    const lines = selectedLineNumbers(state, state.selection.ranges);
 
     const changes: ChangeSpec[] = [];
 
     // Determine whether we are commenting or uncommenting.
     let allAreComments = true;
-    for (let i = startLine.number; i <= endLine.number; i += 1) {
-        const { text } = state.doc.line(i);
+    for (const number of lines) {
+        const { text } = state.doc.line(number);
         if (text !== '' && !isCommentLine(text)) {
             allAreComments = false;
             break;
         }
     }
 
-    for (let i = startLine.number; i <= endLine.number; i += 1) {
-        const line = state.doc.line(i);
+    for (const number of lines) {
+        const line = state.doc.line(number);
         if (allAreComments) {
             // Uncomment: strip `! `, `# ` or bare prefix.
             if (line.text.startsWith(`${COMMENT_MARKER} `)) {
