@@ -137,6 +137,14 @@ test('selectMoreAfter selects the word under an empty cursor and its next occurr
     view.destroy();
 });
 
+test('selectMoreAfter selects a non-ASCII word and its next occurrence', () => {
+    const doc = '||пример.рф^\n||пример.рф^';
+    const view = makeView(doc, { anchor: 4, head: 4 });
+    expect(selectMoreAfter(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 2, to: 11 }, { from: 15, to: 24 }]);
+    view.destroy();
+});
+
 test('selectNextAfter moves to the next occurrence instead of adding one', () => {
     const doc = 'a.com\nb.com\na.com';
     const view = makeView(doc, { anchor: 2, head: 2 });

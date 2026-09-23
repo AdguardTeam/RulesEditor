@@ -4,9 +4,10 @@ import { type EditorView } from '@codemirror/view';
 /**
  * Characters treated as part of a word by the select-more commands. `-` and
  * `.` are included so that whole domains (`example.com`) are selected as a
- * single word in adblock rules.
+ * single word in adblock rules. Letters and digits are matched with Unicode
+ * property escapes, so non-ASCII domains (`пример.рф`) work as well.
  */
-const WORD_CHAR = /[\w.-]/;
+const WORD_CHAR = /[\p{L}\p{N}_.-]/u;
 
 /**
  * Finds the word around a position.
