@@ -96,8 +96,87 @@ function addCursorVertically(view: EditorView, direction: -1 | 1, skipCurrent: b
 }
 
 /**
+ * Whether a candidate match is already covered by one of the ranges.
+ *
+ * @param ranges The ranges that are already selected.
+ * @param from The start of the candidate match.
+ * @param to The end of the candidate match.
+ *
+ * @returns `true` when the candidate overlaps a range.
+ */
+function isSelected(ranges: readonly SelectionRange[], from: number, to: number): boolean {
+    return ranges.some((range) => from < range.to && to > range.from);
+}
+
+/**
+ * Finds the first occurrence of `needle` at or after `from` that is not covered
+ * by `ranges`. The scan stops at the first free match.
+ *
+ * @param text The document text.
+ * @param ranges The ranges that are already selected.
+ * @param needle The text to search for.
+ * @param from The position to start the scan at.
+ *
+ * @returns The occurrence position, or `null` when there is none.
+ */
+function nextFreeMatch(
+    text: string,
+    ranges: readonly SelectionRange[],
+    needle: string,
+    from: number,
+): number | null {
+    for (let pos = text.indexOf(needle, from); pos >= 0; pos = text.indexOf(needle, pos + 1)) {
+        if (!isSelected(ranges, pos, pos + needle.length)) {
+            return pos;
+        }
+    }
+    return null;
+}
+
+/**
+ * Finds the last occurrence of `needle` that ends at or before `end` and is not
+ * covered by `ranges`. The scan moves backwards and stops at the first free
+ * match.
+ *
+ * @param text The document text.
+ * @param ranges The ranges that are already selected.
+ * @param needle The text to search for.
+ * @param end The position the occurrence must end at or before.
+ *
+ * @returns The occurrence position, or `null` when there is none.
+ */
+function previousFreeMatch(
+    text: string,
+    ranges: readonly SelectionRange[],
+    needle: string,
+    end: number,
+): number | null {
+    const maxStart = end - needle.length;
+    if (maxStart < 0) {
+        return null;
+    }
+    let pos = text.lastIndexOf(needle, maxStart);
+    while (pos > 0) {
+        if (!isSelected(ranges, pos, pos + needle.length)) {
+            return pos;
+        }
+        pos = text.lastIndexOf(needle, pos - 1);
+    }
+    // `lastIndexOf` clamps a negative position to 0, so the loop would find a
+    // match at index 0 again and again; it is checked once, outside the loop.
+    if (pos === 0 && !isSelected(ranges, 0, needle.length)) {
+        return 0;
+    }
+    return null;
+}
+
+/**
  * Finds the next or previous occurrence of `needle` that is not covered by the
  * current ranges, wrapping around the document.
+ *
+ * Only the nearest free occurrence in the search direction and the wrap-around
+ * target are needed, so the document is scanned lazily and both scans stop at
+ * the first free match instead of collecting every occurrence.
  *
  * @param state The editor state.
  * @param ranges The ranges that are already selected.
@@ -115,24 +194,20 @@ function findOccurrence(
     anchor: SelectionRange,
 ): SelectionRange | null {
     const text = state.doc.toString();
-    const free: number[] = [];
-    for (let pos = text.indexOf(needle); pos >= 0; pos = text.indexOf(needle, pos + 1)) {
-        const overlaps = ranges.some((range) => pos < range.to && pos + needle.length > range.from);
-        if (!overlaps) {
-            free.push(pos);
-        }
+    let pos: number | null;
+    if (direction === 1) {
+        // The wrap-around target is the first free match in the document.
+        pos = nextFreeMatch(text, ranges, needle, anchor.to)
+            ?? nextFreeMatch(text, ranges, needle, 0);
+    } else {
+        // The wrap-around target is the last free match in the document.
+        pos = previousFreeMatch(text, ranges, needle, anchor.from)
+            ?? previousFreeMatch(text, ranges, needle, text.length);
     }
-    if (free.length === 0) {
+    if (pos === null) {
         return null;
     }
-
-    // For backward searches the matches are visited from the end of the
-    // document, so the first free match is also the wrap-around target.
-    const ordered = direction === 1 ? free : free.slice().reverse();
-    const reference = direction === 1 ? anchor.to : anchor.from;
-    const next = ordered.find((pos) => (direction === 1 ? pos >= reference : pos + needle.length <= reference));
-    const chosen = next ?? ordered[0]!;
-    return EditorSelection.range(chosen, chosen + needle.length);
+    return EditorSelection.range(pos, pos + needle.length);
 }
 
 /**

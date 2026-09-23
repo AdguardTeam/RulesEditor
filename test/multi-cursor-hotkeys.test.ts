@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { expect, test } from 'vitest';
 
@@ -176,6 +176,42 @@ test('selectMoreAfter wraps around the document', () => {
     const doc = 'a.com\nb.com\na.com';
     const view = makeView(doc, { anchor: 12, head: 17 });
     selectMoreAfter(view);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
+    view.destroy();
+});
+
+test('selectMoreBefore wraps around to the last occurrence', () => {
+    const doc = 'a.com\nb.com\na.com';
+    const view = makeView(doc, { anchor: 0, head: 5 });
+    selectMoreBefore(view);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
+    expect(view.state.selection.main.from).toBe(12);
+    view.destroy();
+});
+
+test('selectMoreBefore stops when every occurrence is already selected', () => {
+    // The backward scan must not find the selected match at index 0 over and
+    // over (`lastIndexOf` clamps a negative position to 0).
+    const doc = 'a.com\na.com';
+    const view = makeView(doc, { anchor: 0, head: 5 });
+    view.dispatch({
+        selection: EditorSelection.create(
+            [EditorSelection.range(0, 5), EditorSelection.range(6, 11)],
+            1,
+        ),
+    });
+    expect(selectMoreBefore(view)).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 6, to: 11 }]);
+    view.destroy();
+});
+
+test('selectMoreAfter selects every occurrence and then stops', () => {
+    const doc = 'a.com\nb.com\na.com';
+    const view = makeView(doc, { anchor: 0, head: 5 });
+    selectMoreAfter(view);
+    expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
+    // Every occurrence is selected, so there is no free match left to add.
+    expect(selectMoreAfter(view)).toBe(true);
     expect(ranges(view)).toEqual([{ from: 0, to: 5 }, { from: 12, to: 17 }]);
     view.destroy();
 });
