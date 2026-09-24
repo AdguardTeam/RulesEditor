@@ -132,6 +132,10 @@ export async function initEditor(
     conf: InitEditorConfig,
 ): Promise<EditorView> {
     const highlight: HighlightMode = conf.highlight ?? 'full';
+    // The default is resolved once, so the facet and the keymap builder cannot
+    // disagree; `configureHotKeys` takes the resolved value as a required
+    // parameter.
+    const withMultipleSelections = conf.withMultipleSelections ?? true;
 
     setMarkerFactory(createMarker({
         color: conf.hotkeys.markerColor,
@@ -151,7 +155,7 @@ export async function initEditor(
         // them for the same option. Consumers that do not want multi-cursor
         // editing opt out with `withMultipleSelections: false`, since the facet
         // combines with `some` and cannot be disabled from `extensions`.
-        EditorState.allowMultipleSelections.of(conf.withMultipleSelections ?? true),
+        EditorState.allowMultipleSelections.of(withMultipleSelections),
         drawSelection(),
         keymap.of([
             ...defaultKeymap,
@@ -165,7 +169,7 @@ export async function initEditor(
         search(),
         configureHotKeys({
             mode: conf.hotkeys.mode,
-            withMultipleSelections: conf.withMultipleSelections ?? true,
+            withMultipleSelections,
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
         }),
@@ -255,12 +259,19 @@ export function setEditorValue(
     const doc = value.map((v) => v.rule).join('\n');
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
 
+    // All toggles go into one transaction: the breakpoint field applies the
+    // effects of a transaction with a single `RangeSet` update, so dispatching
+    // one transaction per line would rebuild the set once per line.
+    const enabled: number[] = [];
     value.forEach((v, index) => {
         if (v.enabled && !isCommentLine(v.rule)) {
             const line = view.state.doc.line(index + 1);
             if (!isBreakpointAt(view.state, line.from)) {
-                view.dispatch({ effects: toggleBreakpoint.of(line.from) });
+                enabled.push(line.from);
             }
         }
     });
+    if (enabled.length > 0) {
+        view.dispatch({ effects: enabled.map((from) => toggleBreakpoint.of(from)) });
+    }
 }

@@ -15,6 +15,7 @@ import {
     singleSelection,
 } from '../src/commands/multi-cursor';
 import { initEditor, type InitEditorConfig } from '../src/init-editor';
+import type { HotkeyMode } from '../src/lib/types';
 
 const DOC = '||a.com^\n||b.com^\n||c.com^';
 
@@ -60,7 +61,7 @@ function ranges(view: EditorView): { from: number; to: number }[] {
  * @returns The created editor view.
  */
 async function createEditor(
-    mode: 'windows' | 'mac' = 'windows',
+    mode: HotkeyMode = 'windows',
     conf: Partial<InitEditorConfig> = {},
 ): Promise<EditorView> {
     const textarea = document.createElement('textarea');
@@ -156,6 +157,20 @@ test('addCursorBelow does not land inside a surrogate pair', () => {
     const { head } = view.state.selection.main;
     view.dispatch({ changes: { from: head, insert: '!' } });
     expect(view.state.doc.toString()).toBe('a\n\u{1F600}!.com');
+    view.destroy();
+});
+
+test('addCursorBelow does not land inside a combining sequence', () => {
+    // Column 1 of the second line is between `e` and its combining acute
+    // accent; the cursor has to move past the whole cluster.
+    const doc = 'ab\ne\u0301x';
+    const view = makeView(doc, { anchor: 1, head: 1 });
+    expect(addCursorBelow(view)).toBe(true);
+    expect(view.state.selection.main.head).toBe(doc.indexOf('x'));
+    // Typing at the new cursor must not split the accent from its base letter.
+    const { head } = view.state.selection.main;
+    view.dispatch({ changes: { from: head, insert: '!' } });
+    expect(view.state.doc.toString()).toBe('ab\ne\u0301!x');
     view.destroy();
 });
 
@@ -441,7 +456,12 @@ test('the occurrence scans read the document in bounded slices', () => {
         expect(sliced).toBeGreaterThan(0);
         expect(sliced).toBeLessThan(doc.length * 4);
         searches = 0;
+        sliced = 0;
         expect(selectMoreAfter(view)).toBe(true);
+        // The forward scan walks the document with `iterRange`, so it must not
+        // slice anything; a fallback to `doc.sliceString(0, doc.length)` would
+        // slice exactly one whole document and fail the bound.
+        expect(sliced).toBeLessThan(doc.length);
         // One search per window, where rescanning the buffered overlap per line
         // needs one per line.
         expect(searches).toBeLessThan(64);

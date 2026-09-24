@@ -1,6 +1,7 @@
 import {
     type EditorState,
     type Extension,
+    type Range,
     RangeSet,
     StateEffect,
     StateField,
@@ -66,20 +67,43 @@ export function setMarkerFactory(make: () => HTMLElement): void {
 const breakpointField = StateField.define<RangeSet<GutterMarker>>({
     create: () => RangeSet.empty,
     update(set, tr) {
-        let next = set.map(tr.changes);
-        tr.effects.forEach((effect) => {
-            if (effect.is(toggleBreakpoint)) {
-                const pos = effect.value;
+        const next = set.map(tr.changes);
+        const toggles = tr.effects
+            .filter((effect) => effect.is(toggleBreakpoint))
+            .map((effect) => effect.value);
+        if (toggles.length === 0) {
+            return next;
+        }
+        // `RangeSet.update` rebuilds the whole set, so the toggles of one
+        // transaction are applied with a single update instead of one per
+        // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected line,
+        // and rebuilding the set per effect would make it quadratic in the
+        // number of lines. Two toggles of the same position in one transaction
+        // still cancel each other out, like the per-effect update used to.
+        const counts = new Map<number, number>();
+        toggles.forEach((pos) => {
+            counts.set(pos, (counts.get(pos) ?? 0) + 1);
+        });
+        const removed = new Set<number>();
+        const added: Range<GutterMarker>[] = [];
+        counts.forEach((count, pos) => {
+            if (count % 2 === 1) {
                 let has = false;
                 next.between(pos, pos, () => {
                     has = true;
                 });
-                next = has
-                    ? next.update({ filter: (from) => from !== pos })
-                    : next.update({ add: [new BreakpointMarker().range(pos)] });
+                if (has) {
+                    removed.add(pos);
+                } else {
+                    added.push(new BreakpointMarker().range(pos));
+                }
             }
         });
-        return next;
+        return next.update({
+            filter: (from) => !removed.has(from),
+            add: added,
+            sort: true,
+        });
     },
 });
 

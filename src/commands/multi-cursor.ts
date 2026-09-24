@@ -1,4 +1,4 @@
-import { EditorSelection } from '@codemirror/state';
+import { EditorSelection, findClusterBreak } from '@codemirror/state';
 import type { EditorState, SelectionRange, Text } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 
@@ -47,8 +47,29 @@ function wordRangeAt(state: EditorState, pos: number): SelectionRange | null {
 }
 
 /**
+ * Whether `pos` sits on a grapheme cluster boundary in `text`.
+ *
+ * @param text The line text.
+ * @param pos The position to test, counted in UTF-16 code units.
+ *
+ * @returns `true` when `pos` is the start or the end of the line, or the end
+ *   of the cluster that precedes it.
+ */
+function isClusterBoundary(text: string, pos: number): boolean {
+    if (pos === 0) {
+        return true;
+    }
+    // `findClusterBreak` with `forward: false` returns the last cluster break
+    // strictly before `pos`; the position is a boundary when that break is
+    // followed immediately by `pos`.
+    const previous = findClusterBreak(text, pos, false);
+    return findClusterBreak(text, previous, true) === pos;
+}
+
+/**
  * Clamps a character column to `text` and moves it out of the middle of a
- * surrogate pair, so the resulting offset is a valid code point boundary.
+ * grapheme cluster — a surrogate pair or a base character with its combining
+ * marks — so the resulting offset is a valid cluster boundary.
  *
  * @param text The line the column is placed in.
  * @param column The column, counted in UTF-16 code units.
@@ -57,15 +78,13 @@ function wordRangeAt(state: EditorState, pos: number): SelectionRange | null {
  */
 function snapColumn(text: string, column: number): number {
     const clamped = Math.min(Math.max(column, 0), text.length);
-    if (clamped > 0 && clamped < text.length) {
-        const code = text.charCodeAt(clamped);
-        // A low surrogate here means the column sits between the halves of a
-        // surrogate pair; moving forward leaves the pair intact.
-        if (code >= 0xdc00 && code <= 0xdfff) {
-            return clamped + 1;
-        }
-    }
-    return clamped;
+    // A column that already sits on a cluster boundary is left alone; one that
+    // lands inside a cluster (between the halves of a surrogate pair, or
+    // between a base character and its combining marks) moves to the end of
+    // the cluster, so typing there cannot split the character.
+    return isClusterBoundary(text, clamped)
+        ? clamped
+        : findClusterBreak(text, clamped);
 }
 
 /**

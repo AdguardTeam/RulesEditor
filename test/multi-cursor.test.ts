@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
 import { expect, test } from 'vitest';
 
 import { initEditor, type InitEditorConfig } from '../src/init-editor';
@@ -14,7 +15,7 @@ const DOC = '||a.com^\n||b.com^';
  *
  * @returns The created editor view.
  */
-async function createView(conf: Partial<InitEditorConfig> = {}) {
+async function createView(conf: Partial<InitEditorConfig> = {}): Promise<EditorView> {
     const textarea = document.createElement('textarea');
     textarea.value = DOC;
     document.body.appendChild(textarea);
@@ -22,6 +23,21 @@ async function createView(conf: Partial<InitEditorConfig> = {}) {
         hotkeys: { mode: 'windows' },
         highlight: 'none',
         ...conf,
+    });
+}
+
+/**
+ * Dispatches a two-cursor selection, one on each line of `DOC`.
+ *
+ * @param view The editor view.
+ * @param mainIndex The range that becomes the main one; defaults to the first.
+ */
+function setTwoCursors(view: EditorView, mainIndex = 0): void {
+    view.dispatch({
+        selection: EditorSelection.create(
+            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
+            mainIndex,
+        ),
     });
 }
 
@@ -33,12 +49,7 @@ test('EditorState.allowMultipleSelections is enabled', async () => {
 
 test('multiple selection ranges are preserved instead of collapsed', async () => {
     const view = await createView();
-    view.dispatch({
-        selection: EditorSelection.create(
-            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
-            0,
-        ),
-    });
+    setTwoCursors(view);
     expect(view.state.selection.ranges.length).toBe(2);
     expect(view.state.selection.main.from).toBe(0);
     view.destroy();
@@ -76,12 +87,7 @@ test('a secondary cursor is rendered for every range after a measure pass', asyn
     }) as unknown as DOMRectList;
     try {
         const view = await createView();
-        view.dispatch({
-            selection: EditorSelection.create(
-                [EditorSelection.cursor(0), EditorSelection.cursor(9)],
-                0,
-            ),
-        });
+        setTwoCursors(view);
         view.requestMeasure();
         await new Promise((resolve) => { requestAnimationFrame(resolve); });
         // One cursor per range, and the non-main one is the secondary cursor.
@@ -123,12 +129,7 @@ test('modifier+click add: the range at the clicked position is added', async () 
 
 test('modifier+click remove: clicking an existing secondary cursor removes it', async () => {
     const view = await createView();
-    view.dispatch({
-        selection: EditorSelection.create(
-            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
-            1,
-        ),
-    });
+    setTwoCursors(view, 1);
     // Mirrors `removeRangeAround` in CodeMirror's built-in handler: the range
     // containing the clicked position is dropped and the main range survives.
     const { ranges, mainIndex } = view.state.selection;
@@ -146,12 +147,7 @@ test('modifier+click remove: clicking an existing secondary cursor removes it', 
 
 test('plain click collapses the selection to a single range', async () => {
     const view = await createView();
-    view.dispatch({
-        selection: EditorSelection.create(
-            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
-            0,
-        ),
-    });
+    setTwoCursors(view);
     // A plain click dispatches `EditorSelection.create([range])`.
     view.dispatch({ selection: EditorSelection.create([EditorSelection.cursor(5)]) });
     expect(view.state.selection.ranges.length).toBe(1);
@@ -161,12 +157,7 @@ test('plain click collapses the selection to a single range', async () => {
 
 test('typing with multiple cursors changes every range in one undo step', async () => {
     const view = await createView();
-    view.dispatch({
-        selection: EditorSelection.create(
-            [EditorSelection.cursor(0), EditorSelection.cursor(9)],
-            0,
-        ),
-    });
+    setTwoCursors(view);
     // Typing with two cursors produces one transaction with one change per
     // range; a single undo must revert all of them together.
     view.dispatch({ changes: [{ from: 0, insert: 'x' }, { from: 9, insert: 'x' }] });

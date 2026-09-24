@@ -158,7 +158,7 @@ export function toggleAdblockComment(view: EditorView): boolean {
  */
 export function configureHotKeys(handlers: {
     mode: HotkeyMode;
-    withMultipleSelections?: boolean;
+    withMultipleSelections: boolean;
     onToggleRule?: (view: EditorView) => void;
     onSave?: (view: EditorView) => void;
 }): Extension {
@@ -170,7 +170,7 @@ export function configureHotKeys(handlers: {
     // `withMultipleSelections: false` switches multi-cursor editing off, so the
     // commands are not bound at all: `allowMultipleSelections` is off and every
     // dispatch would be collapsed back to a single range anyway.
-    const multiCursorBindings: KeyBinding[] = (handlers.withMultipleSelections ?? true)
+    const multiCursorBindings: KeyBinding[] = handlers.withMultipleSelections
         ? [
             // `preventDefault` swallows the chord even when the command declines
             // (a cursor on the first or last line, or an empty cursor with no
