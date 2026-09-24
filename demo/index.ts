@@ -20,10 +20,6 @@ const SAMPLE_RULES = [
     '||tracker.example^$third-party,domain=example.com|example.net',
     '/^https?:\\/\\/[^/]+\\/ads\\/\\d+\\.js$/',
     '😀.com',
-    'one',
-    'two',
-    'three',
-    'four',
 ].join('\n');
 
 /**
