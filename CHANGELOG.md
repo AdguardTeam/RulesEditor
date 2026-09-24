@@ -18,17 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OS/browser, so `Cmd+Alt+F` covers find & replace there. It works alongside
   the `Ctrl+H` binding on Windows/Linux.
 - Shortcuts of the previous (Ace-based) editor: `Ctrl+K` / `Ctrl+Shift+K`
-  (find next / previous), `Ctrl+L` / `Cmd+L` (go to line), `Cmd+Option+ArrowUp`
-  / `Cmd+Option+ArrowDown` on macOS (copy lines) and `Ctrl+D` / `Cmd+D`
-  (delete line). They are registered before the CodeMirror defaults, so they
-  take precedence where both bind the same chord.
+  on Windows/Linux (find next / previous), `Ctrl+L` / `Cmd+L` (go to line),
+  `Cmd+Option+ArrowUp` / `Cmd+Option+ArrowDown` on macOS (copy lines) and
+  `Ctrl+D` / `Cmd+D` (delete line). They are registered before the
+  CodeMirror defaults, so they take precedence where both bind the same
+  chord.
 
 ### Changed
 
 - The macOS copy-lines chord `Cmd+Option+Arrow` supersedes CodeMirror's
-  "add cursor above/below" default, and `Ctrl+D` / `Cmd+D` now deletes the
-  current line instead of selecting the next occurrence — both matching the
-  previous editor.
+  "add cursor above/below" default, `Ctrl+D` / `Cmd+D` now deletes the
+  current line instead of selecting the next occurrence, and on
+  Windows/Linux `Ctrl+Shift+K` now finds the previous match instead of
+  deleting the current line — all matching the previous editor.
 
 ### Deprecated
 

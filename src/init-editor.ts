@@ -138,8 +138,9 @@ export async function initEditor(
         history(),
         // The previous editor's chords are registered before the CodeMirror
         // defaults: some of them intentionally supersede a default that
-        // binds the same chord (`Mod-d` — select next occurrence,
-        // `Mod-Alt-Arrow` — add cursor above/below).
+        // binds the same chord (`Mod-d` — select next occurrence; macOS
+        // `Cmd+Alt+Arrow` — add cursor above/below; Windows/Linux
+        // `Ctrl+Shift+K` — delete line).
         configureAceParityKeys(),
         keymap.of([
             ...defaultKeymap,
@@ -151,9 +152,10 @@ export async function initEditor(
         ]),
         // `search()` provides the search state and the panel, but does not
         // include the keymap — the standard search bindings (Ctrl+F, F3/Mod-g,
-        // Mod-d, Escape) are registered here. The panel defaults to the
-        // bottom of the editor, and no config is passed on purpose: an
-        // explicit `top` would conflict with a consumer's own
+        // Escape) are registered here (`Mod-d` from `searchKeymap` is
+        // shadowed by the delete-line parity binding above). The panel
+        // defaults to the bottom of the editor, and no config is passed on
+        // purpose: an explicit `top` would conflict with a consumer's own
         // `search({ top: ... })` extension.
         keymap.of(searchKeymap),
         search(),

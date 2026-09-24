@@ -186,9 +186,10 @@ search panel is rendered at the bottom of the editor by default; pass your own
   by the OS/browser, so `Cmd+Alt+F` is the "find & replace" shortcut there)
 - `Ctrl+Alt+F` / `Cmd+Alt+F` opens the search panel with the focus in the
   replace field ("find & replace") on every platform
-- `F3`, `Ctrl+G`, or `Ctrl+K` finds the next match; `Shift+F3`,
-  `Ctrl+Shift+G`, or `Ctrl+Shift+K` finds the previous one (on macOS:
-  `Cmd+G` / `Cmd+Shift+G`)
+- `F3` or `Ctrl+G` finds the next match; `Shift+F3` or `Ctrl+Shift+G`
+  finds the previous one (on macOS: `Cmd+G` / `Cmd+Shift+G`). On
+  Windows/Linux the previous editor's `Ctrl+K` / `Ctrl+Shift+K` chords work
+  as well; on macOS `Ctrl+K` keeps its "delete to line end" default
 - `Escape` closes the search panel
 - `Ctrl+Alt+G` / `Cmd+Alt+G` moves the cursor to a line with a given number
   ("go to line"); the previous editor's `Ctrl+L` / `Cmd+L` works as well
@@ -202,8 +203,9 @@ search panel is rendered at the bottom of the editor by default; pass your own
 > **Note:** the chords restored from the previous (Ace-based) editor are
 > registered before the CodeMirror defaults, so they win where both bind the
 > same key: the macOS copy-lines chord `Cmd+Option+Arrow` supersedes "add
-> cursor above/below", and `Ctrl+D` / `Cmd+D` supersedes "select next
-> occurrence" with "delete line". "Select all occurrences"
+> cursor above/below", `Ctrl+D` / `Cmd+D` supersedes "select next
+> occurrence" with "delete line", and on Windows/Linux `Ctrl+Shift+K`
+> supersedes "delete line" with "find previous". "Select all occurrences"
 > (`Ctrl+Shift+L` / `Cmd+Shift+L`) is left as CodeMirror binds it — it acts
 > on the current selection and does nothing while no text is selected.
 
