@@ -142,13 +142,15 @@ export function toggleAdblockComment(view: EditorView): boolean {
  * The multi-cursor commands keep Ace's `Ctrl+Alt` chords instead of `Mod-Alt`:
  * on macOS `Mod-Alt` resolves to `Cmd+Alt`, and Chrome and Firefox intercept
  * `Cmd+Option+Left/Right` for previous/next tab, so those shortcuts would never
- * reach the editor. `mode` picks the binding set, like the rest of the editor's
- * configuration.
+ * reach the editor. `mode` selects the modifiers of the multi-cursor bindings
+ * only; every other binding uses `Mod` in both modes.
  *
- * @param handlers Optional toggle-rule and save callbacks.
- * @param handlers.mode Keyboard shortcut style of the host application.
+ * @param handlers Multi-cursor binding configuration and the toggle-rule /
+ *   save callbacks.
+ * @param handlers.mode Keyboard shortcut style of the host application; selects
+ *   the modifiers of the multi-cursor bindings (see {@link HotkeyMode}).
  * @param handlers.withMultipleSelections Whether to bind the multi-cursor
- *   commands. Defaults to `true`; pass `false` together with
+ *   commands. Pass `false` together with
  *   `EditorState.allowMultipleSelections` being off, since every command would
  *   otherwise be collapsed back to a single range.
  * @param handlers.onToggleRule Invoked when a rule is toggled.

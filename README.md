@@ -132,7 +132,9 @@ tab, so those shortcuts would never reach the editor:
 A selection that spans several lines is moved by the line commands instead of
 being copied: the copy would overlap the original and CodeMirror would merge
 the two into one longer selection. When the move would leave the document the
-command declines and leaves the selection alone.
+command declines and the selection is left as it is — though on Windows and
+Linux the chord then falls through to CodeMirror's own add-cursor commands
+bound to the same keys, which can still add a bare cursor.
 
 With an empty cursor the occurrence shortcuts select the word under the cursor
 first — the search expands to the adjacent word when the cursor itself is not

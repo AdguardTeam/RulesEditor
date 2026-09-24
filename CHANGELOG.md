@@ -16,9 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move instead of add) select the previous / next occurrence of the selection,
   starting from the word under or next to the cursor. Letters, digits and
   combining marks are matched with Unicode property escapes, so non-ASCII
-  domains and decomposed text are supported. As in Ace, the shortcuts use
-  `Ctrl+Alt` on macOS too — `Cmd+Alt` is taken by the browsers' previous/next
-  tab; `Esc` collapses back to a single cursor
+  domains and decomposed text are supported, and cursors never land inside a
+  surrogate pair or a combining sequence. The bindings take precedence over
+  CodeMirror's `defaultKeymap`, and the chords are swallowed even when a
+  command declines, so they never reach the browser. A selection that spans
+  several lines is moved by the line commands instead of being merged with its
+  shifted copy; the occurrence search reads the document in bounded windows
+  rather than copying it whole on every keypress, and takes its needle from the
+  document itself so a multi-line selection matches with any line separator.
+  As in Ace, the shortcuts use `Ctrl+Alt` on macOS too — `Cmd+Alt` is taken by
+  the browsers' previous/next tab; `Esc` collapses back to a single cursor, and
+  with only one cursor and nothing to collapse it does not mark the key event
+  as handled, so the browser default is not swallowed either
   [AdguardBrowserExtension#3607].
 - `withMultipleSelections` option for `initEditor` (default `true`); pass
   `false` to disable multi-cursor editing, which also leaves the multi-cursor
@@ -42,31 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration, where the editor was created without multi-selection support, so
   every selection was collapsed to a single cursor
   [AdguardBrowserExtension#3607].
-- The Ace multi-cursor shortcuts take precedence over CodeMirror's
-  `defaultKeymap`, which binds `Mod-Alt-ArrowUp` / `Mod-Alt-ArrowDown` and
-  `Escape` as well, so the custom commands were never reached.
-- `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` no longer land inside a surrogate
-  pair (for example on the line `😀.com`), where typing would split the
-  character in two, and they no longer read CodeMirror's pixel-based
-  `goalColumn` as a character column, which made the cursors jump to the end of
-  the line.
-- The multi-cursor shortcuts are swallowed even when the command declines (a
-  cursor on the first or last line, or an empty cursor with no word under it),
-  so the chord no longer reaches the browser as a tab switch.
-- `Esc` no longer marks the key event as handled when there is a single cursor
-  to collapse, so the browser default is not swallowed either.
-- Occurrence search no longer copies the whole document on every keypress: the
-  scan reads the document in windows that are never smaller than the selection,
-  so a long selection is not rescanned line by line, and both directions stop at
-  the first free occurrence.
-- A selection that spans several lines is moved by the line commands
-  (`Ctrl+Alt+Up` / `Ctrl+Alt+Down` and their `Shift` variants) instead of being
-  merged with its shifted copy, which grew the selection and made the reverse
-  move a no-op. A move that would leave the document declines instead of
-  clamping one end of the range.
-- The occurrence search takes its needle from the document itself, so a
-  multi-line selection matches again when `EditorState.lineSeparator.of('\r\n')`
-  is used.
 
 ### Security
 

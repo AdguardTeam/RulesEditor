@@ -415,7 +415,8 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when the cursor was added (or the main range moved), `false`
+ *   when the move would leave the document.
  */
 export function addCursorAbove(view: EditorView): boolean {
     return addCursorVertically(view, -1, false);
@@ -427,7 +428,8 @@ export function addCursorAbove(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when the cursor was added (or the main range moved), `false`
+ *   when the move would leave the document.
  */
 export function addCursorBelow(view: EditorView): boolean {
     return addCursorVertically(view, 1, false);
@@ -440,7 +442,8 @@ export function addCursorBelow(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when a cursor was added or the last one moved, `false` when
+ *   the move would leave the document.
  */
 export function addCursorAboveSkipCurrent(view: EditorView): boolean {
     return addCursorVertically(view, -1, true);
@@ -453,7 +456,8 @@ export function addCursorAboveSkipCurrent(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when a cursor was added or the last one moved, `false` when
+ *   the move would leave the document.
  */
 export function addCursorBelowSkipCurrent(view: EditorView): boolean {
     return addCursorVertically(view, 1, true);

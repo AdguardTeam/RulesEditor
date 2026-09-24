@@ -2,9 +2,10 @@ import type { Token } from './utils';
 
 /**
  * Keyboard shortcut style of the host application. Selects the modifier keys
- * the editor's bindings use — `'windows'` binds `Ctrl` through CodeMirror's
- * `Mod`, while `'mac'` keeps the literal `Ctrl` of the shortcuts that macOS
- * browsers reserve for themselves when `Cmd` is used.
+ * of the multi-cursor bindings: `'windows'` binds `Ctrl` through CodeMirror's
+ * `Mod`, while `'mac'` keeps the literal `Ctrl` Ace used, since the macOS
+ * browsers reserve `Cmd+Option+Left/Right` for previous/next tab. Every other
+ * binding uses `Mod` whatever the mode is.
  */
 export type HotkeyMode = 'windows' | 'mac';
 
