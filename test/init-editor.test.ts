@@ -3,12 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { undo } from '@codemirror/commands';
-import {
-    search,
-    searchPanelOpen,
-    SearchQuery,
-    setSearchQuery,
-} from '@codemirror/search';
+import { search, searchPanelOpen } from '@codemirror/search';
 import { EditorState } from '@codemirror/state';
 import { type EditorView } from '@codemirror/view';
 import {
@@ -331,39 +326,10 @@ test('Ctrl+/ toggles comments while the search panel has focus', async () => {
     view.destroy();
 });
 
-test('Ctrl+K and Ctrl+Shift+K find the next and previous match', async () => {
-    const view = await mountEditor();
-    view.dispatch({ changes: { from: 0, insert: 'aaa\nbbb\naaa' } });
-    // Find next/previous move the cursor through the current query; without
-    // a query they open the search panel instead.
-    view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: 'aaa' })) });
-    view.dispatch({ selection: { anchor: 4 } });
-
-    // The previous (Ace) editor bound find next to Ctrl+K on Windows/Linux.
-    const next = pressKey(view.contentDOM, 'k');
-
-    expect(next.defaultPrevented).toBe(true);
-    expect(view.state.selection.main.from).toBe(8);
-
-    // Ctrl+Shift+K is find previous. Real browsers report `K` (uppercase)
-    // while Shift is held and CM6 resolves the binding through the
-    // `w3c-keyname` tables, which jsdom does not populate (`keyCode` stays
-    // 0), so stub it (75 = K) — same technique as the Ctrl+Shift+Z test.
-    const prev = new KeyboardEvent('keydown', {
-        key: 'K',
-        ctrlKey: true,
-        shiftKey: true,
-        bubbles: true,
-        cancelable: true,
-    });
-    Object.defineProperty(prev, 'keyCode', { get: () => 75 });
-    view.contentDOM.dispatchEvent(prev);
-
-    expect(prev.defaultPrevented).toBe(true);
-    expect(view.state.selection.main.from).toBe(0);
-    view.destroy();
-});
-
+// The previous (Ace) editor's platform-specific chords (`Ctrl+K` /
+// `Ctrl+Shift+K` on Windows/Linux, `Cmd+Option+Arrow` on macOS) are covered
+// in `hot-keys-platform-windows.test.ts` / `hot-keys-platform-mac.test.ts`,
+// which stub `navigator.platform` before the CodeMirror modules load.
 test('Ctrl+L opens the go-to-line dialog', async () => {
     const view = await mountEditor();
 
@@ -373,21 +339,6 @@ test('Ctrl+L opens the go-to-line dialog', async () => {
     expect(event.defaultPrevented).toBe(true);
     expect(view.dom.querySelector('.cm-panel.cm-dialog')).not.toBeNull();
     expect(view.dom.textContent).toContain('Go to line');
-    view.destroy();
-});
-
-test('Ctrl+Alt+ArrowDown copies the current line', async () => {
-    const view = await mountEditor();
-    view.dispatch({ changes: { from: 0, insert: 'a\nb' } });
-    view.dispatch({ selection: { anchor: 0 } });
-
-    // `Mod-Alt-Arrow` is `Cmd+Option+Arrow` on macOS in the previous
-    // (Ace) editor; jsdom resolves `Mod` to Ctrl. The binding supersedes
-    // CodeMirror's add-cursor-below default on the same chord.
-    const event = pressKey(view.contentDOM, 'ArrowDown', { alt: true });
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(view.state.doc.toString()).toBe('a\na\nb');
     view.destroy();
 });
 

@@ -129,35 +129,50 @@ const openFindAndReplace = (view: EditorView): boolean => {
 /**
  * Builds the keymap that restores the shortcut set of the previous
  * (Ace-based) editor, so filter maintainers keep their muscle memory:
- * `Ctrl+K` / `Ctrl+Shift+K` for find next / previous, `Ctrl+L` / `Cmd+L`
- * for go to line, `Cmd+Option+ArrowUp/Down` for copying lines, and
- * `Ctrl+D` / `Cmd+D` for deleting a line.
+ * `Ctrl+K` / `Ctrl+Shift+K` for find next / previous on Windows/Linux,
+ * `Ctrl+L` / `Cmd+L` for go to line, `Cmd+Option+ArrowUp/Down` for copying
+ * lines on macOS, and `Ctrl+D` / `Cmd+D` for deleting a line.
  *
  * These chords intentionally supersede CodeMirror defaults that reuse them
  * ("select next occurrence" on `Mod-d`, "add cursor above" / "below" on
- * `Mod-Alt-Arrow`), so this keymap must be registered before the built-in
- * `defaultKeymap` / `searchKeymap` — see `init-editor.ts`.
+ * macOS `Cmd+Option+Arrow`, "delete line" on Windows/Linux `Ctrl+Shift+K`),
+ * so this keymap must be registered before the built-in `defaultKeymap` /
+ * `searchKeymap` — see `init-editor.ts`.
  *
  * @returns A CodeMirror 6 keymap extension.
  */
 export function configureAceParityKeys(): Extension {
     return keymap.of([
         // The Windows/Linux chords of Ace's `findnext` / `findprevious`;
-        // macOS keeps `Cmd+G` / `Cmd+Shift+G` from `searchKeymap`.
+        // macOS keeps `Cmd+G` / `Cmd+Shift+G` from `searchKeymap`, and its
+        // `Ctrl+K` stays "delete to line end" (Ace's `removetolineend`).
+        // The wrappers always consume the key: `findNext` / `findPrevious`
+        // return `false` when the query has no match, and a `false` lets the
+        // keydown fall through to the next binding on the chord — on
+        // Windows/Linux `Ctrl+Shift+K` would hit `Shift-Mod-k` (delete line)
+        // from the default keymap.
         {
-            key: 'Ctrl-k',
-            run: findNext,
-            shift: findPrevious,
+            win: 'Ctrl-k',
+            linux: 'Ctrl-k',
+            run: (view): boolean => {
+                findNext(view);
+                return true;
+            },
+            shift: (view): boolean => {
+                findPrevious(view);
+                return true;
+            },
             scope: 'editor search-panel',
         },
         // Ace's `gotoline`; `Ctrl+Alt+G` / `Cmd+Alt+G` from `searchKeymap`
         // stays available as well.
         { key: 'Mod-l', run: gotoLine, scope: 'editor search-panel' },
-        // Ace copied lines with `Cmd+Option+Arrow` on macOS
-        // (`Mod-Alt-Arrow` there); Windows keeps `Shift-Alt-Arrow` from
-        // `configureHotKeys`.
-        { key: 'Mod-Alt-ArrowUp', run: copyLineUp },
-        { key: 'Mod-Alt-ArrowDown', run: copyLineDown },
+        // Ace copied lines with `Cmd+Option+Arrow` on macOS; Windows keeps
+        // `Shift-Alt-Arrow` from `configureHotKeys`, and the CodeMirror
+        // default on this chord ("add cursor above/below") stays intact off
+        // macOS.
+        { mac: 'Mod-Alt-ArrowUp', run: copyLineUp },
+        { mac: 'Mod-Alt-ArrowDown', run: copyLineDown },
         // Ace's `removeline`, which CodeMirror replaces with "select next
         // occurrence" on the same chord.
         { key: 'Mod-d', run: deleteLine },
