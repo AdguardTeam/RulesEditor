@@ -12,9 +12,11 @@ import type { EditorView } from '@codemirror/view';
 const WORD_CHAR = /[\p{L}\p{M}\p{N}_.-]/u;
 
 /**
- * Number of characters read per window of a backward occurrence scan.
+ * Minimum number of characters read per window of an occurrence scan. A window
+ * is never smaller than the needle, so the overlap kept between windows cannot
+ * dominate the scan.
  */
-const BACKWARD_WINDOW = 4096;
+const SCAN_WINDOW = 4096;
 
 /**
  * Finds the word around a position. The position itself does not have to be on
@@ -29,15 +31,19 @@ const BACKWARD_WINDOW = 4096;
  */
 function wordRangeAt(state: EditorState, pos: number): SelectionRange | null {
     const line = state.doc.lineAt(pos);
-    let from = pos;
-    let to = pos;
-    while (from > line.from && WORD_CHAR.test(state.doc.sliceString(from - 1, from))) {
+    const offset = pos - line.from;
+    const { text } = line;
+    let from = offset;
+    let to = offset;
+    // The line is already at hand, so the scan indexes into it instead of
+    // slicing one character at a time out of the document.
+    while (from > 0 && WORD_CHAR.test(text[from - 1])) {
         from -= 1;
     }
-    while (to < line.to && WORD_CHAR.test(state.doc.sliceString(to, to + 1))) {
+    while (to < text.length && WORD_CHAR.test(text[to])) {
         to += 1;
     }
-    return from === to ? null : EditorSelection.range(from, to);
+    return from === to ? null : EditorSelection.range(line.from + from, line.from + to);
 }
 
 /**
@@ -66,23 +72,39 @@ function snapColumn(text: string, column: number): number {
  * Dispatches a selection, letting CodeMirror sort and merge the ranges.
  *
  * @param view The editor view.
- * @param ranges The ranges to apply.
+ * @param ranges The ranges to apply. The array is handed to the selection, so
+ *   the caller must not mutate it afterwards.
  * @param mainIndex The index of the range that becomes the main one.
  */
 function applySelection(view: EditorView, ranges: readonly SelectionRange[], mainIndex: number): void {
     view.dispatch({
-        selection: EditorSelection.create(ranges.slice(), mainIndex),
+        selection: EditorSelection.create(ranges, mainIndex),
         scrollIntoView: true,
     });
 }
 
 /**
  * Moves the main range one line up or down while keeping its column, and adds
- * the moved range to the selection. With `skipCurrent` the cursor that was
- * added last is moved instead of adding a new one. On the first press there is
- * no added cursor to move yet, so a cursor is added — exactly like Ace's
- * `selectMoreLines`, which only skips the current range when the editor is
- * already in multi-select mode.
+ * the moved range to the selection. A range that spans several lines is moved
+ * instead (see below). With `skipCurrent` the cursor that was added last is
+ * moved instead of adding a new one. On the first press there is no added cursor
+ * to move yet, so a cursor is added — exactly like Ace's `selectMoreLines`,
+ * which only skips the current range when the editor is already in multi-select
+ * mode.
+ *
+ * A range that spans several lines is moved instead of copied: its shifted copy
+ * overlaps the original, and CodeMirror merges overlapping ranges into one
+ * longer selection, which grew the range and made the reverse move a no-op.
+ * Replacing the main range with the moved one keeps the range at the same
+ * columns on the shifted lines and leaves nothing to merge — the same thing Ace
+ * does on the first press, where two colliding ranges are dropped in favour of
+ * the moved one. Unlike Ace, which merges again from the second press on, every
+ * press here moves the range by exactly one line.
+ *
+ * A move that would take either end out of the document declines instead of
+ * clamping it: a clamped anchor landed somewhere else on the first (or last)
+ * line, where it either merged into the range, extended it to the document
+ * start, or left a stray extra range.
  *
  * The column is taken from the caret itself. CodeMirror's `goalColumn` is a
  * pixel x-offset rather than a column, so it is never interpreted here; when
@@ -93,24 +115,34 @@ function applySelection(view: EditorView, ranges: readonly SelectionRange[], mai
  * @param direction `-1` for the line above, `1` for the line below.
  * @param skipCurrent Whether to move the last cursor instead of adding one.
  *
- * @returns `true` when the key event was handled.
+ * @returns `true` when the move was applied, `false` when an end would leave the
+ *   document. A decline is not a hard stop for the chord: the keymap moves on to
+ *   the next binding for the same key, which is `defaultKeymap`'s
+ *   `Mod-Alt-ArrowUp` / `Mod-Alt-ArrowDown` — CodeMirror's own add-cursor
+ *   commands, so a multi-line range that cannot be moved can still gain one of
+ *   its bare cursors. The chord is still swallowed at the DOM level by the
+ *   binding's `preventDefault`, so the browser never sees it.
  */
 function addCursorVertically(view: EditorView, direction: -1 | 1, skipCurrent: boolean): boolean {
     const { state } = view;
     const { selection } = state;
     const { main } = selection;
     const line = state.doc.lineAt(main.head);
-    const targetNumber = line.number + direction;
-    if (targetNumber < 1 || targetNumber > state.doc.lines) {
+    const anchorLine = state.doc.lineAt(main.anchor);
+    const headNumber = line.number + direction;
+    const anchorNumber = anchorLine.number + direction;
+    // Both ends have to stay inside the document: a clamped anchor would land
+    // somewhere else on the first (or last) line and either merge into the
+    // range, extend it to the document start, or leave a stray extra range.
+    if (headNumber < 1 || headNumber > state.doc.lines
+        || anchorNumber < 1 || anchorNumber > state.doc.lines) {
         return false;
     }
 
-    const target = state.doc.line(targetNumber);
+    const target = state.doc.line(headNumber);
     const head = target.from + snapColumn(target.text, main.head - line.from);
     let anchor = head;
     if (!main.empty) {
-        const anchorLine = state.doc.lineAt(main.anchor);
-        const anchorNumber = Math.min(Math.max(anchorLine.number + direction, 1), state.doc.lines);
         const anchorTarget = state.doc.line(anchorNumber);
         anchor = anchorTarget.from + snapColumn(anchorTarget.text, main.anchor - anchorLine.from);
     }
@@ -118,7 +150,8 @@ function addCursorVertically(view: EditorView, direction: -1 | 1, skipCurrent: b
     const moved = EditorSelection.range(anchor, head, main.goalColumn);
     const ranges = selection.ranges.slice();
     let { mainIndex } = selection;
-    if (skipCurrent && ranges.length > 1) {
+    const spansLines = anchorLine.number !== line.number;
+    if (spansLines || (skipCurrent && ranges.length > 1)) {
         ranges[mainIndex] = moved;
     } else {
         ranges.push(moved);
@@ -145,10 +178,12 @@ function isSelected(ranges: readonly SelectionRange[], from: number, to: number)
  * Finds the first occurrence of `needle` in `[from, to)` that is not covered by
  * `ranges`.
  *
- * The document is walked chunk by chunk with an overlap of
- * `needle.length - 1` characters, so an occurrence that spans a chunk boundary
- * is still found, matching stays exact, and no copy of the document is made.
- * The scan returns as soon as it finds a free occurrence.
+ * The document is walked chunk by chunk into a window that is never smaller
+ * than the needle, so an occurrence that spans a chunk boundary is still found,
+ * matching stays exact, and no copy of the document is made. Only the overlap
+ * between two windows is carried over, so the scan costs a window per step
+ * instead of a copy of the needle. The scan returns as soon as it finds a free
+ * occurrence.
  *
  * @param doc The document to scan.
  * @param ranges The ranges that are already selected.
@@ -166,22 +201,40 @@ function findFirstFreeMatch(
     to: number,
 ): number | null {
     const overlap = needle.length - 1;
-    let tail = '';
-    let tailStart = from;
+    const windowSize = Math.max(SCAN_WINDOW, needle.length);
+    let buffer = '';
+    let bufferStart = from;
+    // Characters read since the last scan. Counting them instead of measuring
+    // the buffer keeps a window from being rescanned as soon as the overlap it
+    // carries is long enough on its own.
+    let pending = 0;
 
-    for (const chunk of doc.iterRange(from, to)) {
-        const text = tail + chunk;
-        for (let pos = text.indexOf(needle); pos >= 0; pos = text.indexOf(needle, pos + 1)) {
-            const start = tailStart + pos;
+    // Scans the buffered window and keeps only its tail for the next one.
+    const scan = (): number | null => {
+        for (let pos = buffer.indexOf(needle); pos >= 0; pos = buffer.indexOf(needle, pos + 1)) {
+            const start = bufferStart + pos;
             if (!isSelected(ranges, start, start + needle.length)) {
                 return start;
             }
         }
-        // Keep the tail so an occurrence spanning two chunks stays complete.
-        tail = overlap > 0 ? text.slice(-overlap) : '';
-        tailStart += text.length - tail.length;
+        const keep = Math.min(overlap, buffer.length);
+        bufferStart += buffer.length - keep;
+        buffer = keep > 0 ? buffer.slice(buffer.length - keep) : '';
+        pending = 0;
+        return null;
+    };
+
+    for (const chunk of doc.iterRange(from, to)) {
+        buffer += chunk;
+        pending += chunk.length;
+        if (pending >= windowSize) {
+            const found = scan();
+            if (found !== null) {
+                return found;
+            }
+        }
     }
-    return null;
+    return scan();
 }
 
 /**
@@ -192,7 +245,8 @@ function findFirstFreeMatch(
  * the scan reads it in windows, walking from the search position towards the
  * start of the document and stopping at the first free occurrence. Every window
  * reaches `needle.length - 1` characters into the previous one, so an
- * occurrence that spans a window boundary is still complete.
+ * occurrence that spans a window boundary is still complete, and it is never
+ * smaller than the needle, so the overlap cannot dominate the walk.
  *
  * @param doc The document to scan.
  * @param ranges The ranges that are already selected.
@@ -208,10 +262,11 @@ function findLastFreeMatch(
     end: number,
 ): number | null {
     const overlap = needle.length - 1;
+    const windowSize = Math.max(SCAN_WINDOW, needle.length);
     let windowEnd = end;
 
     while (windowEnd > 0) {
-        const windowStart = Math.max(0, windowEnd - BACKWARD_WINDOW);
+        const windowStart = Math.max(0, windowEnd - windowSize);
         const sliceStart = Math.max(0, windowStart - overlap);
         const text = doc.sliceString(sliceStart, windowEnd);
 
@@ -293,7 +348,8 @@ function findOccurrence(
  *   changed: with every occurrence already selected there is nothing to add, so
  *   the selection is left as it is and the event is still consumed. `false` is
  *   returned only when the main range is empty and there is no word next to it
- *   to select, leaving the key event to the browser.
+ *   to select; the keymap then moves on to the next binding for the same key,
+ *   which `defaultKeymap` does not define for these chords.
  */
 function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: boolean): boolean {
     const { state } = view;
@@ -311,7 +367,10 @@ function selectOccurrence(view: EditorView, direction: -1 | 1, skipCurrent: bool
         main = word;
     }
 
-    const needle = state.sliceDoc(main.from, main.to);
+    // `sliceDoc` joins lines with `state.lineBreak`, while both scans read the
+    // document through `iterRange` / `sliceString`, which always use `\n`; a
+    // needle taken from the document itself keeps the two sides consistent.
+    const needle = state.doc.sliceString(main.from, main.to);
     const found = findOccurrence(state, ranges, needle, direction, main);
     if (found === null) {
         if (ranges[mainIndex] !== selection.main) {
@@ -440,7 +499,11 @@ export function selectNextAfter(view: EditorView): boolean {
  *
  * @param view The editor view.
  *
- * @returns `true` when there was more than one range to collapse.
+ * @returns `true` when there was more than one range to collapse. `false`
+ *   leaves the key event to the browser: the `Escape` binding deliberately does
+ *   not set `preventDefault`, so the browser default (closing a dialog or a
+ *   popover, leaving fullscreen) is not suppressed for a keypress the editor has
+ *   no use for.
  */
 export function singleSelection(view: EditorView): boolean {
     const { selection } = view.state;

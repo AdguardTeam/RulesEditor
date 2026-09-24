@@ -21,7 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tab; `Esc` collapses back to a single cursor
   [AdguardBrowserExtension#3607].
 - `withMultipleSelections` option for `initEditor` (default `true`); pass
-  `false` to disable multi-cursor editing.
+  `false` to disable multi-cursor editing, which also leaves the multi-cursor
+  shortcuts unbound.
+- `HotkeyMode` type, the `'windows' | 'mac'` union `conf.hotkeys.mode` uses,
+  exported so the config and the keymap builder cannot drift apart.
 
 ### Changed
 
@@ -50,9 +53,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The multi-cursor shortcuts are swallowed even when the command declines (a
   cursor on the first or last line, or an empty cursor with no word under it),
   so the chord no longer reaches the browser as a tab switch.
+- `Esc` no longer marks the key event as handled when there is a single cursor
+  to collapse, so the browser default is not swallowed either.
 - Occurrence search no longer copies the whole document on every keypress: the
-  scan reads the document in chunks instead of calling `doc.toString()`, and
-  both directions stop at the first free occurrence.
+  scan reads the document in windows that are never smaller than the selection,
+  so a long selection is not rescanned line by line, and both directions stop at
+  the first free occurrence.
+- A selection that spans several lines is moved by the line commands
+  (`Ctrl+Alt+Up` / `Ctrl+Alt+Down` and their `Shift` variants) instead of being
+  merged with its shifted copy, which grew the selection and made the reverse
+  move a no-op. A move that would leave the document declines instead of
+  clamping one end of the range.
+- The occurrence search takes its needle from the document itself, so a
+  multi-line selection matches again when `EditorState.lineSeparator.of('\r\n')`
+  is used.
 
 ### Security
 

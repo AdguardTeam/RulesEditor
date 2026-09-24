@@ -26,6 +26,7 @@ import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
 import { RegistryManager, type WasmSource } from './lib/registry';
+import type { HotkeyMode } from './lib/types';
 import { isCommentLine } from './lib/utils';
 
 export { EditorView };
@@ -57,7 +58,9 @@ export interface InitEditorConfig {
 
     /**
      * Enables multi-cursor editing: the built-in modifier+click gesture and the
-     * keyboard commands bound by {@link configureHotKeys}. Defaults to `true`.
+     * keyboard commands bound by {@link configureHotKeys}. Defaults to `true`;
+     * `false` leaves both out, so the multi-cursor shortcuts are not bound at
+     * all.
      *
      * `EditorState.allowMultipleSelections` combines its values with `some`, so
      * once it is enabled a consumer cannot switch it off again from
@@ -79,7 +82,7 @@ export interface InitEditorConfig {
         /**
          * Keyboard shortcut style, determines modifier keys used.
          */
-        mode: 'windows' | 'mac';
+        mode: HotkeyMode;
 
         /**
          * CSS color for the gutter marker icon.
@@ -138,30 +141,31 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
-        // AG-57986: restore multi-cursor editing lost in the CodeMirror 5→6
-        // migration, where the editor was created without multi-selection
-        // support. `allowMultipleSelections` prevents every transaction from
-        // being collapsed to a single range, and `drawSelection` renders the
-        // secondary cursors and multi-range selection backgrounds. Together
-        // they re-enable the built-in modifier+click gesture (Ctrl on
-        // Windows/Linux, Cmd on macOS); the keyboard bindings live in
-        // `configureHotKeys`. Consumers that do not want multi-cursor editing
-        // opt out with `withMultipleSelections: false`, since the facet
+        // Restores multi-cursor editing lost in the CodeMirror 5→6 migration,
+        // where the editor was created without multi-selection support.
+        // `allowMultipleSelections` prevents every transaction from being
+        // collapsed to a single range, and `drawSelection` renders the secondary
+        // cursors and multi-range selection backgrounds. Together they re-enable
+        // the built-in modifier+click gesture (Ctrl on Windows/Linux, Cmd on
+        // macOS); the keyboard bindings live in `configureHotKeys`, which skips
+        // them for the same option. Consumers that do not want multi-cursor
+        // editing opt out with `withMultipleSelections: false`, since the facet
         // combines with `some` and cannot be disabled from `extensions`.
         EditorState.allowMultipleSelections.of(conf.withMultipleSelections ?? true),
         drawSelection(),
         keymap.of([
             ...defaultKeymap,
             ...historyKeymap,
-            // AG-58535: `historyKeymap` binds redo to `Mod-y` on Windows
-            // (its `Ctrl-Shift-z` entry is scoped to Linux only), so
-            // Ctrl+Shift+Z did nothing on Windows. Bind the conventional
-            // redo shortcut on every platform.
+            // `historyKeymap` binds redo to `Mod-y` on Windows (its
+            // `Ctrl-Shift-z` entry is scoped to Linux only), so Ctrl+Shift+Z did
+            // nothing on Windows. Bind the conventional redo shortcut on every
+            // platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
         search(),
         configureHotKeys({
             mode: conf.hotkeys.mode,
+            withMultipleSelections: conf.withMultipleSelections ?? true,
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
         }),

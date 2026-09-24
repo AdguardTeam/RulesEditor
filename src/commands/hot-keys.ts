@@ -12,8 +12,9 @@ import {
     Prec,
     type SelectionRange,
 } from '@codemirror/state';
-import { type EditorView, keymap } from '@codemirror/view';
+import { type EditorView, type KeyBinding, keymap } from '@codemirror/view';
 
+import type { HotkeyMode } from '../lib/types';
 import { isCommentLine } from '../lib/utils';
 
 import { isBreakpointAt, toggleBreakpoint } from './breakpoints';
@@ -74,18 +75,17 @@ function selectedLineNumbers(state: EditorState, ranges: readonly SelectionRange
 }
 
 /**
- * Toggles an adblock comment (`! `) at the beginning of every selected line,
- * for every selection range. If all selected lines are already commented they
- * are uncommented, otherwise every line gets a `! ` prefix.
+ * Toggles an adblock comment (`! `) at the beginning of the given lines. If all
+ * of them are already commented they are uncommented, otherwise every line gets
+ * a `! ` prefix.
  *
  * @param view The editor view.
+ * @param lines The 1-based numbers of the lines to toggle.
  *
  * @returns `true` so the keymap consumes the event.
  */
-export function toggleAdblockComment(view: EditorView): boolean {
+function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boolean {
     const { state } = view;
-    const lines = selectedLineNumbers(state, state.selection.ranges);
-
     const changes: ChangeSpec[] = [];
 
     // Determine whether we are commenting or uncommenting.
@@ -122,6 +122,20 @@ export function toggleAdblockComment(view: EditorView): boolean {
 }
 
 /**
+ * Toggles an adblock comment (`! `) at the beginning of every selected line,
+ * for every selection range. If all selected lines are already commented they
+ * are uncommented, otherwise every line gets a `! ` prefix.
+ *
+ * @param view The editor view.
+ *
+ * @returns `true` so the keymap consumes the event.
+ */
+export function toggleAdblockComment(view: EditorView): boolean {
+    const { state } = view;
+    return toggleCommentOnLines(view, selectedLineNumbers(state, state.selection.ranges));
+}
+
+/**
  * Builds the editor keymap, wiring line operations, multi-cursor editing,
  * search, comment toggle, the enabled-rule toggle, and save.
  *
@@ -133,13 +147,18 @@ export function toggleAdblockComment(view: EditorView): boolean {
  *
  * @param handlers Optional toggle-rule and save callbacks.
  * @param handlers.mode Keyboard shortcut style of the host application.
+ * @param handlers.withMultipleSelections Whether to bind the multi-cursor
+ *   commands. Defaults to `true`; pass `false` together with
+ *   `EditorState.allowMultipleSelections` being off, since every command would
+ *   otherwise be collapsed back to a single range.
  * @param handlers.onToggleRule Invoked when a rule is toggled.
  * @param handlers.onSave Invoked when the save shortcut is pressed.
  *
  * @returns A CodeMirror 6 keymap extension.
  */
 export function configureHotKeys(handlers: {
-    mode: 'windows' | 'mac';
+    mode: HotkeyMode;
+    withMultipleSelections?: boolean;
     onToggleRule?: (view: EditorView) => void;
     onSave?: (view: EditorView) => void;
 }): Extension {
@@ -147,6 +166,36 @@ export function configureHotKeys(handlers: {
     // including macOS. On Windows and Linux `Mod` resolves to `Ctrl` anyway, so
     // only `mac` needs the literal modifier.
     const multiCursor = handlers.mode === 'mac' ? 'Ctrl-Alt' : 'Mod-Alt';
+
+    // `withMultipleSelections: false` switches multi-cursor editing off, so the
+    // commands are not bound at all: `allowMultipleSelections` is off and every
+    // dispatch would be collapsed back to a single range anyway.
+    const multiCursorBindings: KeyBinding[] = (handlers.withMultipleSelections ?? true)
+        ? [
+            // `preventDefault` swallows the chord even when the command declines
+            // (a cursor on the first or last line, or an empty cursor with no
+            // word under it), so the browser does not treat it as a tab switch
+            // or a window-manager shortcut. Declining is not a hard stop: the
+            // keymap moves on to the next binding for the same key, and
+            // `defaultKeymap` binds `Mod-Alt-ArrowUp` / `Mod-Alt-ArrowDown` to
+            // its own add-cursor commands, so a range that cannot be moved can
+            // still gain a bare cursor. That is deliberate — claiming the chord
+            // as handled while nothing happens would hide the decline.
+            { key: `${multiCursor}-ArrowUp`, run: addCursorAbove, preventDefault: true },
+            { key: `${multiCursor}-ArrowDown`, run: addCursorBelow, preventDefault: true },
+            { key: `${multiCursor}-Shift-ArrowUp`, run: addCursorAboveSkipCurrent, preventDefault: true },
+            { key: `${multiCursor}-Shift-ArrowDown`, run: addCursorBelowSkipCurrent, preventDefault: true },
+            { key: `${multiCursor}-ArrowLeft`, run: selectMoreBefore, preventDefault: true },
+            { key: `${multiCursor}-ArrowRight`, run: selectMoreAfter, preventDefault: true },
+            { key: `${multiCursor}-Shift-ArrowLeft`, run: selectNextBefore, preventDefault: true },
+            { key: `${multiCursor}-Shift-ArrowRight`, run: selectNextAfter, preventDefault: true },
+            // No `preventDefault` here: with a single cursor there is nothing to
+            // collapse, and marking the key as handled would suppress the
+            // browser default (`Escape` closing a dialog or a popover, leaving
+            // fullscreen) for a keypress the editor does not use.
+            { key: 'Escape', run: singleSelection },
+        ]
+        : [];
 
     // `Prec.high` gives these bindings precedence over `defaultKeymap`, which
     // also binds `Mod-Alt-ArrowUp`/`Mod-Alt-ArrowDown` (to CodeMirror's own
@@ -158,26 +207,14 @@ export function configureHotKeys(handlers: {
         { key: 'Alt-ArrowDown', run: moveLineDown },
         { key: 'Shift-Alt-ArrowUp', run: copyLineUp },
         { key: 'Shift-Alt-ArrowDown', run: copyLineDown },
-        // AG-57986: multi-cursor commands with the Ace editor's bindings.
-        // `preventDefault` swallows the chord even when the command declines
-        // (a cursor on the first or last line, or an empty cursor with no word
-        // under it), so the browser does not treat it as a tab switch or a
-        // window-manager shortcut.
-        { key: `${multiCursor}-ArrowUp`, run: addCursorAbove, preventDefault: true },
-        { key: `${multiCursor}-ArrowDown`, run: addCursorBelow, preventDefault: true },
-        { key: `${multiCursor}-Shift-ArrowUp`, run: addCursorAboveSkipCurrent, preventDefault: true },
-        { key: `${multiCursor}-Shift-ArrowDown`, run: addCursorBelowSkipCurrent, preventDefault: true },
-        { key: `${multiCursor}-ArrowLeft`, run: selectMoreBefore, preventDefault: true },
-        { key: `${multiCursor}-ArrowRight`, run: selectMoreAfter, preventDefault: true },
-        { key: `${multiCursor}-Shift-ArrowLeft`, run: selectNextBefore, preventDefault: true },
-        { key: `${multiCursor}-Shift-ArrowRight`, run: selectNextAfter, preventDefault: true },
-        { key: 'Escape', run: singleSelection, preventDefault: true },
+        ...multiCursorBindings,
         { key: 'Mod-h', run: openSearchPanel },
         {
             key: 'Mod-/',
             run: (view): boolean => {
                 const { state } = view;
-                const ruleLines = selectedLineNumbers(state, state.selection.ranges)
+                const lines = selectedLineNumbers(state, state.selection.ranges);
+                const ruleLines = lines
                     .map((number) => state.doc.line(number))
                     .filter((line) => !isCommentLine(line.text));
                 if (ruleLines.length > 0) {
@@ -186,7 +223,7 @@ export function configureHotKeys(handlers: {
                     });
                     handlers.onToggleRule?.(view);
                 }
-                return toggleAdblockComment(view);
+                return toggleCommentOnLines(view, lines);
             },
         },
         {

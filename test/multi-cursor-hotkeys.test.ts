@@ -14,7 +14,7 @@ import {
     selectNextBefore,
     singleSelection,
 } from '../src/commands/multi-cursor';
-import { initEditor } from '../src/init-editor';
+import { initEditor, type InitEditorConfig } from '../src/init-editor';
 
 const DOC = '||a.com^\n||b.com^\n||c.com^';
 
@@ -55,16 +55,21 @@ function ranges(view: EditorView): { from: number; to: number }[] {
  * keymap precedence is exercised.
  *
  * @param mode Hotkey mode passed to `initEditor`.
+ * @param conf Additional configuration overrides.
  *
  * @returns The created editor view.
  */
-async function createEditor(mode: 'windows' | 'mac' = 'windows'): Promise<EditorView> {
+async function createEditor(
+    mode: 'windows' | 'mac' = 'windows',
+    conf: Partial<InitEditorConfig> = {},
+): Promise<EditorView> {
     const textarea = document.createElement('textarea');
     textarea.value = DOC;
     document.body.appendChild(textarea);
     return initEditor(textarea, undefined, {
         hotkeys: { mode },
         highlight: 'none',
+        ...conf,
     });
 }
 
@@ -398,6 +403,56 @@ test('the occurrence scan does not copy the whole document', () => {
     }
 });
 
+test('the occurrence scans read the document in bounded slices', () => {
+    // Both directions walk the document in windows. A needle longer than a
+    // window used to leave a copy of itself in every window of the backward
+    // scan, and the forward scan used to rebuild its buffer on every line, so a
+    // keypress cost `lines × selection length`; a scan that fell back to
+    // slicing the document whole would show up here as well.
+    const needle = `||${'a'.repeat(32 * 1024)}^`;
+    const line = '||filler-example.com^$third-party,domain=example.com\n';
+    const doc = `${needle}\n${line.repeat(4096)}${needle}`;
+    const view = makeView(doc, { anchor: doc.length - needle.length, head: doc.length });
+    // `sliceString` is defined on the `Text` subclasses rather than on `Text`
+    // itself, so the spy goes on the document instance the scans read.
+    const text = view.state.doc;
+    const originalSliceString = text.sliceString;
+    const originalIndexOf = String.prototype.indexOf;
+    let sliced = 0;
+    let searches = 0;
+    text.sliceString = function spy(this: Text, from: number, to: number, lineSep?: string): string {
+        sliced += to - from;
+        return originalSliceString.call(this, from, to, lineSep);
+    };
+    // The scans only search for the needle, so counting those searches is how
+    // the forward scan's window size becomes observable from the outside.
+    // eslint-disable-next-line no-extend-native
+    String.prototype.indexOf = function spy(this: string, search: string, position?: number): number {
+        if (search === needle) {
+            searches += 1;
+        }
+        return originalIndexOf.call(this, search, position);
+    };
+    try {
+        sliced = 0;
+        expect(selectMoreBefore(view)).toBe(true);
+        // Six windows of ~32 KB: the walk reads the document about twice, where
+        // re-slicing the needle per 4096-character window reads it nine times.
+        expect(sliced).toBeGreaterThan(0);
+        expect(sliced).toBeLessThan(doc.length * 4);
+        searches = 0;
+        expect(selectMoreAfter(view)).toBe(true);
+        // One search per window, where rescanning the buffered overlap per line
+        // needs one per line.
+        expect(searches).toBeLessThan(64);
+    } finally {
+        text.sliceString = originalSliceString;
+        // eslint-disable-next-line no-extend-native
+        String.prototype.indexOf = originalIndexOf;
+        view.destroy();
+    }
+});
+
 test('singleSelection collapses to the main range', () => {
     const view = makeView(DOC, { anchor: 3, head: 3 });
     addCursorBelow(view);
@@ -494,5 +549,49 @@ test('a declined multi-cursor binding still swallows the browser default', async
     const event = pressKey(view, 'ArrowUp', { ctrl: true, alt: true });
     expect(event.defaultPrevented).toBe(true);
     expect(ranges(view)).toEqual([{ from: 0, to: 0 }]);
+    view.destroy();
+});
+
+test('Ctrl+Alt+ArrowDown moves a multi-line selection instead of merging a copy', async () => {
+    const view = await createEditor();
+    // The range covers parts of two lines, so its shifted copy would overlap
+    // the original and CodeMirror would merge the two into one longer
+    // selection; the range is moved instead, keeping its length.
+    view.dispatch({ selection: EditorSelection.range(0, 10) });
+    const event = pressKey(view, 'ArrowDown', { ctrl: true, alt: true });
+    expect(event.defaultPrevented).toBe(true);
+    expect(ranges(view)).toEqual([{ from: 9, to: 19 }]);
+    // And back up, which is only possible because nothing was merged.
+    pressKey(view, 'ArrowUp', { ctrl: true, alt: true });
+    expect(ranges(view)).toEqual([{ from: 0, to: 10 }]);
+    view.destroy();
+});
+
+test('addCursorAbove declines a multi-line selection that cannot move', () => {
+    const view = makeView(DOC, { anchor: 0, head: 10 });
+    // The range starts on the first line, so moving it up would have to clamp
+    // its start and silently shorten it; the command declines instead.
+    expect(addCursorAbove(view)).toBe(false);
+    expect(ranges(view)).toEqual([{ from: 0, to: 10 }]);
+    view.destroy();
+});
+
+test('Escape with a single cursor leaves the browser default alone', async () => {
+    const view = await createEditor();
+    // There is nothing to collapse, so the command declines and the chord is
+    // not marked as handled.
+    const event = pressKey(view, 'Escape');
+    expect(event.defaultPrevented).toBe(false);
+    view.destroy();
+});
+
+test('withMultipleSelections: false leaves the multi-cursor commands unbound', async () => {
+    const view = await createEditor('windows', { withMultipleSelections: false });
+    const bindings = view.state.facet(keymap).flat();
+    // Neither the Ace commands nor the `Esc` collapse are bound: with
+    // `allowMultipleSelections` off every dispatch would be collapsed back to a
+    // single range, so the chords are left to `defaultKeymap` and the browser.
+    expect(bindings.some((binding) => binding.run === addCursorBelow)).toBe(false);
+    expect(bindings.some((binding) => binding.run === singleSelection)).toBe(false);
     view.destroy();
 });
