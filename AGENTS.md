@@ -50,7 +50,8 @@ filter rules. It provides:
 │   ├── init-editor.ts            # CodeMirror 6 editor initialization
 │   ├── commands/
 │   │   ├── breakpoints.ts        # Enabled-rule gutter state (CM6)
-│   │   └── hot-keys.ts           # CM6 keymap builder
+│   │   ├── hot-keys.ts           # CM6 keymap builder
+│   │   └── multi-cursor.ts       # Ace-style multi-cursor commands
 │   ├── grammars/                 # TextMate grammar JSON files (adblock, JS)
 │   ├── highlight/
 │   │   ├── render-html.ts        # Token-list → colorized HTML + style mount
@@ -61,7 +62,7 @@ filter rules. It provides:
 │   │   ├── constants.ts          # Scope name constants
 │   │   ├── errors.ts             # WasmLoadError, GrammarNotFoundError
 │   │   ├── registry.ts           # Lazy Oniguruma + vscode-textmate Registry
-│   │   ├── types.ts              # TokenSegment type
+│   │   ├── types.ts              # Shared public types (TokenSegment, HotkeyMode)
 │   │   └── utils.ts              # Token enum, normalizeTokens, isCommentLine, findCosmeticRuleMarker
 │   └── tokenizers/
 │       ├── tokenizer.ts          # WASM-based tokenizer (vscode-textmate)
