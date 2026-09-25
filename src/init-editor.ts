@@ -7,7 +7,12 @@ import {
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import {
+    drawSelection,
+    EditorView,
+    keymap,
+    lineNumbers,
+} from '@codemirror/view';
 
 import {
     breakpointState,
@@ -21,6 +26,7 @@ import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
 import { RegistryManager, type WasmSource } from './lib/registry';
+import type { HotkeyMode } from './lib/types';
 import { isCommentLine } from './lib/utils';
 
 export { EditorView };
@@ -51,6 +57,20 @@ export interface InitEditorConfig {
     withBreakpoints?: boolean;
 
     /**
+     * Enables multi-cursor editing: the built-in modifier+click gesture and the
+     * keyboard commands bound by {@link configureHotKeys}. Defaults to `true`;
+     * `false` leaves both out, so the multi-cursor shortcuts are not bound at
+     * all.
+     *
+     * `EditorState.allowMultipleSelections` combines its values with `some`, so
+     * once it is enabled a consumer cannot switch it off again from
+     * `extensions` — pass `false` here instead. The `drawSelection()` extension
+     * is added either way, since it also draws the caret and the single
+     * selection.
+     */
+    withMultipleSelections?: boolean;
+
+    /**
      * Called after each document change.
      */
     onChange?: (view: EditorView) => void;
@@ -62,7 +82,7 @@ export interface InitEditorConfig {
         /**
          * Keyboard shortcut style, determines modifier keys used.
          */
-        mode: 'windows' | 'mac';
+        mode: HotkeyMode;
 
         /**
          * CSS color for the gutter marker icon.
@@ -112,6 +132,10 @@ export async function initEditor(
     conf: InitEditorConfig,
 ): Promise<EditorView> {
     const highlight: HighlightMode = conf.highlight ?? 'full';
+    // The default is resolved once, so the facet and the keymap builder cannot
+    // disagree; `configureHotKeys` takes the resolved value as a required
+    // parameter.
+    const withMultipleSelections = conf.withMultipleSelections ?? true;
 
     setMarkerFactory(createMarker({
         color: conf.hotkeys.markerColor,
@@ -121,17 +145,31 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
+        // Restores multi-cursor editing lost in the CodeMirror 5→6 migration,
+        // where the editor was created without multi-selection support.
+        // `allowMultipleSelections` prevents every transaction from being
+        // collapsed to a single range, and `drawSelection` renders the secondary
+        // cursors and multi-range selection backgrounds. Together they re-enable
+        // the built-in modifier+click gesture (Ctrl on Windows/Linux, Cmd on
+        // macOS); the keyboard bindings live in `configureHotKeys`, which skips
+        // them for the same option. Consumers that do not want multi-cursor
+        // editing opt out with `withMultipleSelections: false`, since the facet
+        // combines with `some` and cannot be disabled from `extensions`.
+        EditorState.allowMultipleSelections.of(withMultipleSelections),
+        drawSelection(),
         keymap.of([
             ...defaultKeymap,
             ...historyKeymap,
-            // AG-58535: `historyKeymap` binds redo to `Mod-y` on Windows
-            // (its `Ctrl-Shift-z` entry is scoped to Linux only), so
-            // Ctrl+Shift+Z did nothing on Windows. Bind the conventional
-            // redo shortcut on every platform.
+            // `historyKeymap` binds redo to `Mod-y` on Windows (its
+            // `Ctrl-Shift-z` entry is scoped to Linux only), so Ctrl+Shift+Z did
+            // nothing on Windows. Bind the conventional redo shortcut on every
+            // platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
         search(),
         configureHotKeys({
+            mode: conf.hotkeys.mode,
+            withMultipleSelections,
             onToggleRule: conf.hotkeys.toggleRule,
             onSave: conf.hotkeys.onSave,
         }),
@@ -221,12 +259,19 @@ export function setEditorValue(
     const doc = value.map((v) => v.rule).join('\n');
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
 
+    // All toggles go into one transaction: the breakpoint field applies the
+    // effects of a transaction with a single `RangeSet` update, so dispatching
+    // one transaction per line would rebuild the set once per line.
+    const enabled: number[] = [];
     value.forEach((v, index) => {
         if (v.enabled && !isCommentLine(v.rule)) {
             const line = view.state.doc.line(index + 1);
             if (!isBreakpointAt(view.state, line.from)) {
-                view.dispatch({ effects: toggleBreakpoint.of(line.from) });
+                enabled.push(line.from);
             }
         }
     });
+    if (enabled.length > 0) {
+        view.dispatch({ effects: enabled.map((from) => toggleBreakpoint.of(from)) });
+    }
 }

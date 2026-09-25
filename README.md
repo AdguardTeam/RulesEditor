@@ -72,6 +72,13 @@ const view = await initEditor(textarea, wasm, {
 });
 ```
 
+`initEditor` always adds CodeMirror's `drawSelection()` extension, so the caret
+and the selection are drawn by CodeMirror rather than by the browser: native
+`::selection` and caret styles do not apply, and you should not add
+`drawSelection()` yourself. Multi-cursor editing can be turned off with
+`withMultipleSelections: false`, which disables the extra selection ranges while
+leaving the drawing as it is.
+
 #### Highlighting strategy
 
 By default the editor uses full TextMate highlighting backed by Oniguruma
@@ -89,6 +96,59 @@ const plain = await initEditor(textarea, undefined, {
 
 `initEditor` still returns a `Promise<EditorView>` for every strategy, so
 existing `await initEditor(...)` call sites are unaffected.
+
+#### Multi-cursor editing
+
+The editor supports editing several lines at once. Hold `Ctrl` (Windows/Linux)
+or `Cmd` (macOS) and click each line you want to edit: every click adds a
+secondary cursor, and typing inserts the same text at all cursors. A single
+`Ctrl+Z` / `Cmd+Z` reverts the whole multi-line edit. Holding the modifier and
+clicking an existing secondary cursor removes it; a plain click collapses back
+to a single cursor.
+
+Set `withMultipleSelections: false` to switch multi-cursor editing off; without
+it the editor cannot be turned back to single-selection mode from
+`conf.extensions`, because `EditorState.allowMultipleSelections` combines its
+values with `some`. Switching it off also leaves the keyboard commands below
+unbound, so their chords fall through to CodeMirror's own keymap and to the
+browser.
+
+The same commands are available on the keyboard, with the bindings the previous
+Ace-based editor used. Ace binds them to `Ctrl+Alt` on every platform, and on
+macOS this library does the same — `Cmd+Alt` is deliberately not used there,
+because Chrome and Firefox intercept `Cmd+Option+Left/Right` for previous/next
+tab, so those shortcuts would never reach the editor:
+
+- `Ctrl+Alt+Up` / `Ctrl+Alt+Down` — add a cursor on the line above / below;
+- `Ctrl+Alt+Shift+Up` / `Ctrl+Alt+Shift+Down` — move the last cursor up / down
+  instead of adding one; with a single cursor the first press adds one, as in
+  Ace;
+- `Ctrl+Alt+Right` / `Ctrl+Alt+Left` — add the next / previous occurrence of
+  the selection;
+- `Ctrl+Alt+Shift+Right` / `Ctrl+Alt+Shift+Left` — move the main cursor to the
+  next / previous occurrence instead of adding one;
+- `Esc` — collapse back to a single cursor.
+
+A selection that spans several lines is moved by the line commands instead of
+being copied: the copy would overlap the original and CodeMirror would merge
+the two into one longer selection. When the move would leave the document the
+command declines and the selection is left as it is — though on Windows and
+Linux the chord then falls through to CodeMirror's own add-cursor commands
+bound to the same keys, which can still add a bare cursor.
+
+With an empty cursor the occurrence shortcuts select the word under the cursor
+first — the search expands to the adjacent word when the cursor itself is not
+on a word character, so it selects `example.com` on the `^` of
+`||example.com^`. Letters, digits and combining marks are matched with Unicode
+property escapes, so non-ASCII domains are selected as well.
+
+`Ctrl+/` / `Cmd+/` comments (or uncomments) the line under every cursor and
+toggles the enabled-rule marker on those lines, and `Ctrl+S` / `Cmd+S` triggers
+the `onSave` handler.
+
+On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
+for workspace switching, so those keys never reach the browser there; the mouse
+gesture and the remaining shortcuts are unaffected.
 
 ### Tokenizing a Rule
 
@@ -127,19 +187,20 @@ async function initEditor(
 A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 `ArrayBuffer`, or a `Promise`/thunk resolving to any of these.
 
-| Parameter                  | Description                                                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `element`                  | Textarea element to attach the editor to                                                                         |
-| `wasm`                     | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
-| `conf.hotkeys.mode`        | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
-| `conf.hotkeys.toggleRule`  | Callback for Ctrl/Cmd+/ (toggle rule breakpoint)                                                                 |
-| `conf.hotkeys.onSave`      | Callback for Ctrl/Cmd+S                                                                                          |
-| `conf.hotkeys.markerColor` | CSS color for the breakpoint marker                                                                              |
-| `conf.hotkeys.markerHTML`  | Custom innerHTML for the breakpoint marker                                                                       |
-| `conf.withBreakpoints`     | Enable breakpoint gutter                                                                                         |
-| `conf.onChange`            | Called after each document change                                                                                |
-| `conf.extensions`          | Extra CodeMirror 6 extensions appended last                                                                      |
-| `conf.highlight`           | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
+| Parameter                     | Description                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `element`                     | Textarea element to attach the editor to                                                                         |
+| `wasm`                        | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
+| `conf.hotkeys.mode`           | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
+| `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint)                                                                 |
+| `conf.hotkeys.onSave`         | Callback for Ctrl/Cmd+S                                                                                          |
+| `conf.hotkeys.markerColor`    | CSS color for the breakpoint marker                                                                              |
+| `conf.hotkeys.markerHTML`     | Custom innerHTML for the breakpoint marker                                                                       |
+| `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                     |
+| `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                         |
+| `conf.onChange`               | Called after each document change                                                                                |
+| `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                      |
+| `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and

@@ -9,13 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Multi-cursor keyboard shortcuts matching the previous Ace-based editor:
+  `Ctrl+Alt+Up` / `Ctrl+Alt+Down` add a cursor above / below, their `Shift`
+  variants move the last cursor instead (with a single cursor the first press
+  adds one, as in Ace), and `Ctrl+Alt+Left` / `Ctrl+Alt+Right` (with `Shift` to
+  move instead of add) select the previous / next occurrence of the selection,
+  starting from the word under or next to the cursor. Letters, digits and
+  combining marks are matched with Unicode property escapes, so non-ASCII
+  domains and decomposed text are supported, and cursors never land inside a
+  surrogate pair or a combining sequence. The bindings take precedence over
+  CodeMirror's `defaultKeymap`, and the chords are swallowed even when a
+  command declines, so they never reach the browser. A selection that spans
+  several lines is moved by the line commands instead of being merged with its
+  shifted copy; the occurrence search reads the document in bounded windows
+  rather than copying it whole on every keypress, and takes its needle from the
+  document itself so a multi-line selection matches with any line separator.
+  As in Ace, the shortcuts use `Ctrl+Alt` on macOS too — `Cmd+Alt` is taken by
+  the browsers' previous/next tab; `Esc` collapses back to a single cursor, and
+  with only one cursor and nothing to collapse it does not mark the key event
+  as handled, so the browser default is not swallowed either
+  [AdguardBrowserExtension#3607].
+- `withMultipleSelections` option for `initEditor` (default `true`); pass
+  `false` to disable multi-cursor editing, which also leaves the multi-cursor
+  shortcuts unbound.
+- `HotkeyMode` type, the `'windows' | 'mac'` union `conf.hotkeys.mode` uses,
+  exported so the config and the keymap builder cannot drift apart.
+
 ### Changed
+
+- `Ctrl+/` / `Cmd+/` now toggles the adblock comment (and the enabled-rule
+  marker) for the line under every cursor, not only for the main one.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Multi-line editing with modifier+click (`Ctrl+click` on Windows/Linux,
+  `Cmd+click` on macOS) works again: it was lost in the CodeMirror 5 → 6
+  migration, where the editor was created without multi-selection support, so
+  every selection was collapsed to a single cursor
+  [AdguardBrowserExtension#3607].
 
 ### Security
 
@@ -218,3 +253,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.1]: https://github.com/AdguardTeam/RulesEditor/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/AdguardTeam/RulesEditor/releases/tag/v1.0.0
+
+[AdguardBrowserExtension#3607]: https://github.com/AdguardTeam/AdguardBrowserExtension/issues/3607

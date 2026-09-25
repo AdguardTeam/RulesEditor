@@ -17,7 +17,7 @@ export {
 export { getHtmlRenderer } from './tokenizers/get-html-renderer';
 export { normalizeTokens, Token } from './lib/utils';
 export type { RuleTokens } from './lib/utils';
-export type { TokenSegment } from './lib/types';
+export type { TokenSegment, HotkeyMode } from './lib/types';
 export {
     WasmLoadError,
     GrammarNotFoundError,
