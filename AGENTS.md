@@ -13,6 +13,7 @@
     - [System Design](#system-design)
     - [Architecture](#architecture)
     - [Code Quality](#code-quality)
+    - [CodeMirror Integration](#codemirror-integration)
     - [Testing](#testing)
     - [Dependencies](#dependencies)
     - [Configuration \& Documentation](#configuration--documentation)
@@ -103,6 +104,11 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for the full command list and for how
 `package.json` derives its release version from `CHANGELOG.md` (it has no
 `version` field).
 
+Do not add a `packageManager` field to `package.json`. Corepack appends it
+automatically when pnpm runs in a repo without one; the `engines.pnpm`
+constraint is enough for version pinning. If Corepack added the field,
+revert it before committing (`git checkout package.json`).
+
 ## Contribution Instructions
 
 - You MUST verify it with linter, formatter, and type checker.
@@ -149,6 +155,11 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for the full command list and for how
   code, check if you can phrase it as a code guideline. If it's
   possible, add it to the relevant Code Guidelines section in
   `AGENTS.md`.
+
+- When a task adds or changes a rule in `AGENTS.md`, the same task MUST
+  comply with the new rule — for example, adding a "no ticket numbers in
+  comments" rule requires dropping the ticket prefixes from the comments
+  in that very change. Reviewers diff the rules against the code.
 
 - After completing the task you MUST verify that the code you've
   written follows the Code Guidelines in this file.
@@ -233,11 +244,71 @@ Shared library (lib/registry, lib/utils, lib/errors)
   registry's `ensureRegistry` memoizes its `readyPromise`, so the
   WASM and registry initialization runs at most once per page; the
   try/catch only wraps load failures into `WasmLoadError`.
+- **Comments describe the current state** — code comments explain how the
+  code works now, not how it got here. Do not reference ticket numbers
+  (e.g. `AG-12345`) or change history in comments; the ticket is linked via
+  the commit message and the history is recorded by git.
+- **Doc comments cover the edge cases** — when behavior differs for a
+  supported configuration (read-only editor, custom panel, missing DOM
+  node), the JSDoc must say so instead of describing only the default
+  path.
+- **Keep the export surface honest** — do not export a symbol that has no
+  importer; a helper used only inside its own module stays a module-private
+  `const` or function. Only `src/index.ts` re-exports the public API.
 - **Naming** — files use kebab-case; classes use PascalCase; enums use
   PascalCase with camelCase members; constants use camelCase.
   **Exception**: generated TextMate grammar files in `src/grammars/` use
   the standard `<scope>.tmLanguage.json` convention (e.g.
   `adblock.tmLanguage.json`).
+
+### CodeMirror Integration
+
+The editor composes built-in CodeMirror extensions with consumer-provided
+ones; keep the composition predictable and the documented bindings in
+sync with the actual keymap.
+
+- **Respect consumer configuration** — when composing built-in CodeMirror
+  extensions with consumer-provided ones (`conf.extensions`), rely on the
+  extension's defaults instead of passing explicit option values: an
+  explicit value emits a facet that clashes with the consumer's own facet
+  value and CodeMirror throws `Config merge conflict for field ...`. For
+  example, call `search()` without a config rather than
+  `search({ top: false })` — the panel defaults to the bottom anyway.
+- **Use platform scopes for platform chords** — bind a chord with `win:` /
+  `linux:` / `mac:` instead of `key:` when it belongs to one platform.
+  `key:` applies on every platform and silently shadows another platform's
+  default (e.g. `key: 'Ctrl-k'` also fires on macOS, where `Ctrl+K` is
+  "delete to line end"). Name the platform in the JSDoc, README, and
+  CHANGELOG when the chord is not universal.
+- **Key handlers consume the key when a fall-through would hit a
+  destructive or browser default** — a `run` that returns `false` falls
+  through to the next binding on the same chord, which may be a
+  destructive default (`Shift-Mod-k` is `deleteLine`). On such chords
+  return `true` even when the action is a no-op (`preventDefault` alone
+  does not stop the fall-through), pin the no-match/no-op path with a
+  test, and fall back to a sensible target (e.g. the find field when the
+  replace field is missing) instead of consuming the key without any
+  effect. Handlers whose fall-through is harmless decline on purpose
+  instead: the multi-cursor commands return `false` so `defaultKeymap` can
+  still add a bare cursor, and `Escape` is left unconsumed with a single
+  cursor so the browser default keeps working.
+- **Scope panel shortcuts consistently** — a binding that must keep working
+  while the focus is inside the search panel carries
+  `scope: 'editor search-panel'`; apply the same scope to sibling bindings
+  (save, comment toggle), not only to the search ones.
+- **Document precedence** — built-in keymaps are registered before
+  `conf.extensions`. The AdGuard bindings run at `Prec.high`, so a
+  `Prec.high` consumer binding cannot shadow them (at equal precedence the
+  earlier extension wins); the stock CodeMirror keymaps (`defaultKeymap`,
+  `historyKeymap`, `searchKeymap`) run at the default precedence instead, so
+  a `Prec.high` consumer binding does shadow those. Document the precedence
+  and the `Prec.highest(...)` escape hatch in the README rather than
+  reordering the built-ins, which would silently change behavior for every
+  consumer.
+- **Docs mirror the keymap** — the README hotkey list and the CHANGELOG
+  MUST match the complete set of bindings, including bindings you did not
+  touch and per-platform qualifiers; audit the whole list when adding or
+  changing a binding.
 
 ### Testing
 
@@ -252,6 +323,19 @@ Shared library (lib/registry, lib/utils, lib/errors)
   them back from strings.
 - Tokenizer tests verify token output against expected arrays.
 - No mocking is used — tests exercise real module code.
+- CodeMirror resolves the platform once, when `@codemirror/view` is first
+  evaluated, and jsdom leaves `navigator.platform` empty, so only the
+  platform-neutral `key` map resolves there. Platform-specific bindings
+  are covered by one file per platform
+  (`test/hot-keys-platform-mac.test.ts`,
+  `test/hot-keys-platform-windows.test.ts`,
+  `test/hot-keys-platform-linux.test.ts`) that stubs `navigator.platform`
+  before dynamically importing the editor modules — the platform cannot be
+  switched between tests. Real-browser delivery of platform- or
+  OS-reserved chords still needs manual verification.
+- Extract a helper (`mountEditor`, `pressKey`) once the same
+  mount/config/teardown block repeats in several tests — keep the shared
+  setup and config in one place instead of copying it into every test.
 
 ### Dependencies
 
@@ -289,6 +373,13 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 - No environment variables or config files are read at runtime.
 - `README.md` documents the public API with usage examples — update it
   when the public interface changes.
+- **Every documented config option must be real** — an option kept for
+  backwards compatibility after it stopped affecting behavior must say so
+  in its JSDoc and in the README table; the docs must not imply behavior
+  the code does not implement.
+- `AGENTS.md` is the canonical home for project rules; other docs
+  (`DEVELOPMENT.md`, `README.md`) link to it instead of restating the same
+  rule, so the copies cannot drift.
 - Grammar JSON files in `src/grammars/` are generated by
   `pnpm run update-grammars` — do not edit them manually.
 

@@ -8,6 +8,31 @@ It provides a **CodeMirror 6** text editor with TextMate syntax highlighting
 (via WebAssembly Oniguruma backed by `vscode-textmate` + `vscode-oniguruma`)
 and a WASM-backed tokenizer for custom rule rendering.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Key Concepts](#key-concepts)
+- [Quick Start](#quick-start)
+    - [Editor](#editor)
+        - [Theming](#theming)
+        - [Highlighting strategy](#highlighting-strategy)
+        - [Multi-cursor editing](#multi-cursor-editing)
+    - [Tokenizing a Rule](#tokenizing-a-rule)
+    - [Inspecting a Line (scope debugging)](#inspecting-a-line-scope-debugging)
+- [API](#api)
+    - [`initEditor`](#initeditor)
+        - [Hotkeys](#hotkeys)
+    - [`getTokenizer`](#gettokenizer)
+    - [`inspectLine`](#inspectline)
+    - [Rendering tokens to HTML (display-only)](#rendering-tokens-to-html-display-only)
+        - [`renderTokensToHtml`](#rendertokenstohtml)
+        - [`getHtmlRenderer`](#gethtmlrenderer)
+        - [`mountHighlightStyle`](#mounthighlightstyle)
+        - [`RenderOptions`](#renderoptions)
+    - [Error Classes](#error-classes)
+- [Peer Dependencies](#peer-dependencies)
+- [Documentation](#documentation)
+
 ## Installation
 
 `vscode-oniguruma` and CodeMirror/Lezer packages are peer dependencies —
@@ -201,10 +226,77 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.onChange`               | Called after each document change                                                                                |
 | `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                      |
 | `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
+| `conf.autofocus`              | Focus the editor on creation (default `true`); pass `false` to manage focus yourself                             |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
 [keymaps](https://codemirror.net/6/docs/ref/#commands).
+
+#### Hotkeys
+
+By default the editor is focused as soon as it is created (pass
+`conf.autofocus: false` to opt out, e.g. when the host page mounts several
+editors), so editor hotkeys work immediately. `Ctrl` means Windows/Linux,
+`Cmd` means macOS — CodeMirror resolves the modifier from the user's platform
+automatically, so the bindings below ignore `conf.hotkeys.mode` (the option
+only selects the modifiers of the multi-cursor chords — see Multi-cursor
+editing above). The search panel is rendered at the bottom of the editor by
+default; pass your own `search({ top: true })` through `conf.extensions` to
+change that.
+
+- `Ctrl+F` / `Cmd+F` opens the search panel
+- `Ctrl+H` opens the search panel with the focus in the replace field
+  ("find & replace"; on Windows/Linux only — on macOS `Cmd+H` is reserved
+  by the OS/browser, so `Cmd+Alt+F` is the "find & replace" shortcut there)
+- `Ctrl+Alt+F` / `Cmd+Alt+F` opens the search panel with the focus in the
+  replace field ("find & replace") on every platform
+- `F3` or `Ctrl+G` finds the next match; `Shift+F3` or `Ctrl+Shift+G`
+  finds the previous one (on macOS: `Cmd+G` / `Cmd+Shift+G`). On
+  Windows/Linux the previous editor's `Ctrl+K` / `Ctrl+Shift+K` chords work
+  as well; on macOS `Ctrl+K` keeps its "delete to line end" default
+- `Escape` closes the search panel
+- `Ctrl+Alt+G` / `Cmd+Alt+G` moves the cursor to a line with a given number
+  ("go to line"); the previous editor's `Ctrl+L` / `Cmd+L` works as well
+- `Alt+Up` / `Alt+Down` moves the selected lines up or down
+- `Shift+Alt+Up` / `Shift+Alt+Down` copies the selected lines up or down
+  (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor)
+- `Ctrl+D` / `Cmd+D` deletes the current line or selection
+- `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
+- `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines
+
+> **Note:** the chords restored from the previous (Ace-based) editor are
+> registered before the CodeMirror defaults, so they win where both bind the
+> same key: the macOS copy-lines chord `Cmd+Option+Arrow` supersedes "add
+> cursor above/below", `Ctrl+D` / `Cmd+D` supersedes "select next
+> occurrence" with "delete line", and on Windows/Linux `Ctrl+Shift+K`
+> supersedes "delete line" with "find previous". "Select all occurrences"
+> (`Ctrl+Shift+L` / `Cmd+Shift+L`) is left as CodeMirror binds it — it acts
+> on the current selection and does nothing while no text is selected.
+
+Like the search bindings (`Ctrl+F`, `F3`, `Ctrl+G`, `Escape`), the
+find & replace, save, and comment-toggle shortcuts also work while the focus
+is inside the open search panel.
+
+The built-in keymaps are registered before `conf.extensions`. The AdGuard
+bindings (line operations, multi-cursor, find & replace, save, and comment
+toggle) run at `Prec.high`, and at equal precedence the earlier extension
+wins, so a `Prec.high` binding added through `conf.extensions` cannot shadow
+them — the built-in binding is consulted first. The stock CodeMirror keymaps
+(`defaultKeymap`, `historyKeymap`, `searchKeymap`) run at the default
+precedence instead, so a `Prec.high` binding in `conf.extensions` does
+shadow them — `Mod-f` from `searchKeymap` is one example. To override an
+AdGuard binding as well, raise the precedence of your keymap above the
+built-ins with `Prec.highest(...)`:
+
+```typescript
+import { Prec } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
+
+extensions: [
+    // Overrides the AdGuard `Prec.high` bindings (and the stock keymaps).
+    Prec.highest(keymap.of([{ key: 'Mod-s', run: mySaveCommand }])),
+]
+```
 
 ### `getTokenizer`
 

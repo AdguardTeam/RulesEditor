@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `conf.autofocus` option for `initEditor` — pass `autofocus: false` when the
+  host page manages focus itself (e.g. several editors on one page), so the
+  editor does not steal focus on creation.
+- Shortcuts of the previous (Ace-based) editor, restored in place of the
+  CodeMirror defaults that reused the same chords: `Ctrl+K` / `Ctrl+Shift+K`
+  on Windows/Linux find the next / previous match (`Ctrl+Shift+K` was
+  "delete line"), `Ctrl+L` / `Cmd+L` opens go to line,
+  `Cmd+Option+ArrowUp` / `Cmd+Option+ArrowDown` on macOS copy lines up /
+  down (was "add cursor above / below"), and `Ctrl+D` / `Cmd+D` deletes the
+  current line (was "select next occurrence").
 - Multi-cursor keyboard shortcuts matching the previous Ace-based editor:
   `Ctrl+Alt+Up` / `Ctrl+Alt+Down` add a cursor above / below, their `Shift`
   variants move the last cursor instead (with a single cursor the first press
@@ -46,6 +56,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Search hotkeys are restored in the editor: `Ctrl+F` opens the search panel
+  and `Ctrl+H` opens it with the focus in the replace field ("find &
+  replace") — on macOS `Cmd+H` is reserved by the OS/browser, so find &
+  replace there is covered by `Ctrl+Alt+F` / `Cmd+Alt+F`, which is bound on
+  every platform. The editor is now focused on initialization, so the
+  shortcuts work immediately after the editor is opened, and the search
+  panel is rendered at the bottom of the editor. When the panel has no
+  replace field (a read-only editor or a custom search panel), the shortcut
+  focuses the find field — or the first input of a custom panel — instead
+  of being swallowed.
+- The save (`Ctrl+S` / `Cmd+S`) and comment-toggle (`Ctrl+/` / `Cmd+/`)
+  shortcuts now also work while the focus is inside the open search panel,
+  instead of falling through to the browser.
+- `Ctrl+D` / `Cmd+D` (delete line) is consumed as a no-op in a read-only
+  editor instead of falling through to CodeMirror's "select next
+  occurrence", which moved the selection.
 - Multi-line editing with modifier+click (`Ctrl+click` on Windows/Linux,
   `Cmd+click` on macOS) works again: it was lost in the CodeMirror 5 → 6
   migration, where the editor was created without multi-selection support, so

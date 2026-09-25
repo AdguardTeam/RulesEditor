@@ -107,6 +107,10 @@ finalization in release PRs, which has no ticket number) use a
 
 [Conventional Commits]: https://www.conventionalcommits.org/en/v1.0.0/
 
+Ticket references belong in the commit message; the rules for code
+comments are defined in the Code Quality guidelines of
+[AGENTS.md](AGENTS.md).
+
 ## Project Structure
 
 See [AGENTS.md](AGENTS.md) for detailed project structure and

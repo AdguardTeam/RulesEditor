@@ -5,7 +5,7 @@ import {
     redo,
 } from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { search } from '@codemirror/search';
+import { search, searchKeymap } from '@codemirror/search';
 import { EditorState, type Extension } from '@codemirror/state';
 import {
     drawSelection,
@@ -21,7 +21,7 @@ import {
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
-import { configureHotKeys, createMarker } from './commands/hot-keys';
+import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
@@ -50,6 +50,14 @@ export interface InitEditorConfig {
      * {@link HighlightMode}.
      */
     highlight?: HighlightMode;
+
+    /**
+     * Whether to focus the editor as soon as it is created so that hotkeys
+     * (Ctrl+F/Ctrl+H/Ctrl+S, etc.) work immediately. Defaults to `true`.
+     * Pass `false` when the host page manages focus itself, e.g. when
+     * several editors are mounted on one page.
+     */
+    autofocus?: boolean;
 
     /**
      * Enables the enabled-rule gutter.
@@ -115,6 +123,10 @@ export interface InitEditorConfig {
  * Initializes a CodeMirror 6 editor with adblock TextMate highlighting and the
  * AdGuard rule-editing extensions, replacing the provided textarea.
  *
+ * The created editor is focused immediately by default (unless
+ * {@link InitEditorConfig.autofocus} is `false`), so editor hotkeys
+ * (Ctrl+F/Ctrl+H, Ctrl+S, etc.) work right after this promise resolves.
+ *
  * @param element The textarea to replace.
  * @param wasm The Oniguruma WASM source (URL/string/Response/ArrayBuffer/
  *   Promise/thunk); URL/string inputs are fetched. Only required when
@@ -145,6 +157,14 @@ export async function initEditor(
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
+        // The previous editor's chords are registered before the CodeMirror
+        // defaults and at `Prec.high`: some of them intentionally supersede a
+        // default that binds the same chord (`Mod-d` — select next occurrence;
+        // macOS `Cmd+Alt+Arrow` — add cursor above/below; Windows/Linux
+        // `Ctrl+Shift+K` — delete line), and the macOS `Cmd+Option+Arrow`
+        // copy-lines chords win over the multi-cursor bindings of
+        // `configureHotKeys`, which share the chord in `'windows'` mode.
+        configureAceParityKeys(),
         // Restores multi-cursor editing lost in the CodeMirror 5→6 migration,
         // where the editor was created without multi-selection support.
         // `allowMultipleSelections` prevents every transaction from being
@@ -160,12 +180,19 @@ export async function initEditor(
         keymap.of([
             ...defaultKeymap,
             ...historyKeymap,
-            // `historyKeymap` binds redo to `Mod-y` on Windows (its
-            // `Ctrl-Shift-z` entry is scoped to Linux only), so Ctrl+Shift+Z did
-            // nothing on Windows. Bind the conventional redo shortcut on every
-            // platform.
+            // `historyKeymap` binds redo to `Mod-y` on Windows only — its
+            // `Ctrl-Shift-z` entry is scoped to Linux — so the conventional
+            // redo shortcut is bound on every platform.
             { key: 'Mod-Shift-z', run: redo, preventDefault: true },
         ]),
+        // `search()` provides the search state and the panel, but does not
+        // include the keymap — the standard search bindings (Ctrl+F, F3/Mod-g,
+        // Escape) are registered here (`Mod-d` from `searchKeymap` is
+        // shadowed by the delete-line parity binding above). The panel
+        // defaults to the bottom of the editor, and no config is passed on
+        // purpose: an explicit `top` would conflict with a consumer's own
+        // `search({ top: ... })` extension.
+        keymap.of(searchKeymap),
         search(),
         configureHotKeys({
             mode: conf.hotkeys.mode,
@@ -219,6 +246,17 @@ export async function initEditor(
         element.form.addEventListener('submit', () => {
             element.value = view.state.doc.toString();
         });
+    }
+
+    // Focus the editor as soon as it is created so that keyboard shortcuts
+    // (Ctrl+F find, Ctrl+H find & replace, Ctrl+S save, etc.) work
+    // immediately after the editor is opened, without requiring the user to
+    // click inside it first. CodeMirror keymaps only respond to keydown
+    // events dispatched on the focused content DOM. Consumers that manage
+    // focus themselves (e.g. multiple editors on one page) opt out with
+    // `autofocus: false`.
+    if (conf.autofocus !== false) {
+        view.focus();
     }
 
     return view;

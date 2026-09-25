@@ -1,10 +1,16 @@
 import {
     copyLineDown,
     copyLineUp,
+    deleteLine,
     moveLineDown,
     moveLineUp,
 } from '@codemirror/commands';
-import { openSearchPanel } from '@codemirror/search';
+import {
+    findNext,
+    findPrevious,
+    gotoLine,
+    openSearchPanel,
+} from '@codemirror/search';
 import {
     type ChangeSpec,
     type EditorState,
@@ -17,7 +23,7 @@ import { type EditorView, type KeyBinding, keymap } from '@codemirror/view';
 import type { HotkeyMode } from '../lib/types';
 import { isCommentLine } from '../lib/utils';
 
-import { isBreakpointAt, toggleBreakpoint } from './breakpoints';
+import { toggleBreakpoint } from './breakpoints';
 import {
     addCursorAbove,
     addCursorAboveSkipCurrent,
@@ -122,6 +128,112 @@ function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boole
 }
 
 /**
+ * Opens the search panel with the focus placed in the replace field, so the
+ * "find & replace" shortcuts land the user directly in the replace input.
+ *
+ * The default CodeMirror search panel renders the replace field only when the
+ * editor is editable (a read-only editor drops it), and a custom panel may
+ * not render an input named `replace` at all. When no replace field is found,
+ * the focus falls back to the find field of the default panel; a custom panel
+ * (a consumer's `search({ createPanel })`) does not carry the built-in
+ * panel's `cm-search` class, so the focus falls back further to the first
+ * input of the open panel. The shortcut therefore still lands the user inside
+ * the panel instead of being swallowed with the focus left wherever it was.
+ *
+ * @param view The editor view.
+ *
+ * @returns `true` so the keymap consumes the event.
+ */
+const openFindAndReplace = (view: EditorView): boolean => {
+    openSearchPanel(view);
+
+    // The input names are part of the default panel DOM rendered by
+    // @codemirror/search and are stable across minor versions.
+    const replaceField = view.dom.querySelector<HTMLInputElement>(
+        '.cm-panel.cm-search input[name="replace"]',
+    );
+    if (replaceField) {
+        replaceField.focus();
+        replaceField.select();
+        return true;
+    }
+
+    // The `cm-search` class is only set by the built-in search panel; with a
+    // custom consumer panel it matches nothing, so fall back to the first
+    // input of any open panel.
+    const findField = view.dom.querySelector<HTMLInputElement>(
+        '.cm-panel.cm-search input[name="search"]',
+    ) ?? view.dom.querySelector<HTMLInputElement>('.cm-panel input');
+    findField?.focus();
+
+    return true;
+};
+
+/**
+ * Builds the keymap that restores the shortcut set of the previous
+ * (Ace-based) editor, so filter maintainers keep their muscle memory:
+ * `Ctrl+K` / `Ctrl+Shift+K` for find next / previous on Windows/Linux,
+ * `Ctrl+L` / `Cmd+L` for go to line, `Cmd+Option+ArrowUp/Down` for copying
+ * lines on macOS, and `Ctrl+D` / `Cmd+D` for deleting a line.
+ *
+ * These chords intentionally supersede CodeMirror defaults that reuse them
+ * ("select next occurrence" on `Mod-d`, "add cursor above" / "below" on
+ * macOS `Cmd+Option+Arrow`, "delete line" on Windows/Linux `Ctrl+Shift+K`).
+ * The keymap is registered before the built-in `defaultKeymap` /
+ * `searchKeymap` at `Prec.high`, so it also beats the multi-cursor bindings
+ * of `configureHotKeys` on the shared macOS `Cmd+Option+Arrow` chord — see
+ * `init-editor.ts`.
+ *
+ * @returns A CodeMirror 6 keymap extension.
+ */
+export function configureAceParityKeys(): Extension {
+    return Prec.high(keymap.of([
+        // The Windows/Linux chords of Ace's `findnext` / `findprevious`;
+        // macOS keeps `Cmd+G` / `Cmd+Shift+G` from `searchKeymap`, and its
+        // `Ctrl+K` stays "delete to line end" (Ace's `removetolineend`).
+        // The wrappers always consume the key: `findNext` / `findPrevious`
+        // return `false` when the query has no match, and a `false` lets the
+        // keydown fall through to the next binding on the chord — on
+        // Windows/Linux `Ctrl+Shift+K` would hit `Shift-Mod-k` (delete line)
+        // from the default keymap.
+        {
+            win: 'Ctrl-k',
+            linux: 'Ctrl-k',
+            run: (view): boolean => {
+                findNext(view);
+                return true;
+            },
+            shift: (view): boolean => {
+                findPrevious(view);
+                return true;
+            },
+            scope: 'editor search-panel',
+        },
+        // Ace's `gotoline`; `Ctrl+Alt+G` / `Cmd+Alt+G` from `searchKeymap`
+        // stays available as well.
+        { key: 'Mod-l', run: gotoLine, scope: 'editor search-panel' },
+        // Ace copied lines with `Cmd+Option+Arrow` on macOS; Windows keeps
+        // `Shift-Alt-Arrow` from `configureHotKeys`, and the CodeMirror
+        // default on this chord ("add cursor above/below") stays intact off
+        // macOS.
+        { mac: 'Mod-Alt-ArrowUp', run: copyLineUp },
+        { mac: 'Mod-Alt-ArrowDown', run: copyLineDown },
+        // Ace's `removeline`, which CodeMirror replaces with "select next
+        // occurrence" on the same chord. The wrapper always consumes the key:
+        // `deleteLine` returns `false` in a read-only editor, and a
+        // fall-through would reach `selectNextOccurrence` from the search
+        // keymap and move the selection.
+        {
+            key: 'Mod-d',
+            run: (view): boolean => {
+                deleteLine(view);
+                return true;
+            },
+        },
+    ]));
+}
+
+/**
  * Toggles an adblock comment (`! `) at the beginning of every selected line,
  * for every selection range. If all selected lines are already commented they
  * are uncommented, otherwise every line gets a `! ` prefix.
@@ -144,6 +256,11 @@ export function toggleAdblockComment(view: EditorView): boolean {
  * `Cmd+Option+Left/Right` for previous/next tab, so those shortcuts would never
  * reach the editor. `mode` selects the modifiers of the multi-cursor bindings
  * only; every other binding uses `Mod` in both modes.
+ *
+ * The find & replace, comment-toggle, and save bindings are scoped to
+ * `editor search-panel`, so they keep working while the focus is inside the
+ * open search panel — without the scope the keydown consumes nothing there
+ * and falls through to the browser.
  *
  * @param handlers Multi-cursor binding configuration and the toggle-rule /
  *   save callbacks.
@@ -210,7 +327,14 @@ export function configureHotKeys(handlers: {
         { key: 'Shift-Alt-ArrowUp', run: copyLineUp },
         { key: 'Shift-Alt-ArrowDown', run: copyLineDown },
         ...multiCursorBindings,
-        { key: 'Mod-h', run: openSearchPanel },
+        // Ctrl+H opens the search panel with the focus in the replace field
+        // ("find & replace"). On macOS this binding is inert — Cmd+H is
+        // reserved by the OS/browser ("hide application") — so Cmd+Alt+F
+        // covers find & replace there, matching the previous editor.
+        // The scope matches the search panel so the shortcut also works
+        // while the focus is inside the open panel.
+        { key: 'Mod-h', run: openFindAndReplace, scope: 'editor search-panel' },
+        { key: 'Mod-Alt-f', run: openFindAndReplace, scope: 'editor search-panel' },
         {
             key: 'Mod-/',
             run: (view): boolean => {
@@ -227,6 +351,7 @@ export function configureHotKeys(handlers: {
                 }
                 return toggleCommentOnLines(view, lines);
             },
+            scope: 'editor search-panel',
         },
         {
             key: 'Mod-s',
@@ -234,8 +359,7 @@ export function configureHotKeys(handlers: {
                 handlers.onSave?.(view);
                 return true;
             },
+            scope: 'editor search-panel',
         },
     ]));
 }
-
-export { toggleBreakpoint, isBreakpointAt };
