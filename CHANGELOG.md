@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.3-beta.0] - 2026-10-14
+
+### Added
+
 - `conf.autofocus` option for `initEditor` — pass `autofocus: false` when the
   host page manages focus itself (e.g. several editors on one page), so the
   editor does not steal focus on creation.
@@ -50,10 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ctrl+/` / `Cmd+/` now toggles the adblock comment (and the enabled-rule
   marker) for the line under every cursor, not only for the main one.
 
-### Deprecated
-
-### Removed
-
 ### Fixed
 
 - Search hotkeys are restored in the editor: `Ctrl+F` opens the search panel
@@ -77,8 +87,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migration, where the editor was created without multi-selection support, so
   every selection was collapsed to a single cursor
   [AdguardBrowserExtension#3607].
-
-### Security
 
 ## [2.0.2] - 2026-09-07
 
@@ -257,7 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...HEAD
+[2.0.3-beta.0]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...v2.0.3-beta.0
 [2.0.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/AdguardTeam/RulesEditor/compare/v1.3.3...v2.0.0
