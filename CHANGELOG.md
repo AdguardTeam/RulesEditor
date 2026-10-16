@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The search panel and the go-to-line dialog no longer let a double-click or
+  a drag select the text of their buttons and labels; the input fields keep
+  the browser's text selection, so the query stays selectable and copyable.
+
 ### Security
 
 ## [2.0.3-beta.0] - 2026-10-14

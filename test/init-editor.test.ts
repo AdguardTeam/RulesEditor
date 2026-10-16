@@ -171,6 +171,37 @@ test('Ctrl+F opens the search panel at the bottom of the editor', async () => {
     view.destroy();
 });
 
+test('the search panel chrome is not selectable, its fields are', async () => {
+    const view = await mountEditor(initEditor);
+
+    pressCtrlKey(view, 'f');
+    const panel = view.dom.querySelector('.cm-panel.cm-search');
+    const findField = view.dom.querySelector('.cm-panel.cm-search input[name="search"]');
+    expect(panel).not.toBeNull();
+    expect(findField).not.toBeNull();
+
+    // The panel is an editor control: a double-click or a drag on its buttons
+    // and labels must not select their text. The fields keep the browser
+    // default so the query stays selectable and copyable.
+    expect(getComputedStyle(panel!).userSelect).toBe('none');
+    expect(getComputedStyle(findField!).userSelect).toBe('text');
+    view.destroy();
+});
+
+test('the go-to-line dialog chrome is not selectable, its field is', async () => {
+    const view = await mountEditor(initEditor);
+
+    pressKey(view.contentDOM, 'l', { ctrl: true });
+    const dialog = view.dom.querySelector('.cm-panel.cm-dialog');
+    const lineField = view.dom.querySelector('.cm-panel.cm-dialog input[name="line"]');
+    expect(dialog).not.toBeNull();
+    expect(lineField).not.toBeNull();
+
+    expect(getComputedStyle(dialog!).userSelect).toBe('none');
+    expect(getComputedStyle(lineField!).userSelect).toBe('text');
+    view.destroy();
+});
+
 test('allows consumers to configure the search panel via conf.extensions', async () => {
     const view = await mountEditor(initEditor, {
         // Consumers may pass their own search extension (e.g. to pin the

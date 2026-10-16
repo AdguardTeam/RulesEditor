@@ -296,6 +296,13 @@ sync with the actual keymap.
   while the focus is inside the search panel carries
   `scope: 'editor search-panel'`; apply the same scope to sibling bindings
   (save, comment toggle), not only to the search ones.
+- **Keep panel chrome out of text selection** — the search panel and the
+  go-to-line dialog are editor controls, not document content, so a
+  double-click or a drag on their buttons and labels must not select their
+  text: `init-editor.ts` sets `user-select: none` on both panels. Their text
+  fields keep the browser default (`user-select: text`), so the query stays
+  selectable and copyable — a blanket rule on the panel would take that away
+  from the user.
 - **Document precedence** — built-in keymaps are registered before
   `conf.extensions`. The AdGuard bindings run at `Prec.high`, so a
   `Prec.high` consumer binding cannot shadow them (at equal precedence the

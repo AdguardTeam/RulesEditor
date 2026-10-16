@@ -242,7 +242,9 @@ automatically, so the bindings below ignore `conf.hotkeys.mode` (the option
 only selects the modifiers of the multi-cursor chords — see Multi-cursor
 editing above). The search panel is rendered at the bottom of the editor by
 default; pass your own `search({ top: true })` through `conf.extensions` to
-change that.
+change that. The panel's buttons and labels are not selectable as text — a
+double-click or a drag on them selects nothing — while the input fields keep
+the browser's text selection, so a query can still be selected and copied.
 
 - `Ctrl+F` / `Cmd+F` opens the search panel
 - `Ctrl+H` opens the search panel with the focus in the replace field

@@ -194,6 +194,17 @@ export async function initEditor(
         // `search({ top: ... })` extension.
         keymap.of(searchKeymap),
         search(),
+        // The search panel and the go-to-line dialog are editor controls, not
+        // document content: a double-click or a drag on their buttons and
+        // labels must not select their text. The text fields keep the browser
+        // default, so the query stays selectable and copyable — a blanket
+        // `user-select: none` on the panel would take that away from the user.
+        // A consumer's custom panel (`search({ createPanel })`) carries no
+        // `cm-search` class and keeps the browser default.
+        EditorView.baseTheme({
+            '.cm-panel.cm-search, .cm-panel.cm-dialog': { userSelect: 'none' },
+            '.cm-panel.cm-search input, .cm-panel.cm-dialog input': { userSelect: 'text' },
+        }),
         configureHotKeys({
             mode: conf.hotkeys.mode,
             withMultipleSelections,
