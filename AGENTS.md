@@ -297,12 +297,19 @@ sync with the actual keymap.
   `scope: 'editor search-panel'`; apply the same scope to sibling bindings
   (save, comment toggle), not only to the search ones.
 - **Keep panel chrome out of text selection** — the search panel and the
-  go-to-line dialog are editor controls, not document content, so a
+  editor's dialogs are editor controls, not document content, so a
   double-click or a drag on their buttons and labels must not select their
-  text: `init-editor.ts` sets `user-select: none` on both panels. Their text
-  fields keep the browser default (`user-select: text`), so the query stays
-  selectable and copyable — a blanket rule on the panel would take that away
-  from the user.
+  text: `init-editor.ts` sets `user-select: none` on `.cm-panel.cm-search`
+  and `.cm-panel.cm-dialog`, and `user-select: text` on the form controls
+  inside them, so the query stays selectable and copyable — a blanket rule on
+  the panel would take that away from the user. Both selectors reach wider
+  than the panels the library binds: `cm-dialog` matches every dialog opened
+  with CodeMirror's `showDialog` (a consumer's own dialog included, whose
+  non-form content loses text selection), and `baseTheme` rules are mounted
+  per document root under a class every CodeMirror editor shares, so the rule
+  also applies to other editors on the page. The base-theme layer is what
+  keeps the rule below consumer themes and overridable; state the whole scope
+  in the code comment, the README and the CHANGELOG when the rule changes.
 - **Document precedence** — built-in keymaps are registered before
   `conf.extensions`. The AdGuard bindings run at `Prec.high`, so a
   `Prec.high` consumer binding cannot shadow them (at equal precedence the

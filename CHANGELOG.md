@@ -17,9 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The search panel and the go-to-line dialog no longer let a double-click or
-  a drag select the text of their buttons and labels; the input fields keep
-  the browser's text selection, so the query stays selectable and copyable.
+- The search panel and the editor's dialogs no longer let a double-click or
+  a drag select the text of their buttons and labels; their form controls
+  (`input`, `textarea`, `select`) keep the browser's text selection, so a
+  query stays selectable and copyable. The rule covers every dialog opened
+  with CodeMirror's `showDialog` and, as a base theme, also applies to other
+  CodeMirror 6 editors on the same page.
 
 ### Security
 

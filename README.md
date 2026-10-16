@@ -245,6 +245,13 @@ default; pass your own `search({ top: true })` through `conf.extensions` to
 change that. The panel's buttons and labels are not selectable as text — a
 double-click or a drag on them selects nothing — while the input fields keep
 the browser's text selection, so a query can still be selected and copied.
+The same applies to every CodeMirror dialog opened in the editor, the
+go-to-line dialog and a dialog a consumer opens with `showDialog` included:
+their form controls (`input`, `textarea`, `select`) stay selectable, their
+other content does not. The rule is a base theme, so it sits below consumer
+themes — add your own theme to override it — and, like every base theme, it
+is not limited to this editor: it also applies to other CodeMirror 6 editors
+on the same page.
 
 - `Ctrl+F` / `Cmd+F` opens the search panel
 - `Ctrl+H` opens the search panel with the focus in the replace field
