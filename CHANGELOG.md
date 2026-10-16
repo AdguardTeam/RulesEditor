@@ -17,14 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [2.0.3-beta.1] - 2026-10-16
+
+### Fixed
+
 - The search panel and the editor's dialogs no longer let a double-click or
   a drag select the text of their buttons and labels; their form controls
   (`input`, `textarea`, `select`) keep the browser's text selection, so a
   query stays selectable and copyable. The rule covers every dialog opened
   with CodeMirror's `showDialog` and, as a base theme, also applies to other
   CodeMirror 6 editors on the same page.
-
-### Security
 
 ## [2.0.3-beta.0] - 2026-10-14
 
@@ -272,7 +276,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.1...HEAD
+[2.0.3-beta.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...v2.0.3-beta.1
 [2.0.3-beta.0]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...v2.0.3-beta.0
 [2.0.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.0...v2.0.1
