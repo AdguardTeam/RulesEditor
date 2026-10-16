@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { undo } from '@codemirror/commands';
 import { search, searchPanelOpen } from '@codemirror/search';
 import { EditorState, Prec } from '@codemirror/state';
-import { type EditorView, keymap } from '@codemirror/view';
+import { type EditorView, keymap, showDialog } from '@codemirror/view';
 import {
     beforeEach,
     expect,
@@ -171,6 +171,68 @@ test('Ctrl+F opens the search panel at the bottom of the editor', async () => {
     view.destroy();
 });
 
+test('the search panel chrome is not selectable, its fields are', async () => {
+    const view = await mountEditor(initEditor);
+
+    pressCtrlKey(view, 'f');
+    const panel = view.dom.querySelector('.cm-panel.cm-search');
+    const findField = view.dom.querySelector('.cm-panel.cm-search input[name="search"]');
+    const replaceField = view.dom.querySelector(
+        '.cm-panel.cm-search input[name="replace"]',
+    );
+    expect(panel).not.toBeNull();
+    expect(findField).not.toBeNull();
+    expect(replaceField).not.toBeNull();
+
+    // The panel is an editor control: a double-click or a drag on its buttons
+    // and labels must not select their text. The fields keep the browser
+    // default so the query stays selectable and copyable.
+    expect(getComputedStyle(panel!).userSelect).toBe('none');
+    expect(getComputedStyle(findField!).userSelect).toBe('text');
+    expect(getComputedStyle(replaceField!).userSelect).toBe('text');
+    view.destroy();
+});
+
+test('the go-to-line dialog chrome is not selectable, its field is', async () => {
+    const view = await mountEditor(initEditor);
+
+    pressKey(view.contentDOM, 'l', { ctrl: true });
+    const dialog = view.dom.querySelector('.cm-panel.cm-dialog');
+    const lineField = view.dom.querySelector('.cm-panel.cm-dialog input[name="line"]');
+    expect(dialog).not.toBeNull();
+    expect(lineField).not.toBeNull();
+
+    expect(getComputedStyle(dialog!).userSelect).toBe('none');
+    expect(getComputedStyle(lineField!).userSelect).toBe('text');
+    view.destroy();
+});
+
+test('a consumer dialog keeps its form controls selectable', async () => {
+    const view = await mountEditor(initEditor);
+
+    // `cm-dialog` matches every dialog opened with CodeMirror's `showDialog`,
+    // not only the go-to-line one, so the theme also applies to a dialog a
+    // consumer opens on this editor: its chrome is not selectable, its form
+    // controls are.
+    showDialog(view, {
+        content: () => {
+            const form = document.createElement('form');
+            const input = document.createElement('input');
+            const textarea = document.createElement('textarea');
+            form.appendChild(input);
+            form.appendChild(textarea);
+            return form;
+        },
+    });
+    const dialog = view.dom.querySelector('.cm-panel.cm-dialog');
+    expect(dialog).not.toBeNull();
+
+    expect(getComputedStyle(dialog!).userSelect).toBe('none');
+    expect(getComputedStyle(dialog!.querySelector('input')!).userSelect).toBe('text');
+    expect(getComputedStyle(dialog!.querySelector('textarea')!).userSelect).toBe('text');
+    view.destroy();
+});
+
 test('allows consumers to configure the search panel via conf.extensions', async () => {
     const view = await mountEditor(initEditor, {
         // Consumers may pass their own search extension (e.g. to pin the
@@ -245,6 +307,10 @@ test('Ctrl+H focuses the first input of a custom search panel', async () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(view.dom.querySelector('.cm-panel input'));
+    // The theme's `user-select: none` is scoped to the built-in panel's
+    // `cm-search` class, so a consumer panel keeps the browser default.
+    const panel = view.dom.querySelector('.cm-panel');
+    expect(getComputedStyle(panel!).userSelect).not.toBe('none');
     view.destroy();
 });
 

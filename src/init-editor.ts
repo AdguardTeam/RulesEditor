@@ -194,6 +194,30 @@ export async function initEditor(
         // `search({ top: ... })` extension.
         keymap.of(searchKeymap),
         search(),
+        // The search panel and the editor's dialogs are editor controls, not
+        // document content: a double-click or a drag on their buttons and
+        // labels must not select their text. The form controls are content, so
+        // they keep the browser's text selection and the query stays
+        // selectable and copyable — a blanket `user-select: none` on the panel
+        // would take that away from the user. A consumer's custom search panel
+        // (`search({ createPanel })`) carries no `cm-search` class and keeps
+        // the browser default.
+        //
+        // Both halves of the selector reach further than the panels this
+        // library binds. `cm-dialog` matches every dialog opened with
+        // CodeMirror's `showDialog` — the go-to-line dialog is one of them —
+        // so the chrome of a consumer's own dialog loses text selection too,
+        // and only its form controls keep it. `baseTheme` rules are mounted
+        // into the document root under a class every CodeMirror editor shares,
+        // so the rule also applies to other editors on the page. That layer is
+        // deliberate: it sits below consumer themes, which keeps the rule
+        // overridable.
+        EditorView.baseTheme({
+            '.cm-panel.cm-search, .cm-panel.cm-dialog': {
+                userSelect: 'none',
+                '& input, & textarea, & select': { userSelect: 'text' },
+            },
+        }),
         configureHotKeys({
             mode: conf.hotkeys.mode,
             withMultipleSelections,
