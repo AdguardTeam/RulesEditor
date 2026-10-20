@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The comment toggle (`Ctrl+/` / `Cmd+/`) no longer comments an extra line
+  when a non-empty selection ends exactly at the start of a line: only the
+  lines the selection actually touches are toggled.
+
 ### Security
 
 ## [2.0.3-beta.1] - 2026-10-16

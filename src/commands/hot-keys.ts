@@ -72,7 +72,11 @@ function selectedLineNumbers(state: EditorState, ranges: readonly SelectionRange
     const numbers = new Set<number>();
     for (const range of ranges) {
         const first = state.doc.lineAt(range.from).number;
-        const last = state.doc.lineAt(range.to).number;
+        // A non-empty range that ends exactly at a line start only touches the
+        // previous line, but `lineAt(range.to)` points at the next one, so
+        // resolve the last line from the last touched character. An empty
+        // range (a plain cursor) keeps the line under the cursor.
+        const last = state.doc.lineAt(range.empty ? range.to : range.to - 1).number;
         for (let number = first; number <= last; number += 1) {
             numbers.add(number);
         }
