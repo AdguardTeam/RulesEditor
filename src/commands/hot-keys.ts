@@ -339,6 +339,12 @@ export function configureHotKeys(handlers: {
             key: 'Mod-/',
             run: (view): boolean => {
                 const { state } = view;
+                // A read-only editor must not change the text or the markers,
+                // and must not call the toggle callback. Consume the key
+                // anyway so it does not fall through to a browser default.
+                if (state.readOnly) {
+                    return true;
+                }
                 const lines = selectedLineNumbers(state, state.selection.ranges);
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
-import { enabledRuleLines } from '../src/commands/breakpoints';
+import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { toggleAdblockComment } from '../src/commands/hot-keys';
 import { initEditor } from '../src/init-editor';
+
+import { mountEditor, pressKey } from './helpers';
 
 /**
  * Creates an EditorView with the given document and optional selection range.
@@ -155,6 +157,25 @@ test('comments every line covered by a multi-line selection range', () => {
     ]);
     expect(toggleAdblockComment(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('! a.com\n! b.com\n! c.com\n! d.com');
+    view.destroy();
+});
+
+test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
+    const toggleRule = vi.fn();
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { toggleRule },
+        extensions: [EditorState.readOnly.of(true)],
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const event = pressKey(view.contentDOM, '/', { ctrl: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleRule).not.toHaveBeenCalled();
     view.destroy();
 });
 

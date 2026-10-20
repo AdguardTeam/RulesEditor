@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Ctrl+/` / `Cmd+/` is now a no-op in a read-only editor: it changes no
+  text, toggles no enabled-rule marker, and calls no `toggleRule` callback,
+  but still consumes the key.
+
 ### Security
 
 ## [2.0.3-beta.1] - 2026-10-16
