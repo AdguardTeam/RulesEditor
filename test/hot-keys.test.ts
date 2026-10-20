@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { isolateHistory, redo, undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, test, vi } from 'vitest';
@@ -160,6 +161,242 @@ test('comments every line covered by a multi-line selection range', () => {
     view.destroy();
 });
 
+/**
+ * Mounts an editor with the enabled-rule gutter and a toggle-rule counter,
+ * replaces the document with the given text, and selects the whole document.
+ *
+ * @param doc The document text.
+ *
+ * @returns The mounted view and a function returning the callback call count.
+ */
+async function mountEditorWithSelection(doc: string): Promise<{
+    view: EditorView;
+    toggleCount: () => number;
+}> {
+    let toggles = 0;
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: {
+            toggleRule: () => { toggles += 1; },
+        },
+    });
+    view.dispatch({
+        changes: { from: 0, insert: doc },
+        selection: { anchor: 0, head: doc.length },
+        // Keep the setup insertion out of the undo step of the first toggle,
+        // so an undo test reverts only the toggle.
+        annotations: isolateHistory.of('after'),
+    });
+    return { view, toggleCount: () => toggles };
+}
+
+test('keeps an enabled rule enabled after a comment and uncomment cycle', async () => {
+    let toggles = 0;
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: {
+            toggleRule: () => { toggles += 1; },
+        },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggles).toBe(2);
+    view.destroy();
+});
+
+test('toggles the marker only for the rule line of a mixed selection', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! note\n||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ! note\n! ||a.com^');
+    // The comment line does not flip to a rule, so it gets no marker. A marker
+    // on `! ! note` would not survive `setEditorValue`, which skips comments.
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('does not leave a marker on a comment that becomes empty', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('!');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    expect(toggleCount()).toBe(0);
+    view.destroy();
+});
+
+test('drops the marker of a commented rule when the toggle empties the line', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    // Commenting a disabled rule toggles its marker on while it is a comment.
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Delete the rule text, so only the comment prefix remains.
+    view.dispatch({ changes: { from: 2, to: view.state.doc.length } });
+    expect(view.state.doc.toString()).toBe('! ');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Uncommenting the bare prefix empties the line; the marker must go too.
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('drops a directly placed marker when the line is emptied', async () => {
+    const { view } = await mountEditorWithSelection('!');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('marks a whitespace-only line, which is not empty', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('   ');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('!    ');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('   ');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    expect(toggleCount()).toBe(2);
+    view.destroy();
+});
+
+test('marks a comment line that the toggle turns into a rule', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! Title: My filter');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('Title: My filter');
+    // The command toggles the marker for every line whose rule state flips, so
+    // the uncommented header is an enabled rule like any other uncommented
+    // line. A header that is not enabled before the cycle is therefore enabled
+    // after it.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('does not mark a comment that stays a comment after uncommenting', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! ||a.com^\n! ! note');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^\n! note');
+    // The stripped `! ! note` is still a comment, so only the rule line flips.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('undoes the uncomment press together with the marker', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! ||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo re-inverts the event, so the text and the marker come back together
+    // as well.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('undoes the comment press together with the marker', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('keeps two quick comment presses as separate undo steps', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^\n||b.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // The second press must undo alone. A joined event composes the text
+    // change to nothing and resolves the effect positions in the wrong
+    // coordinate space, which leaves both markers on.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo restores each press as its own step as well.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('does not join a nearby edit with the comment toggle in the undo history', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Type directly after the inserted prefix, next to the toggle change.
+    view.dispatch({ changes: { from: 2, insert: 'x' } });
+    expect(view.state.doc.toString()).toBe('! x||a.com^');
+
+    // The typing undoes alone and keeps the marker of the commented rule.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo restores the toggle first and the typing second.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! x||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
 test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
     const toggleRule = vi.fn();
     const view = await mountEditor(initEditor, {
@@ -249,8 +486,9 @@ test('Ctrl+/ comments the line under every cursor and toggles its rule marker', 
     view.contentDOM.dispatchEvent(event);
 
     expect(view.state.doc.toString()).toBe('! ||a.com^\n||b.com^\n! ||c.com^');
-    // Both rules are marked as toggled, and the handler is called once.
+    // Both rules are marked as toggled, and the handler is called once with
+    // the final text: the callback runs after the comment is applied.
     expect(enabledRuleLines(view.state)).toEqual([1, 3]);
-    expect(toggledRules).toHaveLength(1);
+    expect(toggledRules).toEqual(['! ||a.com^']);
     view.destroy();
 });

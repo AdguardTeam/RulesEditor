@@ -1,3 +1,4 @@
+import { invertedEffects } from '@codemirror/commands';
 import {
     type EditorState,
     type Extension,
@@ -12,8 +13,22 @@ import { gutter, GutterMarker } from '@codemirror/view';
 /**
  * Effect that toggles the enabled marker for the line at the given document
  * position (the line's start offset).
+ *
+ * A dispatched value is in the transaction's start (pre-change) coordinates:
+ * `breakpointField` maps it through `tr.changes` with an association of `-1`,
+ * so a prefix inserted at the line start (the comment toggle) keeps the marker
+ * at the start of the line instead of moving it behind the prefix.
+ *
+ * The `invertedEffects` provider stores the value in post-change coordinates,
+ * because the undo transaction starts after the change. History's join path
+ * (`addChanges` → `StateEffect.mapEffects(event.effects, lastEvent.changes)`)
+ * expects a joined event's effects in its transaction's start coordinates, so
+ * any transaction that mixes `toggleBreakpoint` effects with changes must
+ * carry `isolateHistory.of('full')`.
  */
-export const toggleBreakpoint = StateEffect.define<number>();
+export const toggleBreakpoint = StateEffect.define<number>({
+    map: (value, mapping) => mapping.mapPos(value, -1),
+});
 
 /**
  * Effect that replaces the marker factory of the editor that handles it.
@@ -129,42 +144,52 @@ const breakpointField = StateField.define<BreakpointState>({
         if (factory !== value.factory) {
             markers = rebuildMarkers(markers, factory);
         }
+        // The transaction does not map its own effect values, so map them to
+        // the post-change document before matching them against `markers`.
         const toggles = tr.effects
             .filter((effect) => effect.is(toggleBreakpoint))
-            .map((effect) => effect.value);
-        if (toggles.length === 0) {
-            return { markers, factory };
-        }
-        // `RangeSet.update` rebuilds the whole set, so the toggles of one
-        // transaction are applied with a single update instead of one per
-        // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected line,
-        // and rebuilding the set per effect would make it quadratic in the
-        // number of lines. Two toggles of the same position in one transaction
-        // still cancel each other out, like the per-effect update used to.
-        const counts = new Map<number, number>();
-        toggles.forEach((pos) => {
-            counts.set(pos, (counts.get(pos) ?? 0) + 1);
-        });
-        const removed = new Set<number>();
-        const added: Range<GutterMarker>[] = [];
-        counts.forEach((count, pos) => {
-            if (count % 2 === 1) {
-                let has = false;
-                markers.between(pos, pos, () => {
-                    has = true;
-                });
-                if (has) {
-                    removed.add(pos);
-                } else {
-                    added.push(new BreakpointMarker(factory).range(pos));
+            .map((effect) => tr.changes.mapPos(effect.value, -1));
+        let nextMarkers = markers;
+        if (toggles.length > 0) {
+            // `RangeSet.update` rebuilds the whole set, so the toggles of one
+            // transaction are applied with a single update instead of one per
+            // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected
+            // line, and rebuilding the set per effect would make it quadratic
+            // in the number of lines. Two toggles of the same position in one
+            // transaction still cancel each other out, like the per-effect
+            // update used to.
+            const counts = new Map<number, number>();
+            toggles.forEach((pos) => {
+                counts.set(pos, (counts.get(pos) ?? 0) + 1);
+            });
+            const removed = new Set<number>();
+            const added: Range<GutterMarker>[] = [];
+            counts.forEach((count, pos) => {
+                if (count % 2 === 1) {
+                    let has = false;
+                    markers.between(pos, pos, () => {
+                        has = true;
+                    });
+                    if (has) {
+                        removed.add(pos);
+                    } else {
+                        added.push(new BreakpointMarker(factory).range(pos));
+                    }
                 }
-            }
-        });
-        return {
-            markers: markers.update({
+            });
+            nextMarkers = markers.update({
                 filter: (from) => !removed.has(from),
                 add: added,
                 sort: true,
+            });
+        }
+        // Enforce the `canHoldEnabledMarker` invariant on both paths: an
+        // empty line cannot hold a marker. `RangeSet.map` keeps a point range
+        // at the start of a fully deleted line, and a toggle can add a marker
+        // to a line that the same transaction empties.
+        return {
+            markers: nextMarkers.update({
+                filter: (from) => tr.state.doc.lineAt(from).length > 0,
             }),
             factory,
         };
@@ -186,6 +211,14 @@ export function breakpointState(options: {
     return [
         options.markerFactory ? markerFactory.of(options.markerFactory) : [],
         breakpointField,
+        // The toggle is its own inverse, so the same effect undoes it. The
+        // value is mapped to the state after the transaction, which is the
+        // state an undo starts from; `breakpointField` maps it again when the
+        // undo transaction is applied. This is the post-change coordinate
+        // convention described on `toggleBreakpoint`.
+        invertedEffects.of((tr) => tr.effects
+            .filter((effect) => effect.is(toggleBreakpoint))
+            .map((effect) => toggleBreakpoint.of(tr.changes.mapPos(effect.value, -1)))),
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField).markers,

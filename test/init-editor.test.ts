@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { undo } from '@codemirror/commands';
+import { undo, undoDepth } from '@codemirror/commands';
 import { search, searchPanelOpen } from '@codemirror/search';
 import { EditorState, Prec } from '@codemirror/state';
 import { type EditorView, keymap, showDialog } from '@codemirror/view';
@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 
-import { toggleBreakpoint } from '../src/commands/breakpoints';
+import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
@@ -77,6 +77,25 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
     view.destroy();
 });
 
+test('setEditorValue does not restore an enabled marker on an empty rule', async () => {
+    const view = await mountEditor(
+        initEditor,
+        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+        wasm,
+    );
+    setEditorValue(view, [
+        { enabled: true, rule: '||a.com^' },
+        { enabled: true, rule: '' },
+    ], {});
+    // The load path uses the same predicate as the comment toggle: an empty
+    // line cannot hold an enabled marker.
+    expect(getRulesFromEditor(view)).toEqual([
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '' },
+    ]);
+    view.destroy();
+});
+
 test('setEditorValue clears markers from the previous content', async () => {
     const view = await mountEditor(
         initEditor,
@@ -88,6 +107,25 @@ test('setEditorValue clears markers from the previous content', async () => {
     expect(getRulesFromEditor(view)).toEqual([
         { enabled: false, rule: '||b.com^' },
     ]);
+    view.destroy();
+});
+
+test('setEditorValue creates no undo step', async () => {
+    const view = await mountEditor(
+        initEditor,
+        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+        wasm,
+    );
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // A programmatic load is not a user edit: neither the content replacement
+    // nor the marker restore is recorded, so there is no undo state where the
+    // loaded text is gone but a marker stays on an empty line.
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 

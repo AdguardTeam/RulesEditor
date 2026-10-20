@@ -168,8 +168,18 @@ on a word character, so it selects `example.com` on the `^` of
 property escapes, so non-ASCII domains are selected as well.
 
 `Ctrl+/` / `Cmd+/` comments (or uncomments) the line under every cursor and
-toggles the enabled-rule marker on those lines, and `Ctrl+S` / `Cmd+S` triggers
-the `onSave` handler.
+toggles the enabled-rule marker on every line whose rule state flips.
+Commenting a rule toggles its marker, and uncommenting the rule toggles it
+again, so a rule keeps its enabled state across a comment and uncomment
+cycle. A disabled rule therefore gains a marker while it is a comment.
+`Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
+
+The `toggleRule` callback also fires for a comment-only selection that the
+toggle turns back into rules. A comment line in a mixed selection gets no
+marker. A line that stays a comment (`! ! note`) does not change its marker,
+while a line that becomes empty (`!`) loses any marker it had, because an
+empty line cannot hold one. Empty lines are skipped, but a whitespace-only
+line is not empty and still gets a marker.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
 for workspace switching, so those keys never reach the browser there; the mouse
@@ -217,7 +227,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `element`                     | Textarea element to attach the editor to                                                                         |
 | `wasm`                        | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
 | `conf.hotkeys.mode`           | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
-| `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint)                                                                 |
+| `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint); also fires when comments turn into rules                       |
 | `conf.hotkeys.onSave`         | Callback for Ctrl/Cmd+S                                                                                          |
 | `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker; other editors keep their own color                                |
 | `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker; other editors keep their own HTML                          |
@@ -271,7 +281,9 @@ on the same page.
   (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor)
 - `Ctrl+D` / `Cmd+D` deletes the current line or selection
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
-- `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines
+- `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines and the
+  enabled-rule marker on every line whose rule state flips, so a rule keeps
+  its enabled state across a comment and uncomment cycle
 
 > **Note:** the chords restored from the previous (Ace-based) editor are
 > registered before the CodeMirror defaults, so they win where both bind the

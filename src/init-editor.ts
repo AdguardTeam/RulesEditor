@@ -6,7 +6,7 @@ import {
 } from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
-import { EditorState, type Extension } from '@codemirror/state';
+import { EditorState, type Extension, Transaction } from '@codemirror/state';
 import {
     drawSelection,
     EditorView,
@@ -22,13 +22,17 @@ import {
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
-import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
+import {
+    canHoldEnabledMarker,
+    configureAceParityKeys,
+    configureHotKeys,
+    createMarker,
+} from './commands/hot-keys';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
 import { RegistryManager, type WasmSource } from './lib/registry';
 import type { HotkeyMode } from './lib/types';
-import { isCommentLine } from './lib/utils';
 
 export { EditorView };
 
@@ -106,7 +110,10 @@ export interface InitEditorConfig {
         markerHTML?: string;
 
         /**
-         * Called when the user toggles a rule's enabled state.
+         * Called when the user toggles a rule's enabled state. Also called for
+         * a comment-only selection that the comment toggle turns back into
+         * rules. The callback runs after the text change, so the editor
+         * already shows the final rule text and markers.
          */
         toggleRule?: (view: EditorView) => void;
 
@@ -314,6 +321,16 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * the state of `view` only: other editors on the page keep their own color
  * and HTML.
  *
+ * An `enabled` flag is restored only when the rule text can hold a marker:
+ * an empty or comment rule is never marked, so such a flag is lost in a
+ * {@link getRulesFromEditor} → `setEditorValue` round-trip. The comment toggle
+ * can still leave a marker on a line whose text is a comment; this load path
+ * does not restore such a marker.
+ *
+ * A programmatic load is not a user edit and creates no undo step: neither the
+ * content replacement nor the marker restore is recorded, so an undo cannot
+ * revert the text while it leaves the restored markers behind.
+ *
  * @param view The editor view.
  * @param value Rules with enabled flags.
  * @param markerOptions Marker color/HTML overrides for `view` only.
@@ -332,6 +349,10 @@ export function setEditorValue(
             clearBreakpoints.of(null),
             setMarkerFactory.of(createMarker(markerOptions)),
         ],
+        // A load is not a user edit. Without this annotation an undo would
+        // revert the text and map the restored markers into the reverted
+        // document, where a marker can stay on an empty line.
+        annotations: Transaction.addToHistory.of(false),
     });
 
     // All toggles go into one transaction: the breakpoint field applies the
@@ -339,7 +360,7 @@ export function setEditorValue(
     // one transaction per line would rebuild the set once per line.
     const enabled: number[] = [];
     value.forEach((v, index) => {
-        if (v.enabled && !isCommentLine(v.rule)) {
+        if (v.enabled && canHoldEnabledMarker(v.rule)) {
             const line = view.state.doc.line(index + 1);
             if (!isBreakpointAt(view.state, line.from)) {
                 enabled.push(line.from);
@@ -347,6 +368,13 @@ export function setEditorValue(
         }
     });
     if (enabled.length > 0) {
-        view.dispatch({ effects: enabled.map((from) => toggleBreakpoint.of(from)) });
+        view.dispatch({
+            effects: enabled.map((from) => toggleBreakpoint.of(from)),
+            // The marker restore is not a user edit. Without this annotation
+            // the registered `invertedEffects` provider makes the
+            // effects-only transaction a separate undo step, so the first undo
+            // after a load would strip the markers and keep the loaded text.
+            annotations: Transaction.addToHistory.of(false),
+        });
     }
 }
