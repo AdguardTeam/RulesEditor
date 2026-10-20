@@ -327,8 +327,9 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * can still leave a marker on a line whose text is a comment; this load path
  * does not restore such a marker.
  *
- * The marker restore is not a user edit and does not create an undo step: one
- * undo reverts the loaded content.
+ * A programmatic load is not a user edit and creates no undo step: neither the
+ * content replacement nor the marker restore is recorded, so an undo cannot
+ * revert the text while it leaves the restored markers behind.
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
@@ -348,6 +349,10 @@ export function setEditorValue(
             clearBreakpoints.of(null),
             setMarkerFactory.of(createMarker(markerOptions)),
         ],
+        // A load is not a user edit. Without this annotation an undo would
+        // revert the text and map the restored markers into the reverted
+        // document, where a marker can stay on an empty line.
+        annotations: Transaction.addToHistory.of(false),
     });
 
     // All toggles go into one transaction: the breakpoint field applies the

@@ -14,9 +14,17 @@ import { gutter, GutterMarker } from '@codemirror/view';
  * Effect that toggles the enabled marker for the line at the given document
  * position (the line's start offset).
  *
- * The position is mapped with an association of `-1`, so a prefix inserted at
- * the line start (the comment toggle) keeps the marker at the start of the
- * line instead of moving it behind the prefix.
+ * A dispatched value is in the transaction's start (pre-change) coordinates:
+ * `breakpointField` maps it through `tr.changes` with an association of `-1`,
+ * so a prefix inserted at the line start (the comment toggle) keeps the marker
+ * at the start of the line instead of moving it behind the prefix.
+ *
+ * The `invertedEffects` provider stores the value in post-change coordinates,
+ * because the undo transaction starts after the change. History's join path
+ * (`addChanges` → `StateEffect.mapEffects(event.effects, lastEvent.changes)`)
+ * expects a joined event's effects in its transaction's start coordinates, so
+ * any transaction that mixes `toggleBreakpoint` effects with changes must
+ * carry `isolateHistory.of('full')`.
  */
 export const toggleBreakpoint = StateEffect.define<number>({
     map: (value, mapping) => mapping.mapPos(value, -1),
@@ -198,7 +206,8 @@ export function breakpointState(options: {
         // The toggle is its own inverse, so the same effect undoes it. The
         // value is mapped to the state after the transaction, which is the
         // state an undo starts from; `breakpointField` maps it again when the
-        // undo transaction is applied.
+        // undo transaction is applied. This is the post-change coordinate
+        // convention described on `toggleBreakpoint`.
         invertedEffects.of((tr) => tr.effects
             .filter((effect) => effect.is(toggleBreakpoint))
             .map((effect) => toggleBreakpoint.of(tr.changes.mapPos(effect.value, -1)))),

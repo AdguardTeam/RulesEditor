@@ -107,12 +107,12 @@ function allLinesAreComments(state: EditorState, lines: readonly number[]): bool
 /**
  * Reports whether the rule form of a line can carry an enabled-rule marker.
  *
- * A marker belongs to a rule, so a comment line and an empty line cannot hold
- * one. The comment toggle checks the rule form of each line (the current text
- * when commenting, the uncommented text when uncommenting), so the toggle can
- * leave a marker on a line whose post-toggle text is a comment; only
- * `setEditorValue` refuses to restore such a marker. A whitespace-only line is
- * not empty, so it can hold one.
+ * The predicate rejects an empty line and a comment line, and accepts every
+ * other line; a whitespace-only line is not empty, so it is accepted. The
+ * comment toggle applies the predicate to the rule form of each line (the
+ * current text when commenting, the uncommented text when uncommenting), so
+ * the toggle can leave a marker on a line whose post-toggle text is a comment;
+ * only `setEditorValue` refuses to restore such a marker.
  *
  * @param text The line text.
  *

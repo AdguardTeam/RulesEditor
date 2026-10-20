@@ -110,7 +110,7 @@ test('setEditorValue clears markers from the previous content', async () => {
     view.destroy();
 });
 
-test('setEditorValue does not create an undo step for the markers', async () => {
+test('setEditorValue creates no undo step', async () => {
     const view = await mountEditor(
         initEditor,
         { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
@@ -119,12 +119,13 @@ test('setEditorValue does not create an undo step for the markers', async () => 
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
-    // The marker restore is not a user edit: the load is a single undo step,
-    // and one undo reverts the loaded content instead of stripping the
-    // markers first.
-    expect(undoDepth(view.state)).toBe(1);
-    expect(undo(view)).toBe(true);
-    expect(view.state.doc.toString()).toBe('');
+    // A programmatic load is not a user edit: neither the content replacement
+    // nor the marker restore is recorded, so there is no undo state where the
+    // loaded text is gone but a marker stays on an empty line.
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 

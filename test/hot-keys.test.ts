@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { isolateHistory, undo } from '@codemirror/commands';
+import { isolateHistory, redo, undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, test, vi } from 'vitest';
@@ -280,6 +280,12 @@ test('undoes the uncomment press together with the marker', async () => {
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('! ||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo re-inverts the event, so the text and the marker come back together
+    // as well.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 
@@ -292,6 +298,10 @@ test('undoes the comment press together with the marker', async () => {
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 
@@ -315,6 +325,15 @@ test('keeps two quick comment presses as separate undo steps', async () => {
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
     expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo restores each press as its own step as well.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
     view.destroy();
 });
 
@@ -336,6 +355,15 @@ test('does not join a nearby edit with the comment toggle in the undo history', 
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // Redo restores the toggle first and the typing second.
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! x||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 
