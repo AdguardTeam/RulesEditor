@@ -176,9 +176,10 @@ cycle. A disabled rule therefore gains a marker while it is a comment.
 
 The `toggleRule` callback also fires for a comment-only selection that the
 toggle turns back into rules. A comment line in a mixed selection gets no
-marker. Lines that stay comments (`! ! note`) or become empty (`!`) do not
-change their marker. Empty lines are skipped, but a whitespace-only line is
-not empty and still gets a marker.
+marker. A line that stays a comment (`! ! note`) does not change its marker,
+while a line that becomes empty (`!`) loses any marker it had, because an
+empty line cannot hold one. Empty lines are skipped, but a whitespace-only
+line is not empty and still gets a marker.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
 for workspace switching, so those keys never reach the browser there; the mouse

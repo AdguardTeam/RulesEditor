@@ -112,7 +112,9 @@ function allLinesAreComments(state: EditorState, lines: readonly number[]): bool
  * comment toggle applies the predicate to the rule form of each line (the
  * current text when commenting, the uncommented text when uncommenting), so
  * the toggle can leave a marker on a line whose post-toggle text is a comment;
- * only `setEditorValue` refuses to restore such a marker.
+ * only `setEditorValue` refuses to restore such a marker. `breakpointField`
+ * enforces the empty-line part of the invariant: it drops every marker that
+ * lands on a line that is empty after the change.
  *
  * @param text The line text.
  *
@@ -423,9 +425,10 @@ export function configureHotKeys(handlers: {
                 // comment, so only that line toggles its marker. Commenting an
                 // enabled rule clears its marker, and uncommenting the rule
                 // restores it. A disabled rule gains a marker while it is a
-                // comment. A line that stays a comment (`! ! note`) and a line
-                // that becomes empty (`!`) do not change their marker; a
-                // whitespace-only line is not empty, so it does.
+                // comment. A line that stays a comment (`! ! note`) does not
+                // change its marker, a line that becomes empty (`!`) loses any
+                // marker it had, and a whitespace-only line is not empty, so it
+                // can hold one.
                 const uncomment = allLinesAreComments(state, lines);
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))
