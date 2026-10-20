@@ -1,6 +1,7 @@
 import {
     type EditorState,
     type Extension,
+    Facet,
     type Range,
     RangeSet,
     StateEffect,
@@ -15,64 +16,116 @@ import { gutter, GutterMarker } from '@codemirror/view';
 export const toggleBreakpoint = StateEffect.define<number>();
 
 /**
- * Gutter marker rendered for an enabled rule line. Also owns the (mutable) DOM
- * factory used to render markers, grouped as static members instead of loose
- * module-level state.
+ * Effect that replaces the marker factory of the editor that handles it.
+ */
+export const setMarkerFactory = StateEffect.define<() => HTMLElement>();
+
+/**
+ * Builds the default marker element (a filled circle).
+ *
+ * @returns The default marker DOM element.
+ */
+function defaultMarker(): HTMLElement {
+    const el = document.createElement('div');
+    el.textContent = '\u25CF';
+    return el;
+}
+
+/**
+ * Facet that holds the marker factory of one editor, so two editors on the
+ * same page can render different marker styles.
+ */
+const markerFactory = Facet.define<() => HTMLElement, () => HTMLElement>({
+    combine: (factories) => (
+        factories.length > 0 ? factories[factories.length - 1] : defaultMarker
+    ),
+});
+
+/**
+ * Gutter marker rendered for an enabled rule line.
+ *
+ * The marker keeps the factory of the editor it belongs to: `toDOM` receives
+ * no editor state, so the factory is resolved when the marker is created.
  */
 class BreakpointMarker extends GutterMarker {
     /**
-     * The current factory producing an enabled-rule marker element.
+     * The factory that renders this marker.
      */
-    private static factory: () => HTMLElement = BreakpointMarker.defaultMarker;
+    private readonly factory: () => HTMLElement;
 
     /**
-     * Builds the default marker element (a filled circle).
+     * Creates a marker that renders its element with the given factory.
      *
-     * @returns The default marker DOM element.
+     * @param factory Factory producing a marker element.
      */
-    private static defaultMarker(): HTMLElement {
-        const el = document.createElement('div');
-        el.textContent = '\u25CF';
-        return el;
+    constructor(factory: () => HTMLElement) {
+        super();
+        this.factory = factory;
     }
 
     /**
-     * Sets the factory used to render enabled-rule markers.
-     *
-     * @param make Factory producing a marker element.
-     */
-    public static setFactory(make: () => HTMLElement): void {
-        BreakpointMarker.factory = make;
-    }
-
-    /**
-     * Renders the marker element using the current factory.
+     * Renders the marker element using the factory of the owning editor.
      *
      * @returns The marker DOM node.
      */
     public toDOM(): HTMLElement {
-        return BreakpointMarker.factory();
+        return this.factory();
     }
 }
 
 /**
- * Sets the DOM factory used to render enabled-rule markers.
- *
- * @param make Factory producing a marker element.
+ * The enabled-rule markers of one editor and the factory for new markers.
  */
-export function setMarkerFactory(make: () => HTMLElement): void {
-    BreakpointMarker.setFactory(make);
+interface BreakpointState {
+    /**
+     * The marked lines.
+     */
+    markers: RangeSet<GutterMarker>;
+
+    /**
+     * The factory used to render new markers.
+     */
+    factory: () => HTMLElement;
 }
 
-const breakpointField = StateField.define<RangeSet<GutterMarker>>({
-    create: () => RangeSet.empty,
-    update(set, tr) {
-        const next = set.map(tr.changes);
+/**
+ * Rebuilds the marker set with a new factory, keeping the marker positions.
+ *
+ * @param markers The current marker set.
+ * @param factory The new marker factory.
+ *
+ * @returns A marker set whose markers use `factory`.
+ */
+function rebuildMarkers(
+    markers: RangeSet<GutterMarker>,
+    factory: () => HTMLElement,
+): RangeSet<GutterMarker> {
+    const rebuilt: Range<GutterMarker>[] = [];
+    const cursor = markers.iter();
+    while (cursor.value) {
+        rebuilt.push(new BreakpointMarker(factory).range(cursor.from, cursor.to));
+        cursor.next();
+    }
+    return RangeSet.of(rebuilt, true);
+}
+
+const breakpointField = StateField.define<BreakpointState>({
+    create: (state) => ({
+        markers: RangeSet.empty,
+        factory: state.facet(markerFactory),
+    }),
+    update(value, tr) {
+        const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
+        const factory = factoryEffect ? factoryEffect.value : value.factory;
+        let markers = value.markers.map(tr.changes);
+        if (factory !== value.factory) {
+            markers = rebuildMarkers(markers, factory);
+        }
         const toggles = tr.effects
             .filter((effect) => effect.is(toggleBreakpoint))
             .map((effect) => effect.value);
         if (toggles.length === 0) {
-            return next;
+            return { markers, factory };
         }
         // `RangeSet.update` rebuilds the whole set, so the toggles of one
         // transaction are applied with a single update instead of one per
@@ -89,36 +142,46 @@ const breakpointField = StateField.define<RangeSet<GutterMarker>>({
         counts.forEach((count, pos) => {
             if (count % 2 === 1) {
                 let has = false;
-                next.between(pos, pos, () => {
+                markers.between(pos, pos, () => {
                     has = true;
                 });
                 if (has) {
                     removed.add(pos);
                 } else {
-                    added.push(new BreakpointMarker().range(pos));
+                    added.push(new BreakpointMarker(factory).range(pos));
                 }
             }
         });
-        return next.update({
-            filter: (from) => !removed.has(from),
-            add: added,
-            sort: true,
-        });
+        return {
+            markers: markers.update({
+                filter: (from) => !removed.has(from),
+                add: added,
+                sort: true,
+            }),
+            factory,
+        };
     },
 });
 
 /**
  * Editor extension providing the enabled-rule gutter and its state field.
  *
+ * @param options Gutter configuration.
+ * @param options.markerFactory Factory producing a marker element for this
+ *   editor. Defaults to a filled circle.
+ *
  * @returns A CodeMirror 6 extension.
  */
-export function breakpointState(): Extension {
+export function breakpointState(options: {
+    markerFactory?: () => HTMLElement;
+} = {}): Extension {
     return [
+        options.markerFactory ? markerFactory.of(options.markerFactory) : [],
         breakpointField,
         gutter({
             class: 'cm-breakpoint-gutter',
-            markers: (view) => view.state.field(breakpointField),
-            initialSpacer: () => new BreakpointMarker(),
+            markers: (view) => view.state.field(breakpointField).markers,
+            initialSpacer: (view) => new BreakpointMarker(view.state.facet(markerFactory)),
         }),
     ];
 }
@@ -133,7 +196,7 @@ export function breakpointState(): Extension {
  */
 export function isBreakpointAt(state: EditorState, pos: number): boolean {
     let has = false;
-    state.field(breakpointField).between(pos, pos, () => {
+    state.field(breakpointField).markers.between(pos, pos, () => {
         has = true;
     });
     return has;
@@ -148,8 +211,8 @@ export function isBreakpointAt(state: EditorState, pos: number): boolean {
  */
 export function enabledRuleLines(state: EditorState): number[] {
     const lines: number[] = [];
-    const set = state.field(breakpointField);
-    set.between(0, state.doc.length, (from) => {
+    const { markers } = state.field(breakpointField);
+    markers.between(0, state.doc.length, (from) => {
         lines.push(state.doc.lineAt(from).number);
     });
     return lines;

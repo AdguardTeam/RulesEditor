@@ -149,11 +149,6 @@ export async function initEditor(
     // parameter.
     const withMultipleSelections = conf.withMultipleSelections ?? true;
 
-    setMarkerFactory(createMarker({
-        color: conf.hotkeys.markerColor,
-        innerHTML: conf.hotkeys.markerHTML,
-    }));
-
     const extensions: Extension[] = [
         lineNumbers(),
         history(),
@@ -244,7 +239,12 @@ export async function initEditor(
     }
 
     if (conf.withBreakpoints) {
-        extensions.push(breakpointState());
+        extensions.push(breakpointState({
+            markerFactory: createMarker({
+                color: conf.hotkeys.markerColor,
+                innerHTML: conf.hotkeys.markerHTML,
+            }),
+        }));
     }
 
     if (conf.onChange) {
@@ -317,9 +317,11 @@ export function setEditorValue(
     value: { enabled: boolean; rule: string }[],
     markerOptions: { color?: string; innerHTML?: string },
 ): void {
-    setMarkerFactory(createMarker(markerOptions));
     const doc = value.map((v) => v.rule).join('\n');
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: doc } });
+    view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: doc },
+        effects: setMarkerFactory.of(createMarker(markerOptions)),
+    });
 
     // All toggles go into one transaction: the breakpoint field applies the
     // effects of a transaction with a single `RangeSet` update, so dispatching

@@ -76,6 +76,28 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
     view.destroy();
 });
 
+test('setEditorValue applies marker options to one editor only', async () => {
+    const first = await mountEditor(initEditor, {
+        autofocus: false,
+        withBreakpoints: true,
+        hotkeys: { markerHTML: 'first' },
+    });
+    const second = await mountEditor(initEditor, {
+        autofocus: false,
+        withBreakpoints: true,
+        hotkeys: { markerHTML: 'second' },
+    });
+    setEditorValue(first, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+
+    const firstGutter = first.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
+    const secondGutter = second.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
+    expect(firstGutter).toContain('updated');
+    expect(secondGutter).toContain('second');
+    expect(secondGutter).not.toContain('updated');
+    first.destroy();
+    second.destroy();
+});
+
 test("highlight: 'none' mounts without loading WASM", async () => {
     const spy = vi.spyOn(RegistryManager, 'getGrammar');
     const view = await mountEditor(initEditor, { hotkeys: { mode: 'mac' } });

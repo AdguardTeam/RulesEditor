@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Enabled-rule gutter markers now use a per-editor factory: two editors on
+  one page can render different marker colors and HTML, and `setEditorValue`
+  changes the markers of the editor it is called on only. The `markerColor`
+  and `markerHTML` options of `initEditor` apply to that editor.
+
 ### Deprecated
 
 ### Removed
