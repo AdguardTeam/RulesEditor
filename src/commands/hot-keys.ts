@@ -363,9 +363,14 @@ export function configureHotKeys(handlers: {
                     view.dispatch({
                         effects: ruleLines.map((line) => toggleBreakpoint.of(line.from)),
                     });
+                }
+                const handled = toggleCommentOnLines(view, lines);
+                // Call the callback after the text change, so a consumer that
+                // re-reads the editor sees the final rule text and markers.
+                if (ruleLines.length > 0) {
                     handlers.onToggleRule?.(view);
                 }
-                return toggleCommentOnLines(view, lines);
+                return handled;
             },
             scope: 'editor search-panel',
         },

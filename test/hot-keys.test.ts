@@ -212,8 +212,9 @@ test('Ctrl+/ comments the line under every cursor and toggles its rule marker', 
     view.contentDOM.dispatchEvent(event);
 
     expect(view.state.doc.toString()).toBe('! ||a.com^\n||b.com^\n! ||c.com^');
-    // Both rules are marked as toggled, and the handler is called once.
+    // Both rules are marked as toggled, and the handler is called once with
+    // the final text: the callback runs after the comment is applied.
     expect(enabledRuleLines(view.state)).toEqual([1, 3]);
-    expect(toggledRules).toHaveLength(1);
+    expect(toggledRules).toEqual(['! ||a.com^']);
     view.destroy();
 });
