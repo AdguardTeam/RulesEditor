@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { toggleAdblockComment } from '../src/commands/hot-keys';
@@ -253,6 +253,39 @@ test('marks a comment line that the toggle turns into a rule', async () => {
     // after it.
     expect(enabledRuleLines(view.state)).toEqual([1]);
     expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
+    const toggleRule = vi.fn();
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { toggleRule },
+        extensions: [EditorState.readOnly.of(true)],
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const event = pressKey(view.contentDOM, '/', { ctrl: true });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleRule).not.toHaveBeenCalled();
+    view.destroy();
+});
+
+test('toggleAdblockComment is a consumed no-op in a read-only editor', () => {
+    const view = new EditorView({
+        state: EditorState.create({
+            doc: 'a.com',
+            extensions: [EditorState.readOnly.of(true)],
+        }),
+        parent: document.body,
+    });
+
+    expect(toggleAdblockComment(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a.com');
     view.destroy();
 });
 

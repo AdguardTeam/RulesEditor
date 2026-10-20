@@ -281,12 +281,19 @@ export function configureAceParityKeys(): Extension {
  * non-empty lines are already comments they are uncommented, otherwise every
  * non-empty line gets a `! ` prefix.
  *
+ * In a read-only editor (`EditorState.readOnly`) the toggle is a consumed
+ * no-op: it changes no text, but still returns `true` so a keymap binding does
+ * not fall through to a browser default.
+ *
  * @param view The editor view.
  *
  * @returns `true` so the keymap consumes the event.
  */
 export function toggleAdblockComment(view: EditorView): boolean {
     const { state } = view;
+    if (state.readOnly) {
+        return true;
+    }
     return toggleCommentOnLines(view, selectedLineNumbers(state, state.selection.ranges));
 }
 
@@ -305,6 +312,10 @@ export function toggleAdblockComment(view: EditorView): boolean {
  * open search panel — without the scope the keydown consumes nothing there
  * and falls through to the browser.
  *
+ * In a read-only editor (`EditorState.readOnly`) the `Mod-/` binding is a
+ * consumed no-op: it changes no text, toggles no enabled-rule marker, and
+ * does not call `onToggleRule`, but still returns `true`.
+ *
  * @param handlers Multi-cursor binding configuration and the toggle-rule /
  *   save callbacks.
  * @param handlers.mode Keyboard shortcut style of the host application; selects
@@ -315,7 +326,7 @@ export function toggleAdblockComment(view: EditorView): boolean {
  *   otherwise be collapsed back to a single range.
  * @param handlers.onToggleRule Invoked when a rule is toggled, including a
  *   comment-only selection that the comment toggle turns back into rules. The
- *   callback runs after the text change.
+ *   callback runs after the text change. Not called in a read-only editor.
  * @param handlers.onSave Invoked when the save shortcut is pressed.
  *
  * @returns A CodeMirror 6 keymap extension.
@@ -384,6 +395,12 @@ export function configureHotKeys(handlers: {
             key: 'Mod-/',
             run: (view): boolean => {
                 const { state } = view;
+                // The text change and its read-only guard live in
+                // `toggleAdblockComment`; a read-only editor must not toggle
+                // the enabled-rule marker or call the callback either.
+                if (state.readOnly) {
+                    return toggleAdblockComment(view);
+                }
                 const lines = selectedLineNumbers(state, state.selection.ranges);
                 // The marker follows the state after the toggle: only a line
                 // whose comment status flips changes between a rule and a
