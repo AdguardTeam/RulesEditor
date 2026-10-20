@@ -17,11 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- The comment toggle (`Ctrl+/` / `Cmd+/`) keeps an enabled rule enabled
-  after a comment and uncomment cycle: uncommenting the rule restores its
-  enabled-rule marker and calls the `toggleRule` callback again. The marker
-  changes only for the lines whose rule state flips, so a comment in a mixed
-  selection gets no marker and a line that becomes empty loses its marker.
+- The comment toggle (`Ctrl+/` / `Cmd+/`) keeps a rule's enabled state
+  across a comment and uncomment cycle: the marker changes only for the lines
+  whose rule state flips, so an enabled rule gets its marker back when it is
+  uncommented, and the `toggleRule` callback fires again. A comment in a mixed
+  selection gets no marker, and a line that becomes empty is not marked. The
+  marker change is part of the same undo step as the text change. The load path
+  restores an enabled flag only for a line that can hold a marker, so an empty
+  or comment rule stays disabled.
 - `Ctrl+/` / `Cmd+/` is now a no-op in a read-only editor: it changes no
   text, toggles no enabled-rule marker, and calls no `toggleRule` callback,
   but still consumes the key.

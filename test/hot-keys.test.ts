@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { isolateHistory, undo } from '@codemirror/commands';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, test, vi } from 'vitest';
@@ -182,6 +183,9 @@ async function mountEditorWithSelection(doc: string): Promise<{
     view.dispatch({
         changes: { from: 0, insert: doc },
         selection: { anchor: 0, head: doc.length },
+        // Keep the setup insertion out of the undo step of the first toggle,
+        // so an undo test reverts only the toggle.
+        annotations: isolateHistory.of('after'),
     });
     return { view, toggleCount: () => toggles };
 }
@@ -253,6 +257,41 @@ test('marks a comment line that the toggle turns into a rule', async () => {
     // after it.
     expect(enabledRuleLines(view.state)).toEqual([1]);
     expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('does not mark a comment that stays a comment after uncommenting', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! ||a.com^\n! ! note');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^\n! note');
+    // The stripped `! ! note` is still a comment, so only the rule line flips.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('undoes the uncomment press together with the marker', async () => {
+    const { view, toggleCount } = await mountEditorWithSelection('! ||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggleCount()).toBe(1);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('undoes the comment press together with the marker', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
     view.destroy();
 });
 

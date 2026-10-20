@@ -313,6 +313,10 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 /**
  * Replaces the editor content and restores enabled-rule markers.
  *
+ * An `enabled` flag is restored only for a line that can hold a marker: an
+ * empty or comment rule is never marked, so such a flag is lost in a
+ * {@link getRulesFromEditor} → `setEditorValue` round-trip.
+ *
  * @param view The editor view.
  * @param value Rules with enabled flags.
  * @param markerOptions Marker color/HTML overrides.

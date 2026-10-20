@@ -17,6 +17,7 @@ import {
     type Extension,
     Prec,
     type SelectionRange,
+    type StateEffect,
 } from '@codemirror/state';
 import { type EditorView, type KeyBinding, keymap } from '@codemirror/view';
 
@@ -139,12 +140,20 @@ function uncommentedText(text: string): string {
  * Empty lines are skipped. If all non-empty lines are already comments they
  * are uncommented, otherwise every non-empty line gets a `! ` prefix.
  *
+ * The effects are dispatched in the same transaction as the text change, so a
+ * single undo reverts both.
+ *
  * @param view The editor view.
  * @param lines The 1-based numbers of the lines to toggle.
+ * @param effects Extra effects to dispatch with the text change.
  *
  * @returns `true` so the keymap consumes the event.
  */
-function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boolean {
+function toggleCommentOnLines(
+    view: EditorView,
+    lines: readonly number[],
+    effects: readonly StateEffect<unknown>[] = [],
+): boolean {
     const { state } = view;
     const changes: ChangeSpec[] = [];
 
@@ -165,7 +174,7 @@ function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boole
         }
     }
 
-    view.dispatch({ changes });
+    view.dispatch({ changes, effects });
     return true;
 }
 
@@ -404,12 +413,12 @@ export function configureHotKeys(handlers: {
                 const lines = selectedLineNumbers(state, state.selection.ranges);
                 // The marker follows the state after the toggle: only a line
                 // whose comment status flips changes between a rule and a
-                // comment, so only that line toggles its marker. On the
-                // comment press the rule lines flip, so their markers toggle
-                // off. On the uncomment press the comment lines flip back to
-                // rules, so their markers toggle on again. A line that becomes
-                // empty (`!`) and a line that stays a comment (`! ! note`) get
-                // no marker; a whitespace-only line is not empty, so it does.
+                // comment, so only that line toggles its marker. Commenting an
+                // enabled rule clears its marker, and uncommenting the rule
+                // restores it. A disabled rule gains a marker while it is a
+                // comment. A line that stays a comment (`! ! note`) and a line
+                // that becomes empty (`!`) do not change their marker; a
+                // whitespace-only line is not empty, so it does.
                 const uncomment = allLinesAreComments(state, lines);
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))
@@ -417,12 +426,10 @@ export function configureHotKeys(handlers: {
                     .filter((line) => canHoldEnabledMarker(
                         uncomment ? uncommentedText(line.text) : line.text,
                     ));
-                if (ruleLines.length > 0) {
-                    view.dispatch({
-                        effects: ruleLines.map((line) => toggleBreakpoint.of(line.from)),
-                    });
-                }
-                const handled = toggleCommentOnLines(view, lines);
+                // The marker effects ride along with the text change, so one
+                // undo reverts the text and the markers together.
+                const effects = ruleLines.map((line) => toggleBreakpoint.of(line.from));
+                const handled = toggleCommentOnLines(view, lines, effects);
                 // Call the callback after the text change, so a consumer that
                 // re-reads the editor sees the final rule text and markers.
                 if (ruleLines.length > 0) {

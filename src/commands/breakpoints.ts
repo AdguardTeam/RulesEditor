@@ -1,3 +1,4 @@
+import { invertedEffects } from '@codemirror/commands';
 import {
     type EditorState,
     type Extension,
@@ -11,8 +12,14 @@ import { gutter, GutterMarker } from '@codemirror/view';
 /**
  * Effect that toggles the enabled marker for the line at the given document
  * position (the line's start offset).
+ *
+ * The position is mapped with an association of `-1`, so a prefix inserted at
+ * the line start (the comment toggle) keeps the marker at the start of the
+ * line instead of moving it behind the prefix.
  */
-export const toggleBreakpoint = StateEffect.define<number>();
+export const toggleBreakpoint = StateEffect.define<number>({
+    map: (value, mapping) => mapping.mapPos(value, -1),
+});
 
 /**
  * Gutter marker rendered for an enabled rule line. Also owns the (mutable) DOM
@@ -68,9 +75,11 @@ const breakpointField = StateField.define<RangeSet<GutterMarker>>({
     create: () => RangeSet.empty,
     update(set, tr) {
         const next = set.map(tr.changes);
+        // The transaction does not map its own effect values, so map them to
+        // the post-change document before matching them against `next`.
         const toggles = tr.effects
             .filter((effect) => effect.is(toggleBreakpoint))
-            .map((effect) => effect.value);
+            .map((effect) => tr.changes.mapPos(effect.value, -1));
         if (toggles.length === 0) {
             return next;
         }
@@ -115,6 +124,13 @@ const breakpointField = StateField.define<RangeSet<GutterMarker>>({
 export function breakpointState(): Extension {
     return [
         breakpointField,
+        // The toggle is its own inverse, so the same effect undoes it. The
+        // value is mapped to the state after the transaction, which is the
+        // state an undo starts from; `breakpointField` maps it again when the
+        // undo transaction is applied.
+        invertedEffects.of((tr) => tr.effects
+            .filter((effect) => effect.is(toggleBreakpoint))
+            .map((effect) => toggleBreakpoint.of(tr.changes.mapPos(effect.value, -1)))),
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField),

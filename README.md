@@ -168,15 +168,17 @@ on a word character, so it selects `example.com` on the `^` of
 property escapes, so non-ASCII domains are selected as well.
 
 `Ctrl+/` / `Cmd+/` comments (or uncomments) the line under every cursor and
-toggles the enabled-rule marker on the lines whose rule state flips. A rule
-that becomes a comment loses its marker. A comment that becomes a rule gets
-the marker back, so an enabled rule stays enabled after a comment and
-uncomment cycle. `Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
+toggles the enabled-rule marker on every line whose rule state flips.
+Commenting a rule toggles its marker, and uncommenting the rule toggles it
+again, so a rule keeps its enabled state across a comment and uncomment
+cycle. A disabled rule therefore gains a marker while it is a comment.
+`Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
 
 The `toggleRule` callback also fires for a comment-only selection that the
 toggle turns back into rules. A comment line in a mixed selection gets no
-marker. Empty lines are skipped, but a whitespace-only line is not empty and
-still gets a marker.
+marker. Lines that stay comments (`! ! note`) or become empty (`!`) do not
+change their marker. Empty lines are skipped, but a whitespace-only line is
+not empty and still gets a marker.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
 for workspace switching, so those keys never reach the browser there; the mouse
@@ -279,8 +281,8 @@ on the same page.
 - `Ctrl+D` / `Cmd+D` deletes the current line or selection
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
 - `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines and the
-  enabled-rule marker on the lines whose rule state flips, so an enabled rule
-  stays enabled after a comment and uncomment cycle
+  enabled-rule marker on every line whose rule state flips, so a rule keeps
+  its enabled state across a comment and uncomment cycle
 
 > **Note:** the chords restored from the previous (Ace-based) editor are
 > registered before the CodeMirror defaults, so they win where both bind the
