@@ -233,6 +233,36 @@ test('does not leave a marker on a comment that becomes empty', async () => {
     view.destroy();
 });
 
+test('drops the marker of a commented rule when the toggle empties the line', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    // Commenting a disabled rule toggles its marker on while it is a comment.
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Delete the rule text, so only the comment prefix remains.
+    view.dispatch({ changes: { from: 2, to: view.state.doc.length } });
+    expect(view.state.doc.toString()).toBe('! ');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Uncommenting the bare prefix empties the line; the marker must go too.
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('drops a directly placed marker when the line is emptied', async () => {
+    const { view } = await mountEditorWithSelection('!');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
 test('marks a whitespace-only line, which is not empty', async () => {
     const { view, toggleCount } = await mountEditorWithSelection('   ');
     pressKey(view.contentDOM, '/', { ctrl: true });

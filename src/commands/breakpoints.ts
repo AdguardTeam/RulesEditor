@@ -149,39 +149,47 @@ const breakpointField = StateField.define<BreakpointState>({
         const toggles = tr.effects
             .filter((effect) => effect.is(toggleBreakpoint))
             .map((effect) => tr.changes.mapPos(effect.value, -1));
-        if (toggles.length === 0) {
-            return { markers, factory };
-        }
-        // `RangeSet.update` rebuilds the whole set, so the toggles of one
-        // transaction are applied with a single update instead of one per
-        // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected line,
-        // and rebuilding the set per effect would make it quadratic in the
-        // number of lines. Two toggles of the same position in one transaction
-        // still cancel each other out, like the per-effect update used to.
-        const counts = new Map<number, number>();
-        toggles.forEach((pos) => {
-            counts.set(pos, (counts.get(pos) ?? 0) + 1);
-        });
-        const removed = new Set<number>();
-        const added: Range<GutterMarker>[] = [];
-        counts.forEach((count, pos) => {
-            if (count % 2 === 1) {
-                let has = false;
-                markers.between(pos, pos, () => {
-                    has = true;
-                });
-                if (has) {
-                    removed.add(pos);
-                } else {
-                    added.push(new BreakpointMarker(factory).range(pos));
+        let nextMarkers = markers;
+        if (toggles.length > 0) {
+            // `RangeSet.update` rebuilds the whole set, so the toggles of one
+            // transaction are applied with a single update instead of one per
+            // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected
+            // line, and rebuilding the set per effect would make it quadratic
+            // in the number of lines. Two toggles of the same position in one
+            // transaction still cancel each other out, like the per-effect
+            // update used to.
+            const counts = new Map<number, number>();
+            toggles.forEach((pos) => {
+                counts.set(pos, (counts.get(pos) ?? 0) + 1);
+            });
+            const removed = new Set<number>();
+            const added: Range<GutterMarker>[] = [];
+            counts.forEach((count, pos) => {
+                if (count % 2 === 1) {
+                    let has = false;
+                    markers.between(pos, pos, () => {
+                        has = true;
+                    });
+                    if (has) {
+                        removed.add(pos);
+                    } else {
+                        added.push(new BreakpointMarker(factory).range(pos));
+                    }
                 }
-            }
-        });
-        return {
-            markers: markers.update({
+            });
+            nextMarkers = markers.update({
                 filter: (from) => !removed.has(from),
                 add: added,
                 sort: true,
+            });
+        }
+        // Enforce the `canHoldEnabledMarker` invariant on both paths: an
+        // empty line cannot hold a marker. `RangeSet.map` keeps a point range
+        // at the start of a fully deleted line, and a toggle can add a marker
+        // to a line that the same transaction empties.
+        return {
+            markers: nextMarkers.update({
+                filter: (from) => tr.state.doc.lineAt(from).length > 0,
             }),
             factory,
         };
