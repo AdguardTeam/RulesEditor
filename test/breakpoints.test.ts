@@ -7,8 +7,22 @@ import {
     breakpointState,
     enabledRuleLines,
     isBreakpointAt,
+    setMarkerFactory,
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
+
+/**
+ * Builds a marker factory that renders the given text.
+ *
+ * @param text The marker text.
+ *
+ * @returns A factory producing marker elements.
+ */
+const marker = (text: string) => (): HTMLElement => {
+    const el = document.createElement('div');
+    el.textContent = text;
+    return el;
+};
 
 /**
  * Creates an EditorView instance with the given document.
@@ -36,11 +50,6 @@ test('toggles a breakpoint on a line', () => {
 });
 
 test('renders markers with the factory of each editor', () => {
-    const marker = (text: string) => (): HTMLElement => {
-        const el = document.createElement('div');
-        el.textContent = text;
-        return el;
-    };
     const first = makeView('||a.com^', { markerFactory: marker('first') });
     const second = makeView('||a.com^', { markerFactory: marker('second') });
     first.dispatch({ effects: toggleBreakpoint.of(0) });
@@ -54,6 +63,17 @@ test('renders markers with the factory of each editor', () => {
     expect(secondGutter).not.toContain('first');
     first.destroy();
     second.destroy();
+});
+
+test('rebuilds existing markers when the factory changes', () => {
+    const view = makeView('||a.com^', { markerFactory: marker('before') });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    view.dispatch({ effects: setMarkerFactory.of(marker('after')) });
+
+    const gutter = view.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
+    expect(gutter).toContain('after');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
 });
 
 test('enabledRuleLines reports marked lines', () => {

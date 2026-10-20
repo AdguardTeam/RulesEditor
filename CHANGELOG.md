@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The comment toggle (`Ctrl+/` / `Cmd+/`) no longer comments an extra line
   when a non-empty selection ends exactly at the start of a line: only the
   lines the selection actually touches are toggled.
+- `setEditorValue` now clears the enabled-rule markers of the previous
+  content, so a rule that becomes disabled no longer stays enabled.
 
 ### Security
 

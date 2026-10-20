@@ -16,6 +16,7 @@ import {
 
 import {
     breakpointState,
+    clearBreakpoints,
     enabledRuleLines,
     isBreakpointAt,
     setMarkerFactory,
@@ -93,12 +94,14 @@ export interface InitEditorConfig {
         mode: HotkeyMode;
 
         /**
-         * CSS color for the gutter marker icon.
+         * CSS color for the gutter marker icon. The value is stored in this
+         * editor's state, so other editors on the page keep their own color.
          */
         markerColor?: string;
 
         /**
-         * Raw HTML for the gutter marker icon.
+         * Raw HTML for the gutter marker icon. The value is stored in this
+         * editor's state, so other editors on the page keep their own HTML.
          */
         markerHTML?: string;
 
@@ -306,9 +309,14 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 /**
  * Replaces the editor content and restores enabled-rule markers.
  *
+ * The call clears the markers of `view` first, so a rule that becomes
+ * disabled does not keep a stale marker. The marker options are stored in
+ * the state of `view` only: other editors on the page keep their own color
+ * and HTML.
+ *
  * @param view The editor view.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color/HTML overrides.
+ * @param markerOptions Marker color/HTML overrides for `view` only.
  * @param markerOptions.color Marker text color.
  * @param markerOptions.innerHTML Marker inner HTML.
  */
@@ -320,7 +328,10 @@ export function setEditorValue(
     const doc = value.map((v) => v.rule).join('\n');
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
-        effects: setMarkerFactory.of(createMarker(markerOptions)),
+        effects: [
+            clearBreakpoints.of(null),
+            setMarkerFactory.of(createMarker(markerOptions)),
+        ],
     });
 
     // All toggles go into one transaction: the breakpoint field applies the

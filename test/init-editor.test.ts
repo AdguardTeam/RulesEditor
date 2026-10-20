@@ -13,6 +13,7 @@ import {
     vi,
 } from 'vitest';
 
+import { toggleBreakpoint } from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
@@ -76,6 +77,20 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
     view.destroy();
 });
 
+test('setEditorValue clears markers from the previous content', async () => {
+    const view = await mountEditor(
+        initEditor,
+        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+        wasm,
+    );
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    setEditorValue(view, [{ enabled: false, rule: '||b.com^' }], {});
+    expect(getRulesFromEditor(view)).toEqual([
+        { enabled: false, rule: '||b.com^' },
+    ]);
+    view.destroy();
+});
+
 test('setEditorValue applies marker options to one editor only', async () => {
     const first = await mountEditor(initEditor, {
         autofocus: false,
@@ -88,6 +103,10 @@ test('setEditorValue applies marker options to one editor only', async () => {
         hotkeys: { markerHTML: 'second' },
     });
     setEditorValue(first, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    // The marker on the second editor is created after `setEditorValue`
+    // changed the first editor's factory, so a shared factory would render
+    // 'updated' here.
+    second.dispatch({ effects: toggleBreakpoint.of(0) });
 
     const firstGutter = first.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
     const secondGutter = second.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';

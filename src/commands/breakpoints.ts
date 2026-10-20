@@ -21,6 +21,11 @@ export const toggleBreakpoint = StateEffect.define<number>();
 export const setMarkerFactory = StateEffect.define<() => HTMLElement>();
 
 /**
+ * Effect that removes every enabled marker from the editor that handles it.
+ */
+export const clearBreakpoints = StateEffect.define<null>();
+
+/**
  * Builds the default marker element (a filled circle).
  *
  * @returns The default marker DOM element.
@@ -36,9 +41,9 @@ function defaultMarker(): HTMLElement {
  * same page can render different marker styles.
  */
 const markerFactory = Facet.define<() => HTMLElement, () => HTMLElement>({
-    combine: (factories) => (
-        factories.length > 0 ? factories[factories.length - 1] : defaultMarker
-    ),
+    // CodeMirror resolves facet providers highest-precedence first, so the
+    // first value is the one that wins.
+    combine: (factories) => factories[0] ?? defaultMarker,
 });
 
 /**
@@ -118,6 +123,9 @@ const breakpointField = StateField.define<BreakpointState>({
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
         const factory = factoryEffect ? factoryEffect.value : value.factory;
         let markers = value.markers.map(tr.changes);
+        if (tr.effects.some((effect) => effect.is(clearBreakpoints))) {
+            markers = RangeSet.empty;
+        }
         if (factory !== value.factory) {
             markers = rebuildMarkers(markers, factory);
         }
@@ -181,7 +189,14 @@ export function breakpointState(options: {
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField).markers,
-            initialSpacer: (view) => new BreakpointMarker(view.state.facet(markerFactory)),
+            // The field, not the facet, is the runtime source of the factory:
+            // `setMarkerFactory` changes it after the editor is created.
+            initialSpacer: (view) => new BreakpointMarker(
+                view.state.field(breakpointField).factory,
+            ),
+            updateSpacer: (spacer, update) => new BreakpointMarker(
+                update.state.field(breakpointField).factory,
+            ),
         }),
     ];
 }
