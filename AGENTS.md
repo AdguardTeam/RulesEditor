@@ -256,7 +256,7 @@ Shared library (lib/registry, lib/utils, lib/errors)
   importer; a helper used only inside its own module stays a module-private
   `const` or function. Only `src/index.ts` re-exports the public API.
 - **Naming** — files use kebab-case; classes use PascalCase; enums use
-  PascalCase with camelCase members; constants use camelCase.
+  PascalCase with camelCase members; constants use UPPER_SNAKE_CASE.
   **Exception**: generated TextMate grammar files in `src/grammars/` use
   the standard `<scope>.tmLanguage.json` convention (e.g.
   `adblock.tmLanguage.json`).
