@@ -72,6 +72,7 @@ test('rebuilds existing markers when the factory changes', () => {
 
     const gutter = view.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
     expect(gutter).toContain('after');
+    expect(gutter).not.toContain('before');
     expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });

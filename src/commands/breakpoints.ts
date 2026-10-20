@@ -56,7 +56,7 @@ class BreakpointMarker extends GutterMarker {
     /**
      * The factory that renders this marker.
      */
-    private readonly factory: () => HTMLElement;
+    readonly factory: () => HTMLElement;
 
     /**
      * Creates a marker that renders its element with the given factory.
@@ -194,9 +194,12 @@ export function breakpointState(options: {
             initialSpacer: (view) => new BreakpointMarker(
                 view.state.field(breakpointField).factory,
             ),
-            updateSpacer: (spacer, update) => new BreakpointMarker(
-                update.state.field(breakpointField).factory,
-            ),
+            updateSpacer: (spacer, update) => {
+                const { factory } = update.state.field(breakpointField);
+                return (spacer as BreakpointMarker).factory === factory
+                    ? spacer
+                    : new BreakpointMarker(factory);
+            },
         }),
     ];
 }
