@@ -295,6 +295,50 @@ test('undoes the comment press together with the marker', async () => {
     view.destroy();
 });
 
+test('keeps two quick comment presses as separate undo steps', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^\n||b.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    // The second press must undo alone. A joined event composes the text
+    // change to nothing and resolves the effect positions in the wrong
+    // coordinate space, which leaves both markers on.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^\n! ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('does not join a nearby edit with the comment toggle in the undo history', async () => {
+    const { view } = await mountEditorWithSelection('||a.com^');
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Type directly after the inserted prefix, next to the toggle change.
+    view.dispatch({ changes: { from: 2, insert: 'x' } });
+    expect(view.state.doc.toString()).toBe('! x||a.com^');
+
+    // The typing undoes alone and keeps the marker of the commented rule.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
 test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
     const toggleRule = vi.fn();
     const view = await mountEditor(initEditor, {

@@ -2,6 +2,7 @@ import {
     copyLineDown,
     copyLineUp,
     deleteLine,
+    isolateHistory,
     moveLineDown,
     moveLineUp,
 } from '@codemirror/commands';
@@ -104,14 +105,18 @@ function allLinesAreComments(state: EditorState, lines: readonly number[]): bool
 }
 
 /**
- * Reports whether a line can carry an enabled-rule marker.
+ * Reports whether the rule form of a line can carry an enabled-rule marker.
  *
- * Only a rule line can be enabled, so a comment line and an empty line cannot
- * hold a marker. A whitespace-only line is not empty, so it can hold one.
+ * A marker belongs to a rule, so a comment line and an empty line cannot hold
+ * one. The comment toggle checks the rule form of each line (the current text
+ * when commenting, the uncommented text when uncommenting), so the toggle can
+ * leave a marker on a line whose post-toggle text is a comment; only
+ * `setEditorValue` refuses to restore such a marker. A whitespace-only line is
+ * not empty, so it can hold one.
  *
  * @param text The line text.
  *
- * @returns `true` if the line can hold an enabled-rule marker.
+ * @returns `true` if the line text can hold an enabled-rule marker.
  */
 export function canHoldEnabledMarker(text: string): boolean {
     return text !== '' && !isCommentLine(text);
@@ -141,7 +146,9 @@ function uncommentedText(text: string): string {
  * are uncommented, otherwise every non-empty line gets a `! ` prefix.
  *
  * The effects are dispatched in the same transaction as the text change, so a
- * single undo reverts both.
+ * single undo reverts both. The transaction is isolated in the undo history:
+ * a quick second toggle or a nearby edit would otherwise join it, and the
+ * joined event expects the effect values in a different coordinate space.
  *
  * @param view The editor view.
  * @param lines The 1-based numbers of the lines to toggle.
@@ -174,7 +181,7 @@ function toggleCommentOnLines(
         }
     }
 
-    view.dispatch({ changes, effects });
+    view.dispatch({ changes, effects, annotations: isolateHistory.of('full') });
     return true;
 }
 

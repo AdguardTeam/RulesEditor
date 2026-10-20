@@ -6,7 +6,7 @@ import {
 } from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
-import { EditorState, type Extension } from '@codemirror/state';
+import { EditorState, type Extension, Transaction } from '@codemirror/state';
 import {
     drawSelection,
     EditorView,
@@ -321,9 +321,14 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * the state of `view` only: other editors on the page keep their own color
  * and HTML.
  *
- * An `enabled` flag is restored only for a line that can hold a marker: an
- * empty or comment rule is never marked, so such a flag is lost in a
- * {@link getRulesFromEditor} → `setEditorValue` round-trip.
+ * An `enabled` flag is restored only when the rule text can hold a marker:
+ * an empty or comment rule is never marked, so such a flag is lost in a
+ * {@link getRulesFromEditor} → `setEditorValue` round-trip. The comment toggle
+ * can still leave a marker on a line whose text is a comment; this load path
+ * does not restore such a marker.
+ *
+ * The marker restore is not a user edit and does not create an undo step: one
+ * undo reverts the loaded content.
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
@@ -358,6 +363,13 @@ export function setEditorValue(
         }
     });
     if (enabled.length > 0) {
-        view.dispatch({ effects: enabled.map((from) => toggleBreakpoint.of(from)) });
+        view.dispatch({
+            effects: enabled.map((from) => toggleBreakpoint.of(from)),
+            // The marker restore is not a user edit. Without this annotation
+            // the registered `invertedEffects` provider makes the
+            // effects-only transaction a separate undo step, so the first undo
+            // after a load would strip the markers and keep the loaded text.
+            annotations: Transaction.addToHistory.of(false),
+        });
     }
 }

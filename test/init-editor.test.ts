@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { undo } from '@codemirror/commands';
+import { undo, undoDepth } from '@codemirror/commands';
 import { search, searchPanelOpen } from '@codemirror/search';
 import { EditorState, Prec } from '@codemirror/state';
 import { type EditorView, keymap, showDialog } from '@codemirror/view';
@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 
-import { toggleBreakpoint } from '../src/commands/breakpoints';
+import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
@@ -107,6 +107,24 @@ test('setEditorValue clears markers from the previous content', async () => {
     expect(getRulesFromEditor(view)).toEqual([
         { enabled: false, rule: '||b.com^' },
     ]);
+    view.destroy();
+});
+
+test('setEditorValue does not create an undo step for the markers', async () => {
+    const view = await mountEditor(
+        initEditor,
+        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+        wasm,
+    );
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // The marker restore is not a user edit: the load is a single undo step,
+    // and one undo reverts the loaded content instead of stripping the
+    // markers first.
+    expect(undoDepth(view.state)).toBe(1);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('');
     view.destroy();
 });
 
