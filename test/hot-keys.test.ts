@@ -179,6 +179,47 @@ test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
     view.destroy();
 });
 
+test('toggleAdblockComment is a consumed no-op in a read-only editor', () => {
+    const view = new EditorView({
+        state: EditorState.create({
+            doc: 'a.com',
+            extensions: [EditorState.readOnly.of(true)],
+        }),
+        parent: document.body,
+    });
+
+    expect(toggleAdblockComment(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a.com');
+    view.destroy();
+});
+
+test('does not comment the next line when the selection ends at its start', () => {
+    const doc = 'aaa\nbbb\nccc';
+    // A Home + Shift+Down selection: from the start of `bbb` to the start of
+    // `ccc` — `ccc` is only touched at its first character position.
+    const view = makeView(doc, { anchor: doc.indexOf('bbb'), head: doc.indexOf('ccc') });
+    expect(toggleAdblockComment(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('aaa\n! bbb\nccc');
+    view.destroy();
+});
+
+test('comments the line under a cursor placed at a line start', () => {
+    const doc = 'aaa\nbbb\nccc';
+    const start = doc.indexOf('bbb');
+    const view = makeView(doc, { anchor: start, head: start });
+    expect(toggleAdblockComment(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('aaa\n! bbb\nccc');
+    view.destroy();
+});
+
+test('comments every line when a selection starts mid-line and ends at the next line start', () => {
+    const doc = 'aaa\nbbb\nccc';
+    const view = makeView(doc, { anchor: 1, head: doc.indexOf('ccc') });
+    expect(toggleAdblockComment(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('! aaa\n! bbb\nccc');
+    view.destroy();
+});
+
 test('Ctrl+/ comments the line under every cursor and toggles its rule marker', async () => {
     const textarea = document.createElement('textarea');
     textarea.value = '||a.com^\n||b.com^\n||c.com^';
