@@ -81,9 +81,9 @@ function selectedLineNumbers(state: EditorState, ranges: readonly SelectionRange
 }
 
 /**
- * Toggles an adblock comment (`! `) at the beginning of the given lines. If all
- * of them are already commented they are uncommented, otherwise every line gets
- * a `! ` prefix.
+ * Toggles an adblock comment (`! `) at the beginning of the given lines.
+ * Empty lines are skipped. If all non-empty lines are already comments they
+ * are uncommented, otherwise every non-empty line gets a `! ` prefix.
  *
  * @param view The editor view.
  * @param lines The 1-based numbers of the lines to toggle.
@@ -235,8 +235,9 @@ export function configureAceParityKeys(): Extension {
 
 /**
  * Toggles an adblock comment (`! `) at the beginning of every selected line,
- * for every selection range. If all selected lines are already commented they
- * are uncommented, otherwise every line gets a `! ` prefix.
+ * for every selection range. Empty lines are skipped. If all selected
+ * non-empty lines are already comments they are uncommented, otherwise every
+ * non-empty line gets a `! ` prefix.
  *
  * @param view The editor view.
  *
