@@ -3,9 +3,11 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, test } from 'vitest';
 
-import { enabledRuleLines } from '../src/commands/breakpoints';
+import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { toggleAdblockComment } from '../src/commands/hot-keys';
 import { initEditor } from '../src/init-editor';
+
+import { mountEditor, pressKey } from './helpers';
 
 /**
  * Creates an EditorView with the given document and optional selection range.
@@ -155,6 +157,29 @@ test('comments every line covered by a multi-line selection range', () => {
     ]);
     expect(toggleAdblockComment(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('! a.com\n! b.com\n! c.com\n! d.com');
+    view.destroy();
+});
+
+test('keeps an enabled rule enabled after a comment and uncomment cycle', async () => {
+    let toggles = 0;
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: {
+            toggleRule: () => { toggles += 1; },
+        },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(toggles).toBe(2);
     view.destroy();
 });
 

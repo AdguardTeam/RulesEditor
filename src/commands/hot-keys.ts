@@ -340,9 +340,13 @@ export function configureHotKeys(handlers: {
             run: (view): boolean => {
                 const { state } = view;
                 const lines = selectedLineNumbers(state, state.selection.ranges);
+                // Comment lines are included on purpose: uncommenting a rule
+                // must toggle its marker back on, so the enabled state
+                // survives a comment and uncomment cycle. Empty lines are not
+                // rules and get no marker.
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))
-                    .filter((line) => !isCommentLine(line.text));
+                    .filter((line) => line.text !== '');
                 if (ruleLines.length > 0) {
                     view.dispatch({
                         effects: ruleLines.map((line) => toggleBreakpoint.of(line.from)),

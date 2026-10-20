@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The comment toggle (`Ctrl+/` / `Cmd+/`) keeps an enabled rule enabled
+  after a comment and uncomment cycle: uncommenting the rule restores its
+  enabled-rule marker and calls the `toggleRule` callback again.
+
 ### Security
 
 ## [2.0.3-beta.1] - 2026-10-16
