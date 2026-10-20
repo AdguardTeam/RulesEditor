@@ -81,6 +81,24 @@ function selectedLineNumbers(state: EditorState, ranges: readonly SelectionRange
 }
 
 /**
+ * Reports whether every non-empty line among the given lines is a comment.
+ *
+ * @param state The editor state.
+ * @param lines The 1-based line numbers.
+ *
+ * @returns `true` if every non-empty line is a comment.
+ */
+function allLinesAreComments(state: EditorState, lines: readonly number[]): boolean {
+    for (const number of lines) {
+        const { text } = state.doc.line(number);
+        if (text !== '' && !isCommentLine(text)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Toggles an adblock comment (`! `) at the beginning of the given lines. If all
  * of them are already commented they are uncommented, otherwise every line gets
  * a `! ` prefix.
@@ -95,14 +113,7 @@ function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boole
     const changes: ChangeSpec[] = [];
 
     // Determine whether we are commenting or uncommenting.
-    let allAreComments = true;
-    for (const number of lines) {
-        const { text } = state.doc.line(number);
-        if (text !== '' && !isCommentLine(text)) {
-            allAreComments = false;
-            break;
-        }
-    }
+    const allAreComments = allLinesAreComments(state, lines);
 
     for (const number of lines) {
         const line = state.doc.line(number);
@@ -340,13 +351,14 @@ export function configureHotKeys(handlers: {
             run: (view): boolean => {
                 const { state } = view;
                 const lines = selectedLineNumbers(state, state.selection.ranges);
-                // Comment lines are included on purpose: uncommenting a rule
-                // must toggle its marker back on, so the enabled state
-                // survives a comment and uncomment cycle. Empty lines are not
-                // rules and get no marker.
+                // On the comment press only active rules change state, so only
+                // their markers toggle. On the uncomment press every non-empty
+                // line is a comment that becomes a rule, so every marker
+                // toggles back on. Empty lines are not rules and get no marker.
+                const uncomment = allLinesAreComments(state, lines);
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))
-                    .filter((line) => line.text !== '');
+                    .filter((line) => line.text !== '' && (uncomment || !isCommentLine(line.text)));
                 if (ruleLines.length > 0) {
                     view.dispatch({
                         effects: ruleLines.map((line) => toggleBreakpoint.of(line.from)),
