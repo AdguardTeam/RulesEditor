@@ -228,8 +228,8 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.hotkeys.mode`           | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
 | `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint); also fires when comments turn into rules                       |
 | `conf.hotkeys.onSave`         | Callback for Ctrl/Cmd+S                                                                                          |
-| `conf.hotkeys.markerColor`    | CSS color for the breakpoint marker                                                                              |
-| `conf.hotkeys.markerHTML`     | Custom innerHTML for the breakpoint marker                                                                       |
+| `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker; other editors keep their own color                                |
+| `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker; other editors keep their own HTML                          |
 | `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                     |
 | `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                         |
 | `conf.onChange`               | Called after each document change                                                                                |
