@@ -103,6 +103,38 @@ function allLinesAreComments(state: EditorState, lines: readonly number[]): bool
 }
 
 /**
+ * Reports whether a line can carry an enabled-rule marker.
+ *
+ * Only a rule line can be enabled, so a comment line and an empty line cannot
+ * hold a marker. A whitespace-only line is not empty, so it can hold one.
+ *
+ * @param text The line text.
+ *
+ * @returns `true` if the line can hold an enabled-rule marker.
+ */
+export function canHoldEnabledMarker(text: string): boolean {
+    return text !== '' && !isCommentLine(text);
+}
+
+/**
+ * Returns the rule text of a comment line by removing its `! `, `!`, `# `, or
+ * `#` prefix. Returns the text unchanged when it has no comment prefix.
+ *
+ * @param text The line text.
+ *
+ * @returns The line text without the comment prefix.
+ */
+function uncommentedText(text: string): string {
+    if (text.startsWith(`${COMMENT_MARKER} `) || text.startsWith(`${HASH_COMMENT_MARKER} `)) {
+        return text.slice(2);
+    }
+    if (text.startsWith(COMMENT_MARKER) || text.startsWith(HASH_COMMENT_MARKER)) {
+        return text.slice(1);
+    }
+    return text;
+}
+
+/**
  * Toggles an adblock comment (`! `) at the beginning of the given lines.
  * Empty lines are skipped. If all non-empty lines are already comments they
  * are uncommented, otherwise every non-empty line gets a `! ` prefix.
@@ -123,14 +155,9 @@ function toggleCommentOnLines(view: EditorView, lines: readonly number[]): boole
         const line = state.doc.line(number);
         if (allAreComments) {
             // Uncomment: strip `! `, `# ` or bare prefix.
-            if (line.text.startsWith(`${COMMENT_MARKER} `)) {
-                changes.push({ from: line.from, to: line.from + 2 });
-            } else if (line.text.startsWith(COMMENT_MARKER)) {
-                changes.push({ from: line.from, to: line.from + 1 });
-            } else if (line.text.startsWith(`${HASH_COMMENT_MARKER} `)) {
-                changes.push({ from: line.from, to: line.from + 2 });
-            } else if (line.text.startsWith(HASH_COMMENT_MARKER)) {
-                changes.push({ from: line.from, to: line.from + 1 });
+            const text = uncommentedText(line.text);
+            if (text !== line.text) {
+                changes.push({ from: line.from, to: line.from + (line.text.length - text.length) });
             }
         } else if (line.text !== '') {
             // Comment: always prepend `! `.
@@ -250,8 +277,9 @@ export function configureAceParityKeys(): Extension {
 
 /**
  * Toggles an adblock comment (`! `) at the beginning of every selected line,
- * for every selection range. If all selected lines are already commented they
- * are uncommented, otherwise every line gets a `! ` prefix.
+ * for every selection range. Empty lines are skipped. If all selected
+ * non-empty lines are already comments they are uncommented, otherwise every
+ * non-empty line gets a `! ` prefix.
  *
  * @param view The editor view.
  *
@@ -285,7 +313,9 @@ export function toggleAdblockComment(view: EditorView): boolean {
  *   commands. Pass `false` together with
  *   `EditorState.allowMultipleSelections` being off, since every command would
  *   otherwise be collapsed back to a single range.
- * @param handlers.onToggleRule Invoked when a rule is toggled.
+ * @param handlers.onToggleRule Invoked when a rule is toggled, including a
+ *   comment-only selection that the comment toggle turns back into rules. The
+ *   callback runs after the text change.
  * @param handlers.onSave Invoked when the save shortcut is pressed.
  *
  * @returns A CodeMirror 6 keymap extension.
@@ -355,14 +385,21 @@ export function configureHotKeys(handlers: {
             run: (view): boolean => {
                 const { state } = view;
                 const lines = selectedLineNumbers(state, state.selection.ranges);
-                // On the comment press only active rules change state, so only
-                // their markers toggle. On the uncomment press every non-empty
-                // line is a comment that becomes a rule, so every marker
-                // toggles back on. Empty lines are not rules and get no marker.
+                // The marker follows the state after the toggle: only a line
+                // whose comment status flips changes between a rule and a
+                // comment, so only that line toggles its marker. On the
+                // comment press the rule lines flip, so their markers toggle
+                // off. On the uncomment press the comment lines flip back to
+                // rules, so their markers toggle on again. A line that becomes
+                // empty (`!`) and a line that stays a comment (`! ! note`) get
+                // no marker; a whitespace-only line is not empty, so it does.
                 const uncomment = allLinesAreComments(state, lines);
                 const ruleLines = lines
                     .map((number) => state.doc.line(number))
-                    .filter((line) => line.text !== '' && (uncomment || !isCommentLine(line.text)));
+                    .filter((line) => isCommentLine(line.text) === uncomment)
+                    .filter((line) => canHoldEnabledMarker(
+                        uncomment ? uncommentedText(line.text) : line.text,
+                    ));
                 if (ruleLines.length > 0) {
                     view.dispatch({
                         effects: ruleLines.map((line) => toggleBreakpoint.of(line.from)),

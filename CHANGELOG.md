@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The comment toggle (`Ctrl+/` / `Cmd+/`) keeps an enabled rule enabled
   after a comment and uncomment cycle: uncommenting the rule restores its
-  enabled-rule marker and calls the `toggleRule` callback again.
+  enabled-rule marker and calls the `toggleRule` callback again. The marker
+  changes only for the lines whose rule state flips, so a comment in a mixed
+  selection gets no marker and a line that becomes empty loses its marker.
 - The comment toggle (`Ctrl+/` / `Cmd+/`) no longer comments an extra line
   when a non-empty selection ends exactly at the start of a line: only the
   lines the selection actually touches are toggled.

@@ -76,6 +76,25 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
     view.destroy();
 });
 
+test('setEditorValue does not restore an enabled marker on an empty rule', async () => {
+    const view = await mountEditor(
+        initEditor,
+        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+        wasm,
+    );
+    setEditorValue(view, [
+        { enabled: true, rule: '||a.com^' },
+        { enabled: true, rule: '' },
+    ], {});
+    // The load path uses the same predicate as the comment toggle: an empty
+    // line cannot hold an enabled marker.
+    expect(getRulesFromEditor(view)).toEqual([
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '' },
+    ]);
+    view.destroy();
+});
+
 test("highlight: 'none' mounts without loading WASM", async () => {
     const spy = vi.spyOn(RegistryManager, 'getGrammar');
     const view = await mountEditor(initEditor, { hotkeys: { mode: 'mac' } });

@@ -21,13 +21,17 @@ import {
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
-import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
+import {
+    canHoldEnabledMarker,
+    configureAceParityKeys,
+    configureHotKeys,
+    createMarker,
+} from './commands/hot-keys';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
 import { RegistryManager, type WasmSource } from './lib/registry';
 import type { HotkeyMode } from './lib/types';
-import { isCommentLine } from './lib/utils';
 
 export { EditorView };
 
@@ -103,7 +107,10 @@ export interface InitEditorConfig {
         markerHTML?: string;
 
         /**
-         * Called when the user toggles a rule's enabled state.
+         * Called when the user toggles a rule's enabled state. Also called for
+         * a comment-only selection that the comment toggle turns back into
+         * rules. The callback runs after the text change, so the editor
+         * already shows the final rule text and markers.
          */
         toggleRule?: (view: EditorView) => void;
 
@@ -326,7 +333,7 @@ export function setEditorValue(
     // one transaction per line would rebuild the set once per line.
     const enabled: number[] = [];
     value.forEach((v, index) => {
-        if (v.enabled && !isCommentLine(v.rule)) {
+        if (v.enabled && canHoldEnabledMarker(v.rule)) {
             const line = view.state.doc.line(index + 1);
             if (!isBreakpointAt(view.state, line.from)) {
                 enabled.push(line.from);
