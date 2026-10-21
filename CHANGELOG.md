@@ -11,14 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.3-beta.2] - 2026-10-21
+
+### Changed
+
 - Enabled-rule gutter markers now use a per-editor factory: two editors on
   one page can render different marker colors and HTML, and `setEditorValue`
   changes the markers of the editor it is called on only. The `markerColor`
   and `markerHTML` options of `initEditor` apply to that editor.
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
@@ -41,8 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   content, so a rule that becomes disabled no longer stays enabled. A
   programmatic load creates no undo step at all: neither the content
   replacement nor the marker restore is recorded.
-
-### Security
 
 ## [2.0.3-beta.1] - 2026-10-16
 
@@ -301,7 +307,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.1...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.2...HEAD
+[2.0.3-beta.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.1...v2.0.3-beta.2
 [2.0.3-beta.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...v2.0.3-beta.1
 [2.0.3-beta.0]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...v2.0.3-beta.0
 [2.0.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.1...v2.0.2
