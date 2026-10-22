@@ -6,7 +6,12 @@ import {
 } from '@codemirror/commands';
 import { defaultHighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { search, searchKeymap } from '@codemirror/search';
-import { EditorState, type Extension, Transaction } from '@codemirror/state';
+import {
+    Compartment,
+    EditorState,
+    type Extension,
+    Transaction,
+} from '@codemirror/state';
 import {
     drawSelection,
     EditorView,
@@ -16,18 +21,13 @@ import {
 
 import {
     breakpointState,
-    clearBreakpoints,
     enabledRuleLines,
-    isBreakpointAt,
+    hasBreakpoints,
+    programmaticLoad,
+    setBreakpoints,
     setMarkerFactory,
-    toggleBreakpoint,
 } from './commands/breakpoints';
-import {
-    canHoldEnabledMarker,
-    configureAceParityKeys,
-    configureHotKeys,
-    createMarker,
-} from './commands/hot-keys';
+import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { WasmLoadError } from './lib/errors';
@@ -35,6 +35,12 @@ import { RegistryManager, type WasmSource } from './lib/registry';
 import type { HotkeyMode } from './lib/types';
 
 export { EditorView };
+
+/**
+ * Compartment that holds the undo history, so {@link setEditorValue} can
+ * reset it without recreating the editor.
+ */
+const historyCompartment = new Compartment();
 
 /**
  * Syntax-highlighting strategy for {@link initEditor}.
@@ -84,7 +90,9 @@ export interface InitEditorConfig {
     withMultipleSelections?: boolean;
 
     /**
-     * Called after each document change.
+     * Called after each document change. The callback observes the
+     * enabled-rule markers that {@link setEditorValue} restores in the same
+     * transaction as the text.
      */
     onChange?: (view: EditorView) => void;
 
@@ -113,7 +121,9 @@ export interface InitEditorConfig {
          * Called when the user toggles a rule's enabled state. Also called for
          * a comment-only selection that the comment toggle turns back into
          * rules. The callback runs after the text change, so the editor
-         * already shows the final rule text and markers.
+         * already shows the final rule text and markers. Not called for an
+         * undo or redo of the toggle; use {@link InitEditorConfig.onChange}
+         * to observe those changes.
          */
         toggleRule?: (view: EditorView) => void;
 
@@ -161,7 +171,7 @@ export async function initEditor(
 
     const extensions: Extension[] = [
         lineNumbers(),
-        history(),
+        historyCompartment.of(history()),
         // The previous editor's chords are registered before the CodeMirror
         // defaults and at `Prec.high`: some of them intentionally supersede a
         // default that binds the same chord (`Mod-d` — select next occurrence;
@@ -299,11 +309,19 @@ export async function initEditor(
 /**
  * Reads rules and their enabled flags from the editor.
  *
- * @param view The editor view.
+ * @param view The editor view. Requires an editor created with
+ *   `withBreakpoints: true`.
  *
  * @returns One entry per line with its text and enabled flag.
+ *
+ * @throws {RangeError} If `view` has no enabled-rule field.
  */
 export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: string }[] {
+    if (!hasBreakpoints(view.state)) {
+        throw new RangeError(
+            'getRulesFromEditor requires an editor created with withBreakpoints: true',
+        );
+    }
     const enabled = new Set(enabledRuleLines(view.state));
     const rules: { enabled: boolean; rule: string }[] = [];
     for (let i = 1; i <= view.state.doc.lines; i += 1) {
@@ -316,65 +334,75 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 /**
  * Replaces the editor content and restores enabled-rule markers.
  *
- * The call clears the markers of `view` first, so a rule that becomes
- * disabled does not keep a stale marker. The marker options are stored in
- * the state of `view` only: other editors on the page keep their own color
- * and HTML.
+ * The call replaces the markers of `view`, so a rule that becomes disabled
+ * does not keep a stale marker. The marker options are stored in the state of
+ * `view` only: other editors on the page keep their own color and HTML.
  *
- * An `enabled` flag is restored only when the rule text can hold a marker:
- * an empty or comment rule is never marked, so such a flag is lost in a
- * {@link getRulesFromEditor} → `setEditorValue` round-trip. The comment toggle
- * can still leave a marker on a line whose text is a comment; this load path
- * does not restore such a marker.
+ * An `enabled` flag is restored for every non-empty line, including a comment
+ * line: the comment toggle can leave a marker on a comment, so the flag
+ * survives a {@link getRulesFromEditor} → `setEditorValue` round-trip. An empty
+ * line is never marked, so its flag is lost in the round-trip.
  *
- * A programmatic load is not a user edit and creates no undo step: neither the
- * content replacement nor the marker restore is recorded, so an undo cannot
- * revert the text while it leaves the restored markers behind.
+ * The text replacement and the marker restore are one transaction, so
+ * `onChange` observes the loaded rules with their markers. A programmatic load
+ * is not a user edit: it creates no undo step, and it clears the undo history
+ * of an editor created by {@link initEditor}, so an undo cannot revert an edit
+ * made before the load.
  *
- * @param view The editor view.
+ * @param view The editor view. Requires an editor created with
+ *   `withBreakpoints: true`.
  * @param value Rules with enabled flags.
  * @param markerOptions Marker color/HTML overrides for `view` only.
  * @param markerOptions.color Marker text color.
  * @param markerOptions.innerHTML Marker inner HTML.
+ *
+ * @throws {RangeError} If `view` has no enabled-rule field.
  */
 export function setEditorValue(
     view: EditorView,
     value: { enabled: boolean; rule: string }[],
     markerOptions: { color?: string; innerHTML?: string },
 ): void {
+    if (!hasBreakpoints(view.state)) {
+        throw new RangeError(
+            'setEditorValue requires an editor created with withBreakpoints: true',
+        );
+    }
+
     const doc = value.map((v) => v.rule).join('\n');
+    // The positions are line starts in the document after the replacement, so
+    // they go through `setBreakpoints`, which is not mapped through the
+    // transaction's changes.
+    const enabled: number[] = [];
+    let position = 0;
+    value.forEach((v) => {
+        if (v.enabled && v.rule !== '') {
+            enabled.push(position);
+        }
+        position += v.rule.length + 1;
+    });
+
+    // `history()` reconfigures its field only when the field is removed and
+    // added again, so the reset needs a transaction of its own. Without it,
+    // an undo after the load could revert an edit made before the load and
+    // leave the loaded markers on the reverted text.
+    const resetHistory = historyCompartment.get(view.state) !== undefined;
+    if (resetHistory) {
+        view.dispatch({ effects: historyCompartment.reconfigure([]) });
+    }
+
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
         effects: [
-            clearBreakpoints.of(null),
             setMarkerFactory.of(createMarker(markerOptions)),
+            setBreakpoints.of(enabled),
+            ...(resetHistory ? [historyCompartment.reconfigure(history())] : []),
         ],
-        // A load is not a user edit. Without this annotation an undo would
-        // revert the text and map the restored markers into the reverted
-        // document, where a marker can stay on an empty line.
-        annotations: Transaction.addToHistory.of(false),
+        // A load is not a user edit: neither the content replacement nor the
+        // marker restore is recorded.
+        annotations: [
+            Transaction.addToHistory.of(false),
+            programmaticLoad.of(true),
+        ],
     });
-
-    // All toggles go into one transaction: the breakpoint field applies the
-    // effects of a transaction with a single `RangeSet` update, so dispatching
-    // one transaction per line would rebuild the set once per line.
-    const enabled: number[] = [];
-    value.forEach((v, index) => {
-        if (v.enabled && canHoldEnabledMarker(v.rule)) {
-            const line = view.state.doc.line(index + 1);
-            if (!isBreakpointAt(view.state, line.from)) {
-                enabled.push(line.from);
-            }
-        }
-    });
-    if (enabled.length > 0) {
-        view.dispatch({
-            effects: enabled.map((from) => toggleBreakpoint.of(from)),
-            // The marker restore is not a user edit. Without this annotation
-            // the registered `invertedEffects` provider makes the
-            // effects-only transaction a separate undo step, so the first undo
-            // after a load would strip the markers and keep the loaded text.
-            annotations: Transaction.addToHistory.of(false),
-        });
-    }
 }

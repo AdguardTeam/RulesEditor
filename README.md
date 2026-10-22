@@ -175,10 +175,12 @@ cycle. A disabled rule therefore gains a marker while it is a comment.
 `Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
 
 The `toggleRule` callback also fires for a comment-only selection that the
-toggle turns back into rules. A comment line in a mixed selection gets no
-marker. A line that stays a comment (`! ! note`) does not change its marker,
-while a line that becomes empty (`!`) loses any marker it had, because an
-empty line cannot hold one. Empty lines are skipped, but a whitespace-only
+toggle turns back into rules. It runs after the text change, so a consumer
+that re-reads the editor sees the final text and markers; an undo or redo of
+the toggle does not call it — use `onChange` to observe those changes. A
+comment line in a mixed selection gets no marker. A line that stays a comment
+(`! ! note`) does not change its marker, while a line that the toggle empties
+(`!`) loses any marker it had. Empty lines are skipped, but a whitespace-only
 line is not empty and still gets a marker.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
@@ -214,7 +216,7 @@ const segments = await inspectLine(wasm, '||example.org^$important');
 ```typescript
 async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: WasmSource,
+    wasm: WasmSource | undefined,
     conf: InitEditorConfig,
 ): Promise<EditorView>
 ```
@@ -279,7 +281,9 @@ on the same page.
 - `Alt+Up` / `Alt+Down` moves the selected lines up or down
 - `Shift+Alt+Up` / `Shift+Alt+Down` copies the selected lines up or down
   (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor)
-- `Ctrl+D` / `Cmd+D` deletes the current line or selection
+- `Ctrl+D` / `Cmd+D` deletes the current line or selection; the enabled-rule
+  marker of a deleted line is removed with the line, and one undo restores
+  both
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
 - `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines and the
   enabled-rule marker on every line whose rule state flips, so a rule keeps

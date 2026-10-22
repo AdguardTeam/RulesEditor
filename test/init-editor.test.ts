@@ -43,6 +43,17 @@ const pressCtrlKey = (view: EditorView, key: string): KeyboardEvent => {
     return pressKey(view.contentDOM, key, { ctrl: true });
 };
 
+/**
+ * Mounts an editor with the enabled-rule gutter and full highlighting.
+ *
+ * @returns The mounted editor view. Destroy it when the test is done.
+ */
+const mountBreakpointEditor = (): Promise<EditorView> => mountEditor(
+    initEditor,
+    { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
+    wasm,
+);
+
 test('mounts an editor and highlights a comment', async () => {
     const view = await mountEditor(
         initEditor,
@@ -60,11 +71,7 @@ test('mounts an editor and highlights a comment', async () => {
 });
 
 test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: false, rule: '||b.com^' },
@@ -78,11 +85,7 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
 });
 
 test('setEditorValue does not restore an enabled marker on an empty rule', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: true, rule: '' },
@@ -97,11 +100,7 @@ test('setEditorValue does not restore an enabled marker on an empty rule', async
 });
 
 test('setEditorValue clears markers from the previous content', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     setEditorValue(view, [{ enabled: false, rule: '||b.com^' }], {});
     expect(getRulesFromEditor(view)).toEqual([
@@ -111,11 +110,7 @@ test('setEditorValue clears markers from the previous content', async () => {
 });
 
 test('setEditorValue creates no undo step', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
@@ -126,6 +121,65 @@ test('setEditorValue creates no undo step', async () => {
     expect(undo(view)).toBe(false);
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('setEditorValue clears the undo history', async () => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    expect(undoDepth(view.state)).toBe(1);
+
+    setEditorValue(view, [{ enabled: true, rule: '||b.com^' }], {});
+
+    // A load clears the history instead of leaving an earlier edit that an
+    // undo could replay onto the loaded document.
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe('||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('setEditorValue restores markers before onChange runs', async () => {
+    const seen: { enabled: boolean; rule: string }[][] = [];
+    const view = await mountEditor(initEditor, {
+        highlight: 'full',
+        hotkeys: { mode: 'mac' },
+        withBreakpoints: true,
+        onChange: (editorView) => {
+            seen.push(getRulesFromEditor(editorView));
+        },
+    }, wasm);
+
+    setEditorValue(view, [
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '||b.com^' },
+    ], {});
+
+    // The text replacement and the marker restore are one transaction, so a
+    // consumer that reads the editor from `onChange` sees the loaded markers.
+    expect(seen).toEqual([[
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '||b.com^' },
+    ]]);
+    view.destroy();
+});
+
+test('setEditorValue restores an enabled marker on a comment rule', async () => {
+    const view = await mountBreakpointEditor();
+    setEditorValue(view, [{ enabled: true, rule: '! ||a.com^' }], {});
+
+    // The comment toggle leaves a marker on a commented rule, so the flag must
+    // survive the round-trip instead of being dropped as a comment.
+    expect(getRulesFromEditor(view)).toEqual([{ enabled: true, rule: '! ||a.com^' }]);
+    view.destroy();
+});
+
+test('setEditorValue and getRulesFromEditor require the enabled-rule field', async () => {
+    const view = await mountEditor(initEditor);
+
+    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {})).toThrow(RangeError);
+    expect(() => getRulesFromEditor(view)).toThrow(RangeError);
     view.destroy();
 });
 
@@ -467,6 +521,54 @@ test('Ctrl+D deletes the current line', async () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.doc.toString()).toBe('||a.com^\n||c.com^');
+    view.destroy();
+});
+
+test('Ctrl+D removes the marker of the deleted line and undo restores it', async () => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({ changes: { from: 0, insert: '||a.com^\n||b.com^\n||c.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    view.dispatch({ selection: { anchor: 0 } });
+
+    pressKey(view.contentDOM, 'd', { ctrl: true });
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||c.com^');
+    // The marker belonged to the deleted line, not to the line that moved up.
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('Ctrl+D on a marked middle line removes its marker with the line', async () => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({ changes: { from: 0, insert: '||a.com^\n||b.com^\n||c.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(10) });
+    view.dispatch({ selection: { anchor: 10 } });
+
+    pressKey(view.contentDOM, 'd', { ctrl: true });
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('keeps the marker when an ordinary edit empties the rule line', async () => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // Deleting the rule text is not the comment toggle: the marker stays on
+    // the emptied line, as it did before the toggle removed markers itself.
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length } });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 

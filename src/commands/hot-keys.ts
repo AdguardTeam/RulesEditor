@@ -25,7 +25,7 @@ import { type EditorView, type KeyBinding, keymap } from '@codemirror/view';
 import type { HotkeyMode } from '../lib/types';
 import { isCommentLine } from '../lib/utils';
 
-import { toggleBreakpoint } from './breakpoints';
+import { isBreakpointAt, toggleBreakpoint } from './breakpoints';
 import {
     addCursorAbove,
     addCursorAboveSkipCurrent,
@@ -110,29 +110,31 @@ function allLinesAreComments(state: EditorState, lines: readonly number[]): bool
  * The predicate rejects an empty line and a comment line, and accepts every
  * other line; a whitespace-only line is not empty, so it is accepted. The
  * comment toggle applies the predicate to the rule form of each line (the
- * current text when commenting, the uncommented text when uncommenting), so
- * the toggle can leave a marker on a line whose post-toggle text is a comment;
- * only `setEditorValue` refuses to restore such a marker. `breakpointField`
- * enforces the empty-line part of the invariant: it drops every marker that
- * lands on a line that is empty after the change.
+ * current text when commenting, the text without one comment prefix when
+ * uncommenting), so a line whose rule form is markable toggles its marker. The
+ * predicate is not an invariant of the marker field: a marker can stay on a
+ * line that an ordinary edit empties, and `setEditorValue` restores a marker
+ * on any non-empty line, a comment line included.
  *
  * @param text The line text.
  *
  * @returns `true` if the line text can hold an enabled-rule marker.
  */
-export function canHoldEnabledMarker(text: string): boolean {
+function canHoldEnabledMarker(text: string): boolean {
     return text !== '' && !isCommentLine(text);
 }
 
 /**
- * Returns the rule text of a comment line by removing its `! `, `!`, `# `, or
- * `#` prefix. Returns the text unchanged when it has no comment prefix.
+ * Removes one comment prefix (`! `, `!`, `# `, or `#`) from the given line.
+ * The result can still be a comment, so the caller must not treat it as a
+ * rule.
  *
  * @param text The line text.
  *
- * @returns The line text without the comment prefix.
+ * @returns The line text without its first comment prefix, unchanged when it
+ *   has no comment prefix.
  */
-function uncommentedText(text: string): string {
+function removeCommentPrefix(text: string): string {
     if (text.startsWith(`${COMMENT_MARKER} `) || text.startsWith(`${HASH_COMMENT_MARKER} `)) {
         return text.slice(2);
     }
@@ -154,6 +156,9 @@ function uncommentedText(text: string): string {
  *
  * @param view The editor view.
  * @param lines The 1-based numbers of the lines to toggle.
+ * @param uncomment Whether the lines are uncommented (`true`) or commented
+ *   (`false`). The caller computes this from the same lines, so the text
+ *   change and the marker effects cannot disagree about the direction.
  * @param effects Extra effects to dispatch with the text change.
  *
  * @returns `true` so the keymap consumes the event.
@@ -161,19 +166,17 @@ function uncommentedText(text: string): string {
 function toggleCommentOnLines(
     view: EditorView,
     lines: readonly number[],
+    uncomment: boolean,
     effects: readonly StateEffect<unknown>[] = [],
 ): boolean {
     const { state } = view;
     const changes: ChangeSpec[] = [];
 
-    // Determine whether we are commenting or uncommenting.
-    const allAreComments = allLinesAreComments(state, lines);
-
     for (const number of lines) {
         const line = state.doc.line(number);
-        if (allAreComments) {
+        if (uncomment) {
             // Uncomment: strip `! `, `# ` or bare prefix.
-            const text = uncommentedText(line.text);
+            const text = removeCommentPrefix(line.text);
             if (text !== line.text) {
                 changes.push({ from: line.from, to: line.from + (line.text.length - text.length) });
             }
@@ -312,7 +315,8 @@ export function toggleAdblockComment(view: EditorView): boolean {
     if (state.readOnly) {
         return true;
     }
-    return toggleCommentOnLines(view, selectedLineNumbers(state, state.selection.ranges));
+    const lines = selectedLineNumbers(state, state.selection.ranges);
+    return toggleCommentOnLines(view, lines, allLinesAreComments(state, lines));
 }
 
 /**
@@ -342,9 +346,13 @@ export function toggleAdblockComment(view: EditorView): boolean {
  *   commands. Pass `false` together with
  *   `EditorState.allowMultipleSelections` being off, since every command would
  *   otherwise be collapsed back to a single range.
- * @param handlers.onToggleRule Invoked when a rule is toggled, including a
- *   comment-only selection that the comment toggle turns back into rules. The
- *   callback runs after the text change. Not called in a read-only editor.
+ * @param handlers.onToggleRule Invoked after the comment toggle changes the
+ *   enabled state of at least one line, including a comment-only selection
+ *   that the toggle turns back into rules. The callback runs after the text
+ *   change, so a consumer that re-reads the editor sees the final rule text
+ *   and markers. Not called for an undo or redo of the toggle; use the
+ *   editor's `onChange` to observe those changes. Not called in a read-only
+ *   editor.
  * @param handlers.onSave Invoked when the save shortcut is pressed.
  *
  * @returns A CodeMirror 6 keymap extension.
@@ -413,36 +421,49 @@ export function configureHotKeys(handlers: {
             key: 'Mod-/',
             run: (view): boolean => {
                 const { state } = view;
-                // The text change and its read-only guard live in
+                // The read-only guard and the consumed no-op live in
                 // `toggleAdblockComment`; a read-only editor must not toggle
                 // the enabled-rule marker or call the callback either.
                 if (state.readOnly) {
                     return toggleAdblockComment(view);
                 }
                 const lines = selectedLineNumbers(state, state.selection.ranges);
+                const uncomment = allLinesAreComments(state, lines);
                 // The marker follows the state after the toggle: only a line
                 // whose comment status flips changes between a rule and a
                 // comment, so only that line toggles its marker. Commenting an
                 // enabled rule clears its marker, and uncommenting the rule
                 // restores it. A disabled rule gains a marker while it is a
                 // comment. A line that stays a comment (`! ! note`) does not
-                // change its marker, a line that becomes empty (`!`) loses any
-                // marker it had, and a whitespace-only line is not empty, so it
-                // can hold one.
-                const uncomment = allLinesAreComments(state, lines);
-                const ruleLines = lines
+                // change its marker, and a whitespace-only line is not empty,
+                // so it can hold one.
+                const flippingLines = lines
                     .map((number) => state.doc.line(number))
                     .filter((line) => isCommentLine(line.text) === uncomment)
                     .filter((line) => canHoldEnabledMarker(
-                        uncomment ? uncommentedText(line.text) : line.text,
+                        uncomment ? removeCommentPrefix(line.text) : line.text,
                     ));
                 // The marker effects ride along with the text change, so one
                 // undo reverts the text and the markers together.
-                const effects = ruleLines.map((line) => toggleBreakpoint.of(line.from));
-                const handled = toggleCommentOnLines(view, lines, effects);
+                const effects = flippingLines.map((line) => toggleBreakpoint.of(line.from));
+                if (uncomment) {
+                    // A marked line that the uncomment empties (`!` becomes
+                    // ``) cannot keep its marker: there is no rule left to
+                    // enable. Removing it in the same transaction keeps the
+                    // removal in the undo step.
+                    lines.forEach((number) => {
+                        const line = state.doc.line(number);
+                        if (isCommentLine(line.text)
+                            && removeCommentPrefix(line.text) === ''
+                            && isBreakpointAt(state, line.from)) {
+                            effects.push(toggleBreakpoint.of(line.from));
+                        }
+                    });
+                }
+                const handled = toggleCommentOnLines(view, lines, uncomment, effects);
                 // Call the callback after the text change, so a consumer that
                 // re-reads the editor sees the final rule text and markers.
-                if (ruleLines.length > 0) {
+                if (flippingLines.length > 0) {
                     handlers.onToggleRule?.(view);
                 }
                 return handled;

@@ -1,12 +1,15 @@
 import { invertedEffects } from '@codemirror/commands';
 import {
-    type EditorState,
+    Annotation,
+    type ChangeSet,
+    EditorState,
     type Extension,
     Facet,
     type Range,
     RangeSet,
     StateEffect,
     StateField,
+    Transaction,
 } from '@codemirror/state';
 import { gutter, GutterMarker } from '@codemirror/view';
 
@@ -15,19 +18,34 @@ import { gutter, GutterMarker } from '@codemirror/view';
  * position (the line's start offset).
  *
  * A dispatched value is in the transaction's start (pre-change) coordinates:
- * `breakpointField` maps it through `tr.changes` with an association of `-1`,
- * so a prefix inserted at the line start (the comment toggle) keeps the marker
- * at the start of the line instead of moving it behind the prefix.
+ * `breakpointField` removes the marker of a toggled-off line from the start
+ * set and maps only the toggled-on positions through `tr.changes` with an
+ * association of `-1`, so a prefix inserted at the line start (the comment
+ * toggle) keeps the marker at the start of the line instead of moving it
+ * behind the prefix.
  *
- * The `invertedEffects` provider stores the value in post-change coordinates,
- * because the undo transaction starts after the change. History's join path
- * (`addChanges` → `StateEffect.mapEffects(event.effects, lastEvent.changes)`)
- * expects a joined event's effects in its transaction's start coordinates, so
- * any transaction that mixes `toggleBreakpoint` effects with changes must
- * carry `isolateHistory.of('full')`.
+ * History inverts the effect by restoring the whole marker set of the
+ * transaction's start state (see the `invertedEffects` provider in
+ * `breakpointState`): a per-position inverse cannot express the start of a
+ * line that a deletion restored.
  */
 export const toggleBreakpoint = StateEffect.define<number>({
     map: (value, mapping) => mapping.mapPos(value, -1),
+});
+
+/**
+ * Effect that replaces the enabled markers of the editor that handles it with
+ * markers at the given line starts.
+ *
+ * The positions are in the document produced by the transaction that carries
+ * the effect, not in its start document: `breakpointField` does not map them
+ * through the transaction's changes. `setEditorValue` uses the effect to load
+ * markers for a document that the same transaction inserts. The effect's `map`
+ * rebases the positions when history replays the transaction after a change
+ * that was not recorded.
+ */
+export const setBreakpoints = StateEffect.define<readonly number[]>({
+    map: (value, mapping) => value.map((pos) => mapping.mapPos(pos, -1)),
 });
 
 /**
@@ -36,9 +54,10 @@ export const toggleBreakpoint = StateEffect.define<number>({
 export const setMarkerFactory = StateEffect.define<() => HTMLElement>();
 
 /**
- * Effect that removes every enabled marker from the editor that handles it.
+ * Annotation that marks a transaction as a programmatic load, so the
+ * deleted-line extender leaves it alone.
  */
-export const clearBreakpoints = StateEffect.define<null>();
+export const programmaticLoad = Annotation.define<boolean>();
 
 /**
  * Builds the default marker element (a filled circle).
@@ -129,6 +148,54 @@ function rebuildMarkers(
     return RangeSet.of(rebuilt, true);
 }
 
+/**
+ * Maps the given start-document positions through `changes` with an
+ * association of `-1`, in a single pass.
+ *
+ * `ChangeSet.mapPos` scans the change sections from the start, so mapping one
+ * position per toggle effect is quadratic when a whole-document selection
+ * toggles thousands of lines. The positions must be sorted in ascending order;
+ * the toggle effects always come from selected line numbers, which are sorted.
+ *
+ * @param changes The changes to map through.
+ * @param positions The sorted start-document positions.
+ *
+ * @returns The mapped positions, in the same order.
+ */
+function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+    const mapped: number[] = [];
+    let index = 0;
+    let shift = 0;
+    changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+        while (index < positions.length && positions[index] < fromA) {
+            mapped.push(positions[index] + shift);
+            index += 1;
+        }
+        if (fromA === toA) {
+            // An insertion: a position at its start stays before the inserted
+            // text.
+            while (index < positions.length && positions[index] === fromA) {
+                mapped.push(fromB);
+                index += 1;
+            }
+        } else {
+            // A deletion or a replacement: positions inside the deleted range
+            // collapse to its start, and a position at its end moves after the
+            // inserted text.
+            while (index < positions.length && positions[index] <= toA) {
+                mapped.push(positions[index] === toA ? toB : fromB);
+                index += 1;
+            }
+        }
+        shift = toB - toA;
+    }, true);
+    while (index < positions.length) {
+        mapped.push(positions[index] + shift);
+        index += 1;
+    }
+    return mapped;
+}
+
 const breakpointField = StateField.define<BreakpointState>({
     create: (state) => ({
         markers: RangeSet.empty,
@@ -137,63 +204,146 @@ const breakpointField = StateField.define<BreakpointState>({
     update(value, tr) {
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
         const factory = factoryEffect ? factoryEffect.value : value.factory;
-        let markers = value.markers.map(tr.changes);
-        if (tr.effects.some((effect) => effect.is(clearBreakpoints))) {
-            markers = RangeSet.empty;
+
+        // A `setBreakpoints` effect replaces the whole set with positions in
+        // the new document, so the old markers need neither mapping nor
+        // toggling. This also keeps an undo or a redo of a large toggle fast:
+        // mapping every marker through the change set that reverts thousands
+        // of comment prefixes would be quadratic in the number of lines.
+        const setEffect = tr.effects
+            .filter((effect): effect is StateEffect<readonly number[]> => effect.is(setBreakpoints))
+            .at(-1);
+        if (setEffect) {
+            return {
+                markers: RangeSet.of(
+                    setEffect.value.map((pos) => new BreakpointMarker(factory).range(pos)),
+                    true,
+                ),
+                factory,
+            };
         }
-        if (factory !== value.factory) {
-            markers = rebuildMarkers(markers, factory);
+
+        // Toggle effects carry start-document positions. Split them into the
+        // markers to remove from the start set and the positions to add after
+        // the set is mapped: a marker that the same transaction moves or
+        // deletes must not be mapped onto another line first. Two toggles of
+        // the same position in one transaction cancel each other out.
+        const counts = new Map<number, number>();
+        for (const effect of tr.effects) {
+            if (effect.is(toggleBreakpoint)) {
+                counts.set(effect.value, (counts.get(effect.value) ?? 0) + 1);
+            }
         }
-        // The transaction does not map its own effect values, so map them to
-        // the post-change document before matching them against `markers`.
-        const toggles = tr.effects
-            .filter((effect) => effect.is(toggleBreakpoint))
-            .map((effect) => tr.changes.mapPos(effect.value, -1));
-        let nextMarkers = markers;
-        if (toggles.length > 0) {
-            // `RangeSet.update` rebuilds the whole set, so the toggles of one
-            // transaction are applied with a single update instead of one per
-            // effect: `Ctrl+A` → `Ctrl+/` dispatches one effect per selected
-            // line, and rebuilding the set per effect would make it quadratic
-            // in the number of lines. Two toggles of the same position in one
-            // transaction still cancel each other out, like the per-effect
-            // update used to.
-            const counts = new Map<number, number>();
-            toggles.forEach((pos) => {
-                counts.set(pos, (counts.get(pos) ?? 0) + 1);
-            });
-            const removed = new Set<number>();
-            const added: Range<GutterMarker>[] = [];
-            counts.forEach((count, pos) => {
-                if (count % 2 === 1) {
-                    let has = false;
-                    markers.between(pos, pos, () => {
-                        has = true;
-                    });
-                    if (has) {
-                        removed.add(pos);
-                    } else {
-                        added.push(new BreakpointMarker(factory).range(pos));
-                    }
+        const removed = new Set<number>();
+        const added: number[] = [];
+        [...counts.keys()]
+            .sort((a, b) => a - b)
+            .forEach((pos) => {
+                if (counts.get(pos)! % 2 === 0) {
+                    return;
+                }
+                let has = false;
+                value.markers.between(pos, pos, () => {
+                    has = true;
+                });
+                if (has) {
+                    removed.add(pos);
+                } else {
+                    added.push(pos);
                 }
             });
-            nextMarkers = markers.update({
-                filter: (from) => !removed.has(from),
-                add: added,
+
+        // `RangeSet.update` rebuilds the whole set, so all removals are applied
+        // with a single update instead of one per effect: `Ctrl+A` → `Ctrl+/`
+        // dispatches one effect per selected line, and rebuilding the set per
+        // effect would make it quadratic in the number of lines.
+        let markers = removed.size > 0
+            ? value.markers.update({ filter: (from) => !removed.has(from) })
+            : value.markers;
+        markers = markers.map(tr.changes);
+        if (added.length > 0) {
+            markers = markers.update({
+                add: mapPositions(tr.changes, added)
+                    .map((pos) => new BreakpointMarker(factory).range(pos)),
                 sort: true,
             });
         }
-        // Enforce the `canHoldEnabledMarker` invariant on both paths: an
-        // empty line cannot hold a marker. `RangeSet.map` keeps a point range
-        // at the start of a fully deleted line, and a toggle can add a marker
-        // to a line that the same transaction empties.
-        return {
-            markers: nextMarkers.update({
-                filter: (from) => tr.state.doc.lineAt(from).length > 0,
-            }),
-            factory,
-        };
+
+        if (factory !== value.factory) {
+            markers = rebuildMarkers(markers, factory);
+        }
+
+        return { markers, factory };
     },
+});
+
+/**
+ * Returns the toggle effects that remove the markers whose line start the
+ * transaction deletes.
+ *
+ * A marker belongs to a line start. When a transaction deletes the line break
+ * before a marker, the marker would be mapped into the middle of the merged
+ * line; when it deletes the whole line, the marker would be mapped onto the
+ * next or the previous line (`deleteLine` deletes the break after the first
+ * line and the one before every other line). Removing the marker in the same
+ * transaction makes the removal part of the delete's undo step, so an undo
+ * restores the line and its marker together.
+ *
+ * @param tr The transaction to inspect.
+ *
+ * @returns One toggle effect per marker whose line start is deleted.
+ */
+function deletedLineEffects(tr: Transaction): StateEffect<number>[] {
+    const { doc } = tr.startState;
+    const { markers } = tr.startState.field(breakpointField);
+    if (markers.size === 0) {
+        return [];
+    }
+    const positions = new Set<number>();
+    tr.changes.iterChangedRanges((fromA, toA) => {
+        markers.between(fromA, toA, (from) => {
+            if (from > fromA) {
+                // The deletion covers the line break before the marker's line,
+                // so the line start is gone even when part of the line text
+                // survives. This includes a line joined to the previous one
+                // and a marker at the end of the deleted range.
+                positions.add(from);
+                return;
+            }
+            const line = doc.lineAt(from);
+            // A deletion that starts at the line start removes the whole line
+            // only when it also removes an adjacent line break; a full-line
+            // replacement that keeps the breaks is not a deletion.
+            if (fromA <= line.from && toA >= line.to
+                && (fromA < line.from || toA > line.to)) {
+                positions.add(from);
+            }
+        });
+    });
+    return [...positions].map((pos) => toggleBreakpoint.of(pos));
+}
+
+/**
+ * Extension that drops the markers of deleted lines in the same transaction as
+ * the deletion, so one undo restores the line and its marker together.
+ *
+ * An extender, not a filter: it adds effects to the transaction instead of
+ * rebuilding it. Undo and redo transactions already carry the marker effects
+ * that history stored for them, so they are skipped.
+ */
+const deletedLineMarkers = EditorState.transactionExtender.of((tr) => {
+    if (!tr.docChanged || tr.annotation(programmaticLoad)) {
+        return null;
+    }
+    const userEvent = tr.annotation(Transaction.userEvent);
+    if (userEvent === 'undo' || userEvent === 'redo') {
+        return null;
+    }
+    const effects = deletedLineEffects(tr);
+    if (effects.length === 0) {
+        return null;
+    }
+    return { effects };
 });
 
 /**
@@ -211,14 +361,26 @@ export function breakpointState(options: {
     return [
         options.markerFactory ? markerFactory.of(options.markerFactory) : [],
         breakpointField,
-        // The toggle is its own inverse, so the same effect undoes it. The
-        // value is mapped to the state after the transaction, which is the
-        // state an undo starts from; `breakpointField` maps it again when the
-        // undo transaction is applied. This is the post-change coordinate
-        // convention described on `toggleBreakpoint`.
-        invertedEffects.of((tr) => tr.effects
-            .filter((effect) => effect.is(toggleBreakpoint))
-            .map((effect) => toggleBreakpoint.of(tr.changes.mapPos(effect.value, -1)))),
+        deletedLineMarkers,
+        // A marker change is inverted by restoring the whole marker set of the
+        // transaction's start state. Restoring positions one by one cannot
+        // express the start of a line that a deletion restored: a deleted
+        // middle line collapses to the end of the previous line, and the
+        // inverse effect would land before the restored line break.
+        invertedEffects.of((tr) => {
+            const changesMarkers = tr.effects.some(
+                (effect) => effect.is(toggleBreakpoint) || effect.is(setBreakpoints),
+            );
+            if (!changesMarkers) {
+                return [];
+            }
+            const positions: number[] = [];
+            const { markers } = tr.startState.field(breakpointField);
+            markers.between(0, tr.startState.doc.length, (from) => {
+                positions.push(from);
+            });
+            return [setBreakpoints.of(positions)];
+        }),
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField).markers,
@@ -235,6 +397,17 @@ export function breakpointState(options: {
             },
         }),
     ];
+}
+
+/**
+ * Reports whether the given state carries the enabled-rule field.
+ *
+ * @param state The editor state.
+ *
+ * @returns `true` if the breakpoint field is present.
+ */
+export function hasBreakpoints(state: EditorState): boolean {
+    return state.field(breakpointField, false) !== undefined;
 }
 
 /**

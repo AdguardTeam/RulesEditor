@@ -191,14 +191,7 @@ async function mountEditorWithSelection(doc: string): Promise<{
 }
 
 test('keeps an enabled rule enabled after a comment and uncomment cycle', async () => {
-    let toggles = 0;
-    const view = await mountEditor(initEditor, {
-        withBreakpoints: true,
-        hotkeys: {
-            toggleRule: () => { toggles += 1; },
-        },
-    });
-    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    const { view, toggleCount } = await mountEditorWithSelection('||a.com^');
     view.dispatch({ effects: toggleBreakpoint.of(0) });
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
@@ -209,7 +202,20 @@ test('keeps an enabled rule enabled after a comment and uncomment cycle', async 
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([1]);
-    expect(toggles).toBe(2);
+    expect(toggleCount()).toBe(2);
+    view.destroy();
+});
+
+test('toggles the markers of a whole-document selection', async () => {
+    const rules = Array.from({ length: 50 }, (_, index) => `||a${index}.com^`);
+    const { view, toggleCount } = await mountEditorWithSelection(rules.join('\n'));
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(enabledRuleLines(view.state)).toEqual(rules.map((_, index) => index + 1));
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    expect(toggleCount()).toBe(2);
     view.destroy();
 });
 
@@ -217,8 +223,8 @@ test('toggles the marker only for the rule line of a mixed selection', async () 
     const { view, toggleCount } = await mountEditorWithSelection('! note\n||a.com^');
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('! ! note\n! ||a.com^');
-    // The comment line does not flip to a rule, so it gets no marker. A marker
-    // on `! ! note` would not survive `setEditorValue`, which skips comments.
+    // The comment line does not flip to a rule, so it gets no marker: the
+    // stripped `! note` is still a comment.
     expect(enabledRuleLines(view.state)).toEqual([2]);
     expect(toggleCount()).toBe(1);
     view.destroy();

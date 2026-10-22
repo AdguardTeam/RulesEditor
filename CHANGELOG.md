@@ -11,11 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `toggleRule` callback now runs after the text change, so a consumer
+  that re-reads the editor in the callback sees the final rule text and
+  markers. An undo or redo of the toggle does not call the callback; use
+  `onChange` to observe those changes.
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Deleting a line now removes its enabled-rule marker together with the
+  line, and one undo restores both. A marker no longer moves to the next
+  rule or stays on a line joined to the previous one.
+- `setEditorValue` now replaces the text and restores the enabled-rule
+  markers in one transaction, so `onChange` sees the loaded rules with their
+  markers. It restores an enabled flag for every non-empty line, including a
+  comment line, so the flag survives a `getRulesFromEditor` →
+  `setEditorValue` round-trip, and it clears the undo history: a programmatic
+  load creates no undo step, and an undo cannot replay an edit made before
+  the load onto the loaded document.
+- An ordinary edit that empties a rule line no longer drops its enabled
+  marker; only the comment toggle removes a marker when it empties a line.
+- A `Ctrl+A` → `Ctrl+/` toggle on a large document no longer maps each line
+  through the whole change set, so the toggle and its undo stay fast.
 
 ### Security
 
