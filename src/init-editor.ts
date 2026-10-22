@@ -123,7 +123,8 @@ export interface InitEditorConfig {
          * rules. The callback runs after the text change, so the editor
          * already shows the final rule text and markers. Not called for an
          * undo or redo of the toggle; use {@link InitEditorConfig.onChange}
-         * to observe those changes.
+         * to observe those changes. Not called in a read-only editor
+         * (`EditorState.readOnly`), where the comment toggle changes nothing.
          */
         toggleRule?: (view: EditorView) => void;
 

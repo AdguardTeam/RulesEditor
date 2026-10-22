@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { isolateHistory, redo, undo } from '@codemirror/commands';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { EditorSelection, EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { expect, test, vi } from 'vitest';
 
@@ -11,18 +11,24 @@ import { initEditor } from '../src/init-editor';
 import { mountEditor, pressKey } from './helpers';
 
 /**
- * Creates an EditorView with the given document and optional selection range.
+ * Creates an EditorView with the given document, optional selection range, and
+ * optional extensions.
  *
  * @param doc The initial content of the editor.
  * @param selection Optional anchor/head selection; defaults to a cursor at 0.
  * @param selection.anchor Selection anchor offset.
  * @param selection.head Selection head offset.
+ * @param extensions Optional extensions added to the editor state.
  *
  * @returns An EditorView instance.
  */
-function makeView(doc: string, selection?: { anchor: number; head: number }): EditorView {
+function makeView(
+    doc: string,
+    selection?: { anchor: number; head: number },
+    extensions: Extension[] = [],
+): EditorView {
     return new EditorView({
-        state: EditorState.create({ doc, selection }),
+        state: EditorState.create({ doc, selection, extensions }),
         parent: document.body,
     });
 }
@@ -423,13 +429,7 @@ test('Ctrl+/ is a consumed no-op in a read-only editor', async () => {
 });
 
 test('toggleAdblockComment is a consumed no-op in a read-only editor', () => {
-    const view = new EditorView({
-        state: EditorState.create({
-            doc: 'a.com',
-            extensions: [EditorState.readOnly.of(true)],
-        }),
-        parent: document.body,
-    });
+    const view = makeView('a.com', undefined, [EditorState.readOnly.of(true)]);
 
     expect(toggleAdblockComment(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('a.com');
