@@ -113,7 +113,9 @@ export interface InitEditorConfig {
          * Called when the user toggles a rule's enabled state. Also called for
          * a comment-only selection that the comment toggle turns back into
          * rules. The callback runs after the text change, so the editor
-         * already shows the final rule text and markers.
+         * already shows the final rule text and markers. Not called in a
+         * read-only editor (`EditorState.readOnly`), where the comment toggle
+         * changes nothing.
          */
         toggleRule?: (view: EditorView) => void;
 
