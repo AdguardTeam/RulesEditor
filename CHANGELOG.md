@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [2.0.3] - 2026-10-22
+
 ## [2.0.3-beta.2] - 2026-10-21
 
 ### Changed
@@ -307,7 +309,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.2...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3...HEAD
+[2.0.3]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.2...v2.0.3
 [2.0.3-beta.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.1...v2.0.3-beta.2
 [2.0.3-beta.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...v2.0.3-beta.1
 [2.0.3-beta.0]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.2...v2.0.3-beta.0
