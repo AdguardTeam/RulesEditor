@@ -11,6 +11,8 @@ import {
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
 
+import { visibleGutterText } from './helpers';
+
 /**
  * Builds a marker factory that renders the given text.
  *
@@ -55,12 +57,10 @@ test('renders markers with the factory of each editor', () => {
     first.dispatch({ effects: toggleBreakpoint.of(0) });
     second.dispatch({ effects: toggleBreakpoint.of(0) });
 
-    const firstGutter = first.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    const secondGutter = second.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    expect(firstGutter).toContain('first');
-    expect(firstGutter).not.toContain('second');
-    expect(secondGutter).toContain('second');
-    expect(secondGutter).not.toContain('first');
+    // The hidden spacer renders the factory too, so only the visible gutter
+    // elements prove that each editor drew its own line marker.
+    expect(visibleGutterText(first)).toBe('first');
+    expect(visibleGutterText(second)).toBe('second');
     first.destroy();
     second.destroy();
 });
@@ -68,12 +68,46 @@ test('renders markers with the factory of each editor', () => {
 test('rebuilds existing markers when the factory changes', () => {
     const view = makeView('||a.com^', { markerFactory: marker('before') });
     view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(visibleGutterText(view)).toBe('before');
+
     view.dispatch({ effects: setMarkerFactory.of(marker('after')) });
 
-    const gutter = view.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    expect(gutter).toContain('after');
-    expect(gutter).not.toContain('before');
+    // The hidden spacer follows the new factory, so only the visible marker
+    // proves the rebuild: without `rebuildMarkers` it still renders 'before'.
+    expect(visibleGutterText(view)).toBe('after');
     expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('reuses the spacer element while the factory does not change', () => {
+    let renders = 0;
+    const factory = (): HTMLElement => {
+        renders += 1;
+        return marker('spacer')();
+    };
+    const view = makeView('||a.com^', { markerFactory: factory });
+    const gutter = view.dom.querySelector('.cm-breakpoint-gutter');
+    const spacer = gutter?.querySelector('.cm-gutterElement');
+    const spacerMarker = spacer?.firstElementChild;
+    expect(spacer).not.toBeNull();
+    expect(renders).toBe(1);
+
+    // An unrelated update must keep the spacer DOM: a new spacer marker on
+    // every update would re-parse the default SVG each time.
+    view.dispatch({ selection: { anchor: 1 } });
+    expect(gutter?.querySelector('.cm-gutterElement')).toBe(spacer);
+    expect(spacer?.firstElementChild).toBe(spacerMarker);
+    expect(renders).toBe(1);
+
+    // A new factory must replace the spacer marker, so its width follows the
+    // new icon.
+    const nextFactory = (): HTMLElement => {
+        renders += 1;
+        return marker('next')();
+    };
+    view.dispatch({ effects: setMarkerFactory.of(nextFactory) });
+    expect(spacer?.firstElementChild).not.toBe(spacerMarker);
+    expect(renders).toBe(2);
     view.destroy();
 });
 

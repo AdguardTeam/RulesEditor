@@ -64,8 +64,10 @@ const markerFactory = Facet.define<() => HTMLElement, () => HTMLElement>({
 /**
  * Gutter marker rendered for an enabled rule line.
  *
- * The marker keeps the factory of the editor it belongs to: `toDOM` receives
- * no editor state, so the factory is resolved when the marker is created.
+ * The marker captures the factory of the editor it belongs to. `toDOM` gets
+ * the view, so it could read the current factory. A factory change must
+ * replace the marker objects instead: the gutter redraws a line only when its
+ * marker changes, and an unchanged marker keeps its old DOM.
  */
 class BreakpointMarker extends GutterMarker {
     /**

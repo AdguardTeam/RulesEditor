@@ -42,21 +42,40 @@ const COMMENT_MARKER = '!';
 const HASH_COMMENT_MARKER = '#';
 
 /**
+ * Default color of the gutter marker icon.
+ *
+ * The CSS variable keeps the icon in the product color; the fallback applies
+ * on a page that does not define the variable.
+ */
+const DEFAULT_MARKER_COLOR = 'var(--stroke-icons-product-icon-default, #67B279)';
+
+/**
+ * Default inner HTML of the gutter marker icon (a filled circle).
+ *
+ * The path paints itself with `currentColor`, so the `color` of the marker
+ * element colors the icon.
+ */
+const DEFAULT_MARKER_HTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M13.9888 3.24536C14.4056 3.60773 14.4497 4.23936 14.0873 4.65614L7.13182 12.6561C6.94683 12.8689 6.68062 12.9937 6.39875 12.9998C6.11688 13.0059 5.84553 12.8927 5.65154 12.6881L1.94039 8.77448C1.56037 8.37373 1.57718 7.74079 1.97793 7.36077C2.37868 6.98075 3.01163 6.99756 3.39165 7.39831L6.34505 10.5128L12.578 3.34389C12.9404 2.92711 13.572 2.88299 13.9888 3.24536Z" fill="currentColor"/></svg>';
+
+/**
  * Creates the marker DOM factory used for enabled rules in the gutter.
  *
+ * The default icon paints itself with `currentColor`, so `options.color`
+ * colors it. A custom `innerHTML` gets the color only through
+ * `currentColor`.
+ *
  * @param options Color and inner HTML for the marker.
- * @param options.color Marker text color.
+ * @param options.color Marker icon color.
  * @param options.innerHTML Marker inner HTML.
  *
  * @returns A factory producing marker elements.
  */
 export const createMarker = (options: { color?: string; innerHTML?: string }) => (): HTMLElement => {
     const marker = document.createElement('div');
-    marker.style.color = options.color || '#67B279';
+    marker.style.color = options.color || DEFAULT_MARKER_COLOR;
     marker.style.marginLeft = '-12px';
     marker.style.marginTop = '4px';
-    marker.innerHTML = options.innerHTML
-        || '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M13.9888 3.24536C14.4056 3.60773 14.4497 4.23936 14.0873 4.65614L7.13182 12.6561C6.94683 12.8689 6.68062 12.9937 6.39875 12.9998C6.11688 13.0059 5.84553 12.8927 5.65154 12.6881L1.94039 8.77448C1.56037 8.37373 1.57718 7.74079 1.97793 7.36077C2.37868 6.98075 3.01163 6.99756 3.39165 7.39831L6.34505 10.5128L12.578 3.34389C12.9404 2.92711 13.572 2.88299 13.9888 3.24536Z" fill="var(--stroke-icons-product-icon-default)"/></svg>';
+    marker.innerHTML = options.innerHTML || DEFAULT_MARKER_HTML;
     return marker;
 };
 

@@ -18,7 +18,13 @@ import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-edit
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
 
-import { mountEditor, pressKey, stubRangeClientRects } from './helpers';
+import {
+    mountEditor,
+    pressKey,
+    stubRangeClientRects,
+    visibleGutterElements,
+    visibleGutterText,
+} from './helpers';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
@@ -141,18 +147,55 @@ test('setEditorValue applies marker options to one editor only', async () => {
         hotkeys: { markerHTML: 'second' },
     });
     setEditorValue(first, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    second.dispatch({ changes: { from: 0, insert: '||a.com^' } });
     // The marker on the second editor is created after `setEditorValue`
     // changed the first editor's factory, so a shared factory would render
     // 'updated' here.
     second.dispatch({ effects: toggleBreakpoint.of(0) });
 
-    const firstGutter = first.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    const secondGutter = second.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    expect(firstGutter).toContain('updated');
-    expect(secondGutter).toContain('second');
-    expect(secondGutter).not.toContain('updated');
+    // The hidden spacer renders the same factory, so only the visible gutter
+    // elements prove that each editor drew its own line marker.
+    expect(visibleGutterText(first)).toBe('updated');
+    expect(visibleGutterText(second)).toBe('second');
     first.destroy();
     second.destroy();
+});
+
+test('markerColor colors the default marker icon', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'red' },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const [element] = visibleGutterElements(view);
+    const marker = element.firstElementChild as HTMLElement;
+    expect(marker.style.color).toBe('red');
+    // The default icon paints itself with `currentColor`, so the color of the
+    // marker element reaches the SVG path.
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
+});
+
+test('setEditorValue keeps the editor marker when marker options are empty', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerHTML: 'custom' },
+    });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    expect(visibleGutterText(view)).toBe('custom');
+
+    // A non-empty object replaces the whole marker: the omitted innerHTML
+    // falls back to the default icon instead of the `initEditor` value.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
+    const [element] = visibleGutterElements(view);
+    const marker = element.firstElementChild as HTMLElement;
+    expect(marker.style.color).toBe('red');
+    expect(marker.querySelector('svg')).not.toBeNull();
+    expect(marker.textContent).not.toContain('custom');
+    view.destroy();
 });
 
 test("highlight: 'none' mounts without loading WASM", async () => {

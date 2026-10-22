@@ -40,6 +40,37 @@ export const mountEditor = async (
 };
 
 /**
+ * Returns the visible elements of the enabled-rule gutter.
+ *
+ * The gutter also holds a hidden spacer element that reserves the marker
+ * width. The spacer renders the same factory, so it must not count as a line
+ * marker.
+ *
+ * @param view The editor view.
+ *
+ * @returns The gutter elements that are not the hidden spacer.
+ */
+export const visibleGutterElements = (view: EditorView): HTMLElement[] => {
+    const gutter = view.dom.querySelector('.cm-breakpoint-gutter');
+    if (!gutter) {
+        return [];
+    }
+    return Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'))
+        .filter((element) => element.style.visibility !== 'hidden');
+};
+
+/**
+ * Returns the text of the visible elements of the enabled-rule gutter.
+ *
+ * @param view The editor view.
+ *
+ * @returns The concatenated text of the visible gutter elements.
+ */
+export const visibleGutterText = (view: EditorView): string => visibleGutterElements(view)
+    .map((element) => element.textContent ?? '')
+    .join('');
+
+/**
  * Dispatches a keydown event with modifiers on the given element.
  *
  * @param target Element to dispatch the event on, e.g. the editor content DOM

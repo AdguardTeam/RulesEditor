@@ -100,12 +100,16 @@ export interface InitEditorConfig {
         /**
          * CSS color for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own color.
+         * It colors the default icon and the `currentColor` of a custom
+         * `markerHTML`.
          */
         markerColor?: string;
 
         /**
          * Raw HTML for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own HTML.
+         * The `markerColor` value reaches this HTML only through
+         * `currentColor`.
          */
         markerHTML?: string;
 
@@ -319,7 +323,10 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * The call clears the markers of `view` first, so a rule that becomes
  * disabled does not keep a stale marker. The marker options are stored in
  * the state of `view` only: other editors on the page keep their own color
- * and HTML.
+ * and HTML. The call replaces the marker when `markerOptions` sets `color` or
+ * `innerHTML`; a field that the object does not set falls back to the default
+ * marker, not to the `initEditor` value. An empty object keeps the marker
+ * that the editor already has.
  *
  * An `enabled` flag is restored only when the rule text can hold a marker:
  * an empty or comment rule is never marked, so such a flag is lost in a
@@ -333,21 +340,26 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color/HTML overrides for `view` only.
- * @param markerOptions.color Marker text color.
+ * @param markerOptions Marker color/HTML overrides for `view` only. Omit the
+ *   argument, or pass an empty object, to keep the current marker.
+ * @param markerOptions.color Marker icon color.
  * @param markerOptions.innerHTML Marker inner HTML.
  */
 export function setEditorValue(
     view: EditorView,
     value: { enabled: boolean; rule: string }[],
-    markerOptions: { color?: string; innerHTML?: string },
+    markerOptions: { color?: string; innerHTML?: string } = {},
 ): void {
     const doc = value.map((v) => v.rule).join('\n');
+    // An omitted or empty object keeps the marker of the editor, so a load
+    // does not reset a custom `markerHTML` to the default icon.
+    const restyleMarker = markerOptions.color !== undefined
+        || markerOptions.innerHTML !== undefined;
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
         effects: [
             clearBreakpoints.of(null),
-            setMarkerFactory.of(createMarker(markerOptions)),
+            ...(restyleMarker ? [setMarkerFactory.of(createMarker(markerOptions))] : []),
         ],
         // A load is not a user edit. Without this annotation an undo would
         // revert the text and map the restored markers into the reverted
