@@ -178,11 +178,28 @@ test('markerColor colors the default marker icon', async () => {
     view.destroy();
 });
 
-test('setEditorValue keeps the editor marker when marker options are empty', async () => {
+test('the default marker icon uses the product color', async () => {
+    const view = await mountEditor(initEditor, { withBreakpoints: true });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const [element] = visibleGutterElements(view);
+    const marker = element.firstElementChild as HTMLElement;
+    // jsdom keeps the `var()` value in `style.color`, so the fallback for a
+    // page without the variable is pinned here.
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    view.destroy();
+});
+
+test('setEditorValue keeps the editor marker when marker options are omitted or empty', async () => {
     const view = await mountEditor(initEditor, {
         withBreakpoints: true,
         hotkeys: { markerHTML: 'custom' },
     });
+
+    // The default parameter makes the third argument optional.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    expect(visibleGutterText(view)).toBe('custom');
 
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(visibleGutterText(view)).toBe('custom');
