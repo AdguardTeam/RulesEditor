@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `markerColor` now changes the color of the default gutter marker icon. Two
   editors with different colors and no `markerHTML` no longer look the same.
 - `setEditorValue` keeps the marker of the editor when `markerOptions` is
-  omitted or empty, so a load no longer resets a custom `markerHTML` to the
-  default icon. A non-empty object replaces the marker; a field it does not
-  set falls back to the default, not to the `initEditor` value.
+  omitted or sets neither `color` nor `innerHTML`, so a load no longer resets a
+  custom `markerHTML` to the default icon. An object that sets `color` or
+  `innerHTML` replaces the marker; a field it does not set falls back to the
+  default, not to the `initEditor` value.
 
 ### Security
 
