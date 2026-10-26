@@ -359,6 +359,11 @@ sync with the actual keymap.
   gutter's whole `textContent`: the gutter also holds a hidden spacer that
   renders the same marker factory, so a whole-gutter assertion passes even
   when no line carries a marker.
+- Pin the behavior that a test covers: a test that stays green after the
+  default value changes, after the default of an optional parameter is
+  removed, or after a stale value is reused does not cover it. Assert the
+  exact default, call an optional parameter both omitted and empty, and
+  assert the new value, not only that the element changed.
 
 ### Dependencies
 
