@@ -90,6 +90,7 @@ test('reuses the spacer element while the factory does not change', () => {
     const spacer = gutter?.querySelector('.cm-gutterElement');
     const spacerMarker = spacer?.firstElementChild;
     expect(spacer).not.toBeNull();
+    expect(spacer?.textContent).toBe('spacer');
     expect(renders).toBe(1);
 
     // An unrelated update must keep the spacer DOM: a new spacer marker on
@@ -107,6 +108,9 @@ test('reuses the spacer element while the factory does not change', () => {
     };
     view.dispatch({ effects: setMarkerFactory.of(nextFactory) });
     expect(spacer?.firstElementChild).not.toBe(spacerMarker);
+    // The new marker must come from the new factory: a reused old factory
+    // would keep the 'spacer' text.
+    expect(spacer?.textContent).toBe('next');
     expect(renders).toBe(2);
     view.destroy();
 });
