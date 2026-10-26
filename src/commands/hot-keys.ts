@@ -50,7 +50,7 @@ const HASH_COMMENT_MARKER = '#';
 const DEFAULT_MARKER_COLOR = 'var(--stroke-icons-product-icon-default, #67B279)';
 
 /**
- * Default inner HTML of the gutter marker icon (a filled circle).
+ * Default inner HTML of the gutter marker icon (a check mark).
  *
  * The path paints itself with `currentColor`, so the `color` of the marker
  * element colors the icon.
