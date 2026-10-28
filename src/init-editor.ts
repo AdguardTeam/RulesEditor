@@ -100,16 +100,17 @@ export interface InitEditorConfig {
         /**
          * CSS color for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own color.
-         * It colors the default icon and the `currentColor` of a custom
-         * `markerHTML`.
+         * It colors the default icon and a custom `markerHTML`: the value
+         * reaches the HTML through `currentColor` and, since `color` is an
+         * inherited property, through plain text.
          */
         markerColor?: string;
 
         /**
          * Raw HTML for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own HTML.
-         * The `markerColor` value reaches this HTML only through
-         * `currentColor`.
+         * The `markerColor` value reaches this HTML through `currentColor`
+         * and, since `color` is an inherited property, through plain text.
          */
         markerHTML?: string;
 

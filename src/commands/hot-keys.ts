@@ -61,8 +61,8 @@ const DEFAULT_MARKER_HTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" 
  * Creates the marker DOM factory used for enabled rules in the gutter.
  *
  * The default icon paints itself with `currentColor`, so `options.color`
- * colors it. A custom `innerHTML` gets the color only through
- * `currentColor`.
+ * colors it. A custom `innerHTML` takes the color through `currentColor`
+ * and, since `color` is an inherited property, through plain text.
  *
  * @param options Color and inner HTML for the marker.
  * @param options.color Marker icon color.
