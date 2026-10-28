@@ -191,7 +191,7 @@ test('the default marker icon uses the product color', async () => {
     view.destroy();
 });
 
-test('setEditorValue keeps the editor marker when marker options are omitted or empty', async () => {
+test('setEditorValue keeps the editor marker when marker options set neither color nor innerHTML', async () => {
     const view = await mountEditor(initEditor, {
         withBreakpoints: true,
         hotkeys: { markerHTML: 'custom' },
@@ -204,8 +204,14 @@ test('setEditorValue keeps the editor marker when marker options are omitted or 
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(visibleGutterText(view)).toBe('custom');
 
-    // A non-empty object replaces the whole marker: the omitted innerHTML
-    // falls back to the default icon instead of the `initEditor` value.
+    // A field set to `undefined` keeps the marker too: the check is the
+    // value, not the key's presence.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: undefined });
+    expect(visibleGutterText(view)).toBe('custom');
+
+    // An object that sets `color` or `innerHTML` replaces the whole marker:
+    // the omitted innerHTML falls back to the default icon instead of the
+    // `initEditor` value.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
     const [element] = visibleGutterElements(view);
     const marker = element.firstElementChild as HTMLElement;

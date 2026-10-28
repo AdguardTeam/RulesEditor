@@ -353,8 +353,9 @@ export function setEditorValue(
     markerOptions: { color?: string; innerHTML?: string } = {},
 ): void {
     const doc = value.map((v) => v.rule).join('\n');
-    // An omitted or empty object keeps the marker of the editor, so a load
-    // does not reset a custom `markerHTML` to the default icon.
+    // A `markerOptions` that sets neither `color` nor `innerHTML` keeps the
+    // marker of the editor, so a load does not reset a custom `markerHTML` to
+    // the default icon.
     const restyleMarker = markerOptions.color !== undefined
         || markerOptions.innerHTML !== undefined;
     view.dispatch({
