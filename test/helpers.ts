@@ -50,13 +50,24 @@ export const mountEditor = async (
  *
  * @returns The gutter elements that are not the hidden spacer.
  */
-export const visibleGutterElements = (view: EditorView): HTMLElement[] => {
-    const gutter = view.dom.querySelector('.cm-breakpoint-gutter');
-    if (!gutter) {
-        return [];
+export const visibleGutterElements = (view: EditorView): HTMLElement[] => Array
+    .from(view.dom.querySelectorAll<HTMLElement>('.cm-breakpoint-gutter .cm-gutterElement'))
+    .filter((element) => element.style.visibility !== 'hidden');
+
+/**
+ * Returns the marker element of the first marked line in the enabled-rule
+ * gutter.
+ *
+ * @param view The editor view.
+ *
+ * @returns The marker element, or `null` when no line carries a marker.
+ */
+export const visibleMarker = (view: EditorView): HTMLElement | null => {
+    const [element] = visibleGutterElements(view);
+    if (!element) {
+        return null;
     }
-    return Array.from(gutter.querySelectorAll<HTMLElement>('.cm-gutterElement'))
-        .filter((element) => element.style.visibility !== 'hidden');
+    return element.firstElementChild as HTMLElement | null;
 };
 
 /**
