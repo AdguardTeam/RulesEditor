@@ -50,7 +50,7 @@ export const mountEditor = async (
  *
  * @returns The gutter elements that are not the hidden spacer.
  */
-export const visibleGutterElements = (view: EditorView): HTMLElement[] => Array
+const visibleGutterElements = (view: EditorView): HTMLElement[] => Array
     .from(view.dom.querySelectorAll<HTMLElement>('.cm-breakpoint-gutter .cm-gutterElement'))
     .filter((element) => element.style.visibility !== 'hidden');
 
