@@ -17,13 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `markerColor` now changes the color of the default gutter marker icon. Two
-  editors with different colors and no `markerHTML` no longer look the same.
+- `markerColor` now changes the color of the default gutter marker icon, and
+  the `color` of `setEditorValue` does too. Two editors with different colors
+  and no `markerHTML` no longer look the same.
+- A marker without `markerColor` now follows
+  `--stroke-icons-product-icon-default` with the `#67B279` fallback, instead of
+  the fixed `#67B279`. A custom `markerHTML` that uses `currentColor` takes
+  the color of the page variable now.
 - `setEditorValue` keeps the marker of the editor when `markerOptions` is
-  omitted or sets neither `color` nor `innerHTML`, so a load no longer resets a
-  custom `markerHTML` to the default icon. An object that sets `color` or
-  `innerHTML` replaces the marker; a field it does not set falls back to the
-  default, not to the `initEditor` value.
+  omitted or gives no non-empty `color` or `innerHTML`, so a load no longer
+  resets a custom `markerHTML` to the default icon. An object that gives
+  `color` or `innerHTML` a non-empty value replaces the marker; a field it
+  leaves out or empty falls back to the default, not to the `initEditor` value.
 
 ### Security
 
