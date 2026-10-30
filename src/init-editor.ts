@@ -102,7 +102,10 @@ export interface InitEditorConfig {
          * editor's state, so other editors on the page keep their own color.
          * It colors the default icon and a custom `markerHTML`: the value
          * reaches the HTML through `currentColor` and, since `color` is an
-         * inherited property, through plain text.
+         * inherited property, through plain text. Defaults to
+         * `var(--stroke-icons-product-icon-default, #67B279)`: a page can set
+         * that variable to theme the default icon. An empty string means the
+         * default.
          */
         markerColor?: string;
 
@@ -111,6 +114,7 @@ export interface InitEditorConfig {
          * editor's state, so other editors on the page keep their own HTML.
          * The `markerColor` value reaches this HTML through `currentColor`
          * and, since `color` is an inherited property, through plain text.
+         * Defaults to a check mark icon; an empty string means the default.
          */
         markerHTML?: string;
 
@@ -326,10 +330,10 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * The call clears the markers of `view` first, so a rule that becomes
  * disabled does not keep a stale marker. The marker options are stored in
  * the state of `view` only: other editors on the page keep their own color
- * and HTML. The call replaces the marker when `markerOptions` sets `color` or
- * `innerHTML`; a field that the object does not set falls back to the default
- * marker, not to the `initEditor` value. An empty object keeps the marker
- * that the editor already has.
+ * and HTML. The call replaces the whole marker when `markerOptions` gives
+ * `color` or `innerHTML` a non-empty value; a field the object leaves out or
+ * empty falls back to the default marker, not to the `initEditor` value. An
+ * object that gives neither keeps the marker the editor already has.
  *
  * An `enabled` flag is restored only when the rule text can hold a marker:
  * an empty or comment rule is never marked, so such a flag is lost in a
@@ -343,8 +347,10 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color/HTML overrides for `view` only. Omit the
- *   argument, or pass an empty object, to keep the current marker.
+ * @param markerOptions Marker color and HTML for `view` only. An object that
+ *   sets either replaces the whole marker. Omit the argument, or pass an
+ *   object with no non-empty `color` or `innerHTML`, to keep the current
+ *   marker.
  * @param markerOptions.color Marker icon color.
  * @param markerOptions.innerHTML Marker inner HTML.
  */
