@@ -354,11 +354,11 @@ export function setEditorValue(
     markerOptions: { color?: string; innerHTML?: string } = {},
 ): void {
     const doc = value.map((v) => v.rule).join('\n');
-    // A `markerOptions` that sets neither `color` nor `innerHTML` keeps the
+    // A `markerOptions` with no non-empty `color` or `innerHTML` keeps the
     // marker of the editor, so a load does not reset a custom `markerHTML` to
-    // the default icon.
-    const restyleMarker = markerOptions.color !== undefined
-        || markerOptions.innerHTML !== undefined;
+    // the default icon. The check matches `createMarker`, which treats an
+    // empty string as unset.
+    const restyleMarker = Boolean(markerOptions.color || markerOptions.innerHTML);
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
         effects: [
