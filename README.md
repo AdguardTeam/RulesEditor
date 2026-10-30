@@ -361,10 +361,10 @@ does not keep a stale marker. `markerOptions` changes the marker of `view`
 only: other editors on the page keep their own color and HTML.
 
 - Omit `markerOptions`, or pass an object with no non-empty `color` or
-  `innerHTML`, to keep the current marker.
-- An object that gives `color` or `innerHTML` a non-empty value replaces the
-  whole marker. A field that the object leaves out or empty falls back to the
-  default marker, not to the `initEditor` value.
+  `innerHTML`, to keep the whole current marker.
+- A non-empty `color` or `innerHTML` changes only that part of the marker and
+  keeps the other part: `{ color: 'red' }` keeps a custom `markerHTML`, and
+  `{ innerHTML: '<my icon>' }` keeps the current color.
 
 A load is not a user edit, so it creates no undo step. An `enabled` flag is
 restored only for a line that can hold a marker: an empty or comment rule stays

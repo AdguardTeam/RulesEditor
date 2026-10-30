@@ -7,6 +7,7 @@ import {
     breakpointState,
     enabledRuleLines,
     isBreakpointAt,
+    markerFactoryOf,
     setMarkerFactory,
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
@@ -121,4 +122,9 @@ test('enabledRuleLines reports marked lines', () => {
     view.dispatch({ effects: toggleBreakpoint.of(second.from) });
     expect(enabledRuleLines(view.state)).toEqual([2]);
     view.destroy();
+});
+
+test('markerFactoryOf returns undefined without the breakpoint field', () => {
+    const state = EditorState.create({ doc: '' });
+    expect(markerFactoryOf(state)).toBeUndefined();
 });

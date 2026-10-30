@@ -199,6 +199,19 @@ const breakpointField = StateField.define<BreakpointState>({
 });
 
 /**
+ * Returns the factory that renders the markers of the editor that owns the
+ * given state.
+ *
+ * @param state The editor state.
+ *
+ * @returns The marker factory, or `undefined` when the state has no
+ *   breakpoint field.
+ */
+export function markerFactoryOf(state: EditorState): (() => HTMLElement) | undefined {
+    return state.field(breakpointField, false)?.factory;
+}
+
+/**
  * Editor extension providing the enabled-rule gutter and its state field.
  *
  * @param options Gutter configuration.

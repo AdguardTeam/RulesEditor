@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 
-import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
+import { enabledRuleLines, markerFactoryOf, toggleBreakpoint } from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
@@ -189,18 +189,41 @@ test('the default marker icon uses the product color', async () => {
     view.destroy();
 });
 
+test('an empty marker option means the default', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: '', markerHTML: '' },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const marker = visibleMarker(view)!;
+    // `createMarker` treats an empty string as unset for both fields, so the
+    // default color and the default check mark icon apply.
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
+});
+
 test('setEditorValue keeps the editor marker when marker options give no color or innerHTML', async () => {
     const view = await mountEditor(initEditor, {
         withBreakpoints: true,
         hotkeys: { markerHTML: 'custom' },
     });
 
+    // An object that sets no value must not replace the factory either:
+    // otherwise every load would rebuild the gutter for nothing.
+    const factory = markerFactoryOf(view.state);
+    expect(factory).toBeDefined();
+
     // The default parameter makes the third argument optional.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
     expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
 
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
 
     // Fields set to `undefined` keep the marker too: the check is the value,
     // not the key's presence, and it covers both fields.
@@ -209,27 +232,41 @@ test('setEditorValue keeps the editor marker when marker options give no color o
         innerHTML: undefined,
     });
     expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
 
-    // An empty string is unset, as in `initEditor`, so it keeps the marker as
-    // well.
+    // An empty string is unset for both fields, as in `initEditor`, so it
+    // keeps the marker as well.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: '' });
     expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: '' });
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
 
-    // An object that gives `color` or `innerHTML` a value replaces the whole
-    // marker: the omitted innerHTML falls back to the default icon instead of
-    // the `initEditor` value.
+    // A non-empty `color` keeps the `initEditor` HTML and changes only the
+    // color: the marker options act as overrides, not as a whole marker.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
     const marker = visibleMarker(view)!;
     expect(marker.style.color).toBe('red');
-    // The default icon is back, so the `initEditor` HTML is gone.
-    expect(marker.querySelector('svg')).not.toBeNull();
-    expect(marker.textContent).not.toContain('custom');
+    expect(marker.textContent).toBe('custom');
 
-    // A later load without options keeps the replaced marker, not the
-    // `initEditor` one.
+    // A later load without options keeps the updated marker.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
     expect(visibleMarker(view)?.style.color).toBe('red');
-    expect(visibleMarker(view)?.textContent).not.toContain('custom');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    view.destroy();
+});
+
+test('setEditorValue keeps the color when marker options give only innerHTML', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue' },
+    });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('blue');
+    expect(marker.textContent).toBe('updated');
     view.destroy();
 });
 

@@ -19,6 +19,7 @@ import {
     clearBreakpoints,
     enabledRuleLines,
     isBreakpointAt,
+    markerFactoryOf,
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
@@ -325,15 +326,45 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 }
 
 /**
+ * Builds a marker factory that applies the given options to the markers of
+ * the current factory.
+ *
+ * A non-empty option replaces that part of the current marker; an option that
+ * is omitted or empty keeps the current value. The options therefore act as
+ * overrides instead of describing the whole marker.
+ *
+ * @param current The factory of the current marker.
+ * @param markerOptions Color and inner HTML to apply.
+ * @param markerOptions.color Marker icon color.
+ * @param markerOptions.innerHTML Marker inner HTML.
+ *
+ * @returns A factory producing the updated marker elements.
+ */
+function mergeMarkerOptions(
+    current: () => HTMLElement,
+    markerOptions: { color?: string; innerHTML?: string },
+): () => HTMLElement {
+    return () => {
+        const marker = current();
+        if (markerOptions.color) {
+            marker.style.color = markerOptions.color;
+        }
+        if (markerOptions.innerHTML) {
+            marker.innerHTML = markerOptions.innerHTML;
+        }
+        return marker;
+    };
+}
+
+/**
  * Replaces the editor content and restores enabled-rule markers.
  *
  * The call clears the markers of `view` first, so a rule that becomes
  * disabled does not keep a stale marker. The marker options are stored in
  * the state of `view` only: other editors on the page keep their own color
- * and HTML. The call replaces the whole marker when `markerOptions` gives
- * `color` or `innerHTML` a non-empty value; a field the object leaves out or
- * empty falls back to the default marker, not to the `initEditor` value. An
- * object that gives neither keeps the marker the editor already has.
+ * and HTML. A non-empty `color` or `innerHTML` changes only that part of the
+ * marker and keeps the other part; an object that gives neither keeps the
+ * whole marker the editor already has.
  *
  * An `enabled` flag is restored only when the rule text can hold a marker:
  * an empty or comment rule is never marked, so such a flag is lost in a
@@ -347,10 +378,10 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color and HTML for `view` only. An object that
- *   sets either replaces the whole marker. Omit the argument, or pass an
- *   object with no non-empty `color` or `innerHTML`, to keep the current
- *   marker.
+ * @param markerOptions Marker color and HTML for `view` only. A non-empty
+ *   `color` or `innerHTML` changes only that part of the marker and keeps the
+ *   other part. Omit the argument, or pass an object with no non-empty
+ *   `color` or `innerHTML`, to keep the current marker.
  * @param markerOptions.color Marker icon color.
  * @param markerOptions.innerHTML Marker inner HTML.
  */
@@ -363,13 +394,22 @@ export function setEditorValue(
     // A `markerOptions` with no non-empty `color` or `innerHTML` keeps the
     // marker of the editor, so a load does not reset a custom `markerHTML` to
     // the default icon. The check matches `createMarker`, which treats an
-    // empty string as unset.
+    // empty string as unset. A non-empty field applies to the current marker,
+    // so a color-only call keeps a custom `markerHTML` and an HTML-only call
+    // keeps the current color.
     const restyleMarker = Boolean(markerOptions.color || markerOptions.innerHTML);
+    let nextFactory: (() => HTMLElement) | undefined;
+    if (restyleMarker) {
+        const currentFactory = markerFactoryOf(view.state);
+        nextFactory = currentFactory
+            ? mergeMarkerOptions(currentFactory, markerOptions)
+            : createMarker(markerOptions);
+    }
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
         effects: [
             clearBreakpoints.of(null),
-            ...(restyleMarker ? [setMarkerFactory.of(createMarker(markerOptions))] : []),
+            ...(nextFactory ? [setMarkerFactory.of(nextFactory)] : []),
         ],
         // A load is not a user edit. Without this annotation an undo would
         // revert the text and map the restored markers into the reverted
