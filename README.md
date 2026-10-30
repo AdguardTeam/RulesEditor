@@ -22,6 +22,7 @@ and a WASM-backed tokenizer for custom rule rendering.
 - [API](#api)
     - [`initEditor`](#initeditor)
         - [Hotkeys](#hotkeys)
+    - [`getRulesFromEditor` and `setEditorValue`](#getrulesfromeditor-and-seteditorvalue)
     - [`getTokenizer`](#gettokenizer)
     - [`inspectLine`](#inspectline)
     - [Rendering tokens to HTML (display-only)](#rendering-tokens-to-html-display-only)
@@ -222,21 +223,21 @@ async function initEditor(
 A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 `ArrayBuffer`, or a `Promise`/thunk resolving to any of these.
 
-| Parameter                     | Description                                                                                                      |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `element`                     | Textarea element to attach the editor to                                                                         |
-| `wasm`                        | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'` |
-| `conf.hotkeys.mode`           | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                              |
-| `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint); also fires when comments turn into rules                       |
-| `conf.hotkeys.onSave`         | Callback for Ctrl/Cmd+S                                                                                          |
-| `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker; other editors keep their own color                                |
-| `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker; other editors keep their own HTML                          |
-| `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                     |
-| `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                         |
-| `conf.onChange`               | Called after each document change                                                                                |
-| `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                      |
-| `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
-| `conf.autofocus`              | Focus the editor on creation (default `true`); pass `false` to manage focus yourself                             |
+| Parameter                     | Description                                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `element`                     | Textarea element to attach the editor to                                                                                                                                                                     |
+| `wasm`                        | A `WasmSource` (see above). Required for `highlight: 'full'` (the default); pass `undefined` when using `'none'`                                                                                             |
+| `conf.hotkeys.mode`           | OS mode for hotkey mapping (`'windows'` or `'mac'`)                                                                                                                                                          |
+| `conf.hotkeys.toggleRule`     | Callback for Ctrl/Cmd+/ (toggle rule breakpoint); also fires when comments turn into rules                                                                                                                   |
+| `conf.hotkeys.onSave`         | Callback for Ctrl/Cmd+S                                                                                                                                                                                      |
+| `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker icon; other editors keep their own color. Default `var(--stroke-icons-product-icon-default, #67B279)`, which a page can set; an empty string means the default |
+| `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker icon; other editors keep their own HTML. Default is a check mark icon                                                                                   |
+| `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                                                                                                                 |
+| `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                                                                                                                     |
+| `conf.onChange`               | Called after each document change                                                                                                                                                                            |
+| `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                                                                                                                  |
+| `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                                                                                                                  |
+| `conf.autofocus`              | Focus the editor on creation (default `true`); pass `false` to manage focus yourself                                                                                                                         |
 
 Returns a `CodeMirror.EditorView` instance. See the CodeMirror 6 docs for
 [events](https://codemirror.net/6/docs/ref/#view.EditorView) and
@@ -318,6 +319,56 @@ extensions: [
     Prec.highest(keymap.of([{ key: 'Mod-s', run: mySaveCommand }])),
 ]
 ```
+
+### `getRulesFromEditor` and `setEditorValue`
+
+```typescript
+function getRulesFromEditor(
+    view: EditorView,
+): { enabled: boolean; rule: string }[]
+
+function setEditorValue(
+    view: EditorView,
+    value: { enabled: boolean; rule: string }[],
+    markerOptions?: { color?: string; innerHTML?: string },
+): void
+```
+
+`getRulesFromEditor` reads the rules and their enabled flags from the editor.
+`setEditorValue` replaces the editor content and restores the enabled-rule
+markers. Line `i` of the document takes `value[i]`.
+
+```typescript
+import { getRulesFromEditor, setEditorValue } from '@adguard/rules-editor';
+
+const rules = getRulesFromEditor(view);
+
+setEditorValue(view, [
+    { enabled: true, rule: '||example.org^' },
+    { enabled: false, rule: '||example.com^' },
+]);
+```
+
+| Parameter                 | Description                                                  |
+| ------------------------- | ------------------------------------------------------------ |
+| `value`                   | Rules with enabled flags                                     |
+| `markerOptions`           | Color and HTML of the marker for this editor only (optional) |
+| `markerOptions.color`     | Marker icon color                                            |
+| `markerOptions.innerHTML` | Marker inner HTML                                            |
+
+The call clears the markers of `view` first, so a rule that becomes disabled
+does not keep a stale marker. `markerOptions` changes the marker of `view`
+only: other editors on the page keep their own color and HTML.
+
+- Omit `markerOptions`, or pass an object with no non-empty `color` or
+  `innerHTML`, to keep the current marker.
+- An object that gives `color` or `innerHTML` a non-empty value replaces the
+  whole marker. A field that the object leaves out or empty falls back to the
+  default marker, not to the `initEditor` value.
+
+A load is not a user edit, so it creates no undo step. An `enabled` flag is
+restored only for a line that can hold a marker: an empty or comment rule stays
+disabled.
 
 ### `getTokenizer`
 
