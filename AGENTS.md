@@ -193,7 +193,7 @@ Design for a library:
 Universal design principles:
 
 - **Separation of Concerns** — each module handles one aspect of the
-  system (editor init, grammar loading, tokenization, rule building)
+  system (editor init, grammar loading, tokenization, highlighting)
 - **Single Responsibility Principle** — every file, class, or function
   has one reason to change
 - **Dependency Direction** — dependencies point inward; public API
@@ -202,11 +202,10 @@ Universal design principles:
   surface; everything else is internal
 - **Data Flow Clarity** — WASM loads once → grammar activates →
   tokenizer/editor consumes grammar state
-- **Minimize Coupling, Maximize Cohesion** — rule builders are
-  self-contained; tokenizers share only the `Token` enum and
-  `normalizeTokens` utility
-- **Make Invalid States Impossible** — `RuleType` union constrains
-  builder selection; `Token` enum constrains valid token values
+- **Minimize Coupling, Maximize Cohesion** — tokenizers share only the
+  `Token` enum and `normalizeTokens` utility
+- **Make Invalid States Impossible** — the `Token` enum constrains valid
+  token values
 - **Observability Built-in** — less critical for a client-side library;
   errors surface via thrown exceptions to the consumer
 - **Keep It Boring** — standard patterns (factory, builder, singleton
@@ -229,7 +228,7 @@ and external deps. Shared library may only depend on external deps.
 
 ### Code Quality
 
-Shared library (lib/registry, lib/utils, lib/errors)
+- **JSDoc required** — `jsdoc/require-jsdoc`,
   `jsdoc/require-description` (complete sentence), and
   `jsdoc/require-returns` on classes, class properties, functions, and
   methods.
@@ -338,10 +337,13 @@ sync with the actual keymap.
 - Default environment is `node`; editor/gutter tests use `@vitest-environment
   jsdom` docblock.
 - Tests are plain `test()` calls (no `describe` blocks currently).
-- Each rule builder type has coverage for building rules and parsing
-  them back from strings.
+- `initEditor` (`src/init-editor.ts`), the tokenizers
+  (`src/tokenizers/`) and the highlight modules (`src/highlight/`) have
+  test coverage.
 - Tokenizer tests verify token output against expected arrays.
-- No mocking is used — tests exercise real module code.
+- No module mocks are used — tests exercise real module code.
+- Single-method spies and stubs (`vi.spyOn`, `vi.stubGlobal`) and
+  `vi.fn` callbacks are allowed.
 - CodeMirror resolves the platform once, when `@codemirror/view` is first
   evaluated, and jsdom leaves `navigator.platform` empty, so only the
   platform-neutral `key` map resolves there. Platform-specific bindings
