@@ -217,25 +217,30 @@ This project's layers, from top to bottom:
 ```text
 Public API (src/index.ts — re-exports)
      ↓
-Features (initEditor, tokenizers)
+Features (init-editor.ts, commands/, highlight/, tokenizers/)
      ↓
-Shared library (lib/registry, lib/utils, lib/errors)
+Shared library (lib/constants, lib/types, lib/errors, lib/utils, lib/registry)
      ↓
-External deps (codemirror, vscode-textmate, vscode-oniguruma)
+Generated grammars (src/grammars/*.tmLanguage.json)
+     ↓
+External deps (codemirror, lezer, vscode-textmate, vscode-oniguruma, style-mod)
 ```
 
-Public API re-exports features. Features may depend on shared library
-and external deps. Shared library may only depend on external deps.
+Public API re-exports features and selected shared-library symbols.
+Features may depend on other features, the shared library, and external
+deps. Shared library may depend on other shared-library modules, the
+generated grammars, and external deps. No layer may depend on a layer
+above it.
 
 ### Code Quality
 
-- **JSDoc required** — `jsdoc/require-jsdoc`,
-  `jsdoc/require-description` (complete sentence), and
-  `jsdoc/require-returns` on classes, class properties, functions, and
-  methods.
+- **JSDoc required** — `jsdoc/require-jsdoc` and
+  `jsdoc/require-description` on classes, class properties, functions, and
+  methods, plus `jsdoc/require-returns` on functions. Descriptions must be
+  complete sentences (`jsdoc/require-description-complete-sentence`).
 
-- **Strict TypeScript** — `strict: true`, `noImplicitAny: true` in
-  tsconfig.
+- **Strict TypeScript** — `strict: true` in `tsconfig.base.json`, which
+  enables `noImplicitAny`.
 - **Airbnb style** — ESLint extends `airbnb-typescript/base`; follow
   its conventions for imports, naming, and formatting.
 - **No modification of linter config** without explicit approval —
@@ -341,7 +346,8 @@ sync with the actual keymap.
 - `initEditor` (`src/init-editor.ts`), the tokenizers
   (`src/tokenizers/`) and the highlight modules (`src/highlight/`) have
   test coverage.
-- Tokenizer tests verify token output against expected arrays.
+- Tokenizer tests verify contiguous coverage, scope stacks, and the key
+  token kinds.
 - No module mocks are used — tests exercise real module code.
 - Single-method spies and stubs (`vi.spyOn`, `vi.stubGlobal`) and
   `vi.fn` callbacks are allowed.
