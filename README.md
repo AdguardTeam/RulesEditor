@@ -334,6 +334,12 @@ function setEditorValue(
 ): void
 ```
 
+Both functions require an editor created with `withBreakpoints: true`.
+Without the enabled-rule state, `getRulesFromEditor` throws a `RangeError`,
+and `setEditorValue` throws the same as soon as it restores an enabled marker;
+a load with only disabled rules returns without error but drops
+`markerOptions`.
+
 `getRulesFromEditor` reads the rules and their enabled flags from the editor.
 `setEditorValue` replaces the editor content and restores the enabled-rule
 markers. Line `i` of the document takes `value[i]`.

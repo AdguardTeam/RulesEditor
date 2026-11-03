@@ -282,7 +282,7 @@ test('setEditorValue applies a mixed marker option field by field', async () => 
     });
 
     // An empty string is unset, so only the non-empty field changes: the
-    // blue color and the custom HTML survive the first call.
+    // blue color survives and the HTML switches to 'updated'.
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
         color: '',
         innerHTML: 'updated',
@@ -319,6 +319,13 @@ test('setEditorValue keeps one marker factory across repeated loads', async () =
     expect(markerOptionsOf(view.state)).toEqual({ color: 'red', innerHTML: 'updated' });
     expect(visibleMarker(view)?.style.color).toBe('red');
     expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    // A layer per load would write `innerHTML` once per earlier load: one
+    // render of the stored factory must write it once.
+    const innerHTML = vi.spyOn(Element.prototype, 'innerHTML', 'set');
+    markerFactoryOf(view.state)!();
+    expect(innerHTML).toHaveBeenCalledTimes(1);
+    innerHTML.mockRestore();
     view.destroy();
 });
 

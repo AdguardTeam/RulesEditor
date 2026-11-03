@@ -318,9 +318,13 @@ export async function initEditor(
 /**
  * Reads rules and their enabled flags from the editor.
  *
- * @param view The editor view.
+ * @param view The editor view. Requires an editor created with
+ *   `withBreakpoints: true`.
  *
  * @returns One entry per line with its text and enabled flag.
+ *
+ * @throws {RangeError} If `view` has no enabled-rule state, because it was
+ *   created without `withBreakpoints: true`.
  */
 export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: string }[] {
     const enabled = new Set(enabledRuleLines(view.state));
@@ -374,7 +378,8 @@ function resolveMarkerOption(
  * content replacement nor the marker restore is recorded, so an undo cannot
  * revert the text while it leaves the restored markers behind.
  *
- * @param view The editor view.
+ * @param view The editor view. Requires an editor created with
+ *   `withBreakpoints: true`.
  * @param value Rules with enabled flags.
  * @param markerOptions Marker color and HTML for `view` only. Omit the
  *   argument, or pass an object with no non-empty `color` or `innerHTML`, to
@@ -387,6 +392,9 @@ function resolveMarkerOption(
  *   editor was created with.
  * @param markerOptions.innerHTML Marker inner HTML; `null` restores the HTML
  *   the editor was created with.
+ *
+ * @throws {RangeError} If `view` was created without `withBreakpoints: true`
+ *   and the call restores an enabled marker.
  */
 export function setEditorValue(
     view: EditorView,
