@@ -197,14 +197,7 @@ async function mountEditorWithSelection(doc: string): Promise<{
 }
 
 test('keeps an enabled rule enabled after a comment and uncomment cycle', async () => {
-    let toggles = 0;
-    const view = await mountEditor(initEditor, {
-        withBreakpoints: true,
-        hotkeys: {
-            toggleRule: () => { toggles += 1; },
-        },
-    });
-    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    const { view, toggleCount } = await mountEditorWithSelection('||a.com^');
     view.dispatch({ effects: toggleBreakpoint.of(0) });
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
@@ -215,7 +208,20 @@ test('keeps an enabled rule enabled after a comment and uncomment cycle', async 
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([1]);
-    expect(toggles).toBe(2);
+    expect(toggleCount()).toBe(2);
+    view.destroy();
+});
+
+test('toggles the markers of a whole-document selection', async () => {
+    const rules = Array.from({ length: 50 }, (_, index) => `||a${index}.com^`);
+    const { view, toggleCount } = await mountEditorWithSelection(rules.join('\n'));
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(enabledRuleLines(view.state)).toEqual(rules.map((_, index) => index + 1));
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    expect(toggleCount()).toBe(2);
     view.destroy();
 });
 
@@ -223,8 +229,8 @@ test('toggles the marker only for the rule line of a mixed selection', async () 
     const { view, toggleCount } = await mountEditorWithSelection('! note\n||a.com^');
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('! ! note\n! ||a.com^');
-    // The comment line does not flip to a rule, so it gets no marker. A marker
-    // on `! ! note` would not survive `setEditorValue`, which skips comments.
+    // A mixed selection comments every line, so `! note` stays a comment and
+    // gets no marker; only the rule flips to a comment.
     expect(enabledRuleLines(view.state)).toEqual([2]);
     expect(toggleCount()).toBe(1);
     view.destroy();
@@ -240,7 +246,7 @@ test('does not leave a marker on a comment that becomes empty', async () => {
 });
 
 test('drops the marker of a commented rule when the toggle empties the line', async () => {
-    const { view } = await mountEditorWithSelection('||a.com^');
+    const { view, toggleCount } = await mountEditorWithSelection('||a.com^');
     // Commenting a disabled rule toggles its marker on while it is a comment.
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('! ||a.com^');
@@ -255,17 +261,50 @@ test('drops the marker of a commented rule when the toggle empties the line', as
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('');
     expect(enabledRuleLines(view.state)).toEqual([]);
+    // The first toggle enabled the commented rule, the second one removes the
+    // marker of the emptied line, so the callback ran for both.
+    expect(toggleCount()).toBe(2);
     view.destroy();
 });
 
 test('drops a directly placed marker when the line is emptied', async () => {
-    const { view } = await mountEditorWithSelection('!');
+    const { view, toggleCount } = await mountEditorWithSelection('!');
     view.dispatch({ effects: toggleBreakpoint.of(0) });
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
     pressKey(view.contentDOM, '/', { ctrl: true });
     expect(view.state.doc.toString()).toBe('');
     expect(enabledRuleLines(view.state)).toEqual([]);
+    // Removing the marker changes the enabled state of the line, so the
+    // callback runs even though the line does not flip to a rule.
+    expect(toggleCount()).toBe(1);
+    view.destroy();
+});
+
+test('uncomments a bare `!` line without the enabled-rule gutter', async () => {
+    const view = await mountEditor(initEditor);
+    view.dispatch({ changes: { from: 0, insert: '! a.com^\n!' } });
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+
+    // Without the gutter there is no marker to remove, and the toggle must
+    // not throw on the missing field.
+    expect(view.state.doc.toString()).toBe('a.com^\n');
+    view.destroy();
+});
+
+test('calls toggleRule in an editor without the enabled-rule gutter', async () => {
+    const toggleRule = vi.fn();
+    const view = await mountEditor(initEditor, { hotkeys: { toggleRule } });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+
+    pressKey(view.contentDOM, '/', { ctrl: true });
+
+    // Without the gutter there is no marker to change, but the rule text still
+    // flips, so the callback observes the toggle.
+    expect(view.state.doc.toString()).toBe('! ||a.com^');
+    expect(toggleRule).toHaveBeenCalledWith(view);
     view.destroy();
 });
 

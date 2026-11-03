@@ -35,3 +35,23 @@ export class GrammarNotFoundError extends Error {
         this.name = 'GrammarNotFoundError';
     }
 }
+
+/**
+ * Thrown when a function requires an editor created with the enabled-rule
+ * gutter (`withBreakpoints: true`), and the given editor has no enabled-rule
+ * field.
+ *
+ * Extends {@link RangeError}, so a consumer that catches a `RangeError` keeps
+ * working and can narrow the failure with `instanceof`.
+ */
+export class MissingBreakpointFieldError extends RangeError {
+    /**
+     * Creates a MissingBreakpointFieldError.
+     *
+     * @param functionName The function that requires the enabled-rule field.
+     */
+    constructor(functionName: string) {
+        super(`${functionName} requires an editor created with withBreakpoints: true.`);
+        this.name = 'MissingBreakpointFieldError';
+    }
+}

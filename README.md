@@ -22,6 +22,8 @@ and a WASM-backed tokenizer for custom rule rendering.
 - [API](#api)
     - [`initEditor`](#initeditor)
         - [Hotkeys](#hotkeys)
+    - [`getRulesFromEditor`](#getrulesfromeditor)
+    - [`setEditorValue`](#seteditorvalue)
     - [`getTokenizer`](#gettokenizer)
     - [`inspectLine`](#inspectline)
     - [Rendering tokens to HTML (display-only)](#rendering-tokens-to-html-display-only)
@@ -175,11 +177,16 @@ cycle. A disabled rule therefore gains a marker while it is a comment.
 `Ctrl+S` / `Cmd+S` triggers the `onSave` handler.
 
 The `toggleRule` callback also fires for a comment-only selection that the
-toggle turns back into rules. A comment line in a mixed selection gets no
-marker. A line that stays a comment (`! ! note`) does not change its marker,
-while a line that becomes empty (`!`) loses any marker it had, because an
-empty line cannot hold one. Empty lines are skipped, but a whitespace-only
-line is not empty and still gets a marker.
+toggle turns back into rules, and for a marked comment that the toggle
+empties. It runs after the text change, so a consumer that re-reads the
+editor sees the final text and markers; an undo or redo of the toggle does
+not call it — use `onChange` to observe those changes. It also fires in an
+editor without the enabled-rule gutter: the callback observes the text flip
+even though there is no marker to change. A comment line in a mixed
+selection gets no marker. A line that stays a comment (`! ! note`) does not
+change its marker, while a line that the toggle empties (`!`) loses any
+marker it had. Empty lines are skipped, but a whitespace-only line is not
+empty and still gets a marker.
 
 On Linux desktops `Ctrl+Alt+Arrow` is usually captured by the window manager
 for workspace switching, so those keys never reach the browser there; the mouse
@@ -214,7 +221,7 @@ const segments = await inspectLine(wasm, '||example.org^$important');
 ```typescript
 async function initEditor(
     element: HTMLTextAreaElement,
-    wasm: WasmSource,
+    wasm: WasmSource | undefined,
     conf: InitEditorConfig,
 ): Promise<EditorView>
 ```
@@ -232,7 +239,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker; other editors keep their own color                                |
 | `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker; other editors keep their own HTML                          |
 | `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                     |
-| `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                         |
+| `conf.withBreakpoints`        | Enable the enabled-rule gutter; required by `getRulesFromEditor` and `setEditorValue`                            |
 | `conf.onChange`               | Called after each document change                                                                                |
 | `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                      |
 | `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                      |
@@ -278,8 +285,12 @@ on the same page.
   ("go to line"); the previous editor's `Ctrl+L` / `Cmd+L` works as well
 - `Alt+Up` / `Alt+Down` moves the selected lines up or down
 - `Shift+Alt+Up` / `Shift+Alt+Down` copies the selected lines up or down
-  (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor)
-- `Ctrl+D` / `Cmd+D` deletes the current line or selection
+  (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor);
+  the copied lines get no enabled-rule marker, and every existing marker of
+  the selected lines stays on its line
+- `Ctrl+D` / `Cmd+D` deletes every line the selection touches (the line under
+  the cursor when the selection is empty); the enabled-rule marker of a
+  deleted line is removed with the line, and one undo restores both
 - `Ctrl+S` / `Cmd+S` triggers the `conf.hotkeys.onSave` callback
 - `Ctrl+/` / `Cmd+/` toggles `!`/`#` comments on the selected lines and the
   enabled-rule marker on every line whose rule state flips, so a rule keeps
@@ -318,6 +329,53 @@ extensions: [
     Prec.highest(keymap.of([{ key: 'Mod-s', run: mySaveCommand }])),
 ]
 ```
+
+### `getRulesFromEditor`
+
+```typescript
+function getRulesFromEditor(
+    view: EditorView,
+): { enabled: boolean; rule: string }[]
+```
+
+| Parameter | Description                                    |
+| --------- | ---------------------------------------------- |
+| `view`    | An editor created with `withBreakpoints: true` |
+
+Returns one entry per line with its text and enabled flag. The function reads
+the enabled-rule gutter, so it throws a `MissingBreakpointFieldError` when
+the editor was created without `withBreakpoints: true`.
+
+### `setEditorValue`
+
+```typescript
+function setEditorValue(
+    view: EditorView,
+    value: { enabled: boolean; rule: string }[],
+    markerOptions: { color?: string; innerHTML?: string },
+): void
+```
+
+| Parameter                  | Description                                                       |
+| -------------------------- | ----------------------------------------------------------------- |
+| `view`                     | An editor created with `withBreakpoints: true`                    |
+| `value`                    | Rules with their enabled flags                                    |
+| `markerOptions.color`      | Marker text color for this editor only                            |
+| `markerOptions.innerHTML`  | Marker inner HTML for this editor only                            |
+
+Replaces the editor content and restores the enabled-rule markers in one
+transaction, so an `onChange` callback already sees the loaded rules with
+their markers. An enabled flag is restored for every non-empty line,
+including a comment line; an empty line cannot be marked, so its flag is lost
+in a `getRulesFromEditor` → `setEditorValue` round-trip. The marker options
+are stored in this editor's state only, so other editors on the page keep
+their own color and HTML.
+
+The load clears the undo history: a programmatic load creates no undo step,
+and an undo cannot replay an edit made before the load onto the loaded
+document. Like `getRulesFromEditor`, the function throws a
+`MissingBreakpointFieldError` when the editor was created without
+`withBreakpoints: true`.
 
 ### `getTokenizer`
 
@@ -452,10 +510,15 @@ custom editor theme.
 
 ### Error Classes
 
-| Class                  | Description                                           |
-| ---------------------- | ----------------------------------------------------- |
-| `WasmLoadError`        | Thrown when the Oniguruma WASM binary fails to load   |
-| `GrammarNotFoundError` | Thrown when a grammar scope has no registration       |
+| Class                         | Description                                         |
+| ----------------------------- | --------------------------------------------------- |
+| `WasmLoadError`               | Thrown when the Oniguruma WASM binary fails to load |
+| `GrammarNotFoundError`        | Thrown when a grammar scope has no registration     |
+| `MissingBreakpointFieldError` | Thrown when the editor has no enabled-rule field    |
+
+`MissingBreakpointFieldError` extends `RangeError`, so a consumer that already
+catches `RangeError` keeps working and can narrow the failure with
+`instanceof`.
 
 ## Peer Dependencies
 

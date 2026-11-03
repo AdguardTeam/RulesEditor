@@ -9,13 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `MissingBreakpointFieldError`, thrown by `getRulesFromEditor` and
+  `setEditorValue` when the editor has no enabled-rule field.
+
 ### Changed
+
+- The `toggleRule` callback now also runs when the comment toggle empties a
+  marked comment line and removes its marker.
+- `getRulesFromEditor` and `setEditorValue` now throw a
+  `MissingBreakpointFieldError` that names the `withBreakpoints` option when
+  the editor has no enabled-rule field. The error extends `RangeError`, so a
+  consumer that catches `RangeError` keeps working and can narrow the failure
+  with `instanceof`. `setEditorValue` used to replace the text of such an
+  editor; `getRulesFromEditor` threw the generic CodeMirror "field is not
+  present" error instead.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- `Shift+Alt+Down` (`Cmd+Option+Down` on macOS) on a multi-line selection
+  now keeps every enabled-rule marker of the copied block on its line. Before,
+  only the first line kept its marker and the other markers moved onto the
+  copy.
+- `Alt+Up` now keeps the enabled-rule marker of the line that moves up, and
+  `Ctrl+D` / `Cmd+D` on the first line keeps the marker of the line that
+  moves up as well. Deleting a line removes its own marker together with the
+  line, and one undo restores both: undo after `Ctrl+D` on the first line or
+  after `Alt+Up` no longer restores the wrong rule's flag.
+- `Backspace` on a selection through a line break, `Delete` on an emptied
+  line, and a cut without a selection now drop the marker of the line they
+  remove instead of moving it onto the next rule. A cut without a selection
+  drops the marker on the last line too.
+- Pressing `Enter` at the start of an enabled rule, indented or not, now
+  keeps the marker on the rule, which the line break pushes down, instead of
+  leaving it on the new empty line. Undo and redo restore the marker together
+  with the rule.
+- A dropped line break at the start of an enabled rule now keeps the marker
+  on the rule that the drop pushes down, like `Enter` and a paste. A dragged
+  line no longer moves the marker of the rule at the drop point onto the
+  dropped text.
+- `setEditorValue` now replaces the text and restores the enabled-rule
+  markers in one transaction, so `onChange` sees the loaded rules with their
+  markers. It restores an enabled flag for every non-empty line, including a
+  comment line, so the flag survives a `getRulesFromEditor` →
+  `setEditorValue` round-trip, and it clears the undo history: a programmatic
+  load creates no undo step, and an undo cannot replay an edit made before
+  the load onto the loaded document.
+- `setEditorValue` now counts marker positions on the normalized line breaks,
+  so a rule that ends in `\r` (a CRLF list split on `\n`) no longer leaves a
+  marker past the end of its line or throws on the next edit.
+- An ordinary edit that empties a rule line no longer drops its enabled
+  marker; the marker is removed only when the line is deleted or when the
+  comment toggle empties it.
+- A `Ctrl+A` → `Ctrl+/` toggle on a large document no longer maps each line
+  through the whole change set, so the toggle and its undo stay fast.
 
 ### Security
 

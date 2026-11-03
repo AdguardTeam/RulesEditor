@@ -21,4 +21,5 @@ export type { TokenSegment, HotkeyMode } from './lib/types';
 export {
     WasmLoadError,
     GrammarNotFoundError,
+    MissingBreakpointFieldError,
 } from './lib/errors';

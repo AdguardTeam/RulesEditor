@@ -7,6 +7,7 @@ import {
     breakpointState,
     enabledRuleLines,
     isBreakpointAt,
+    setBreakpoints,
     setMarkerFactory,
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
@@ -65,10 +66,14 @@ test('renders markers with the factory of each editor', () => {
     second.destroy();
 });
 
-test('rebuilds existing markers when the factory changes', () => {
+test('applies a new factory to the markers that a setBreakpoints effect replaces', () => {
     const view = makeView('||a.com^', { markerFactory: marker('before') });
     view.dispatch({ effects: toggleBreakpoint.of(0) });
-    view.dispatch({ effects: setMarkerFactory.of(marker('after')) });
+    // Production changes the factory only together with `setBreakpoints`
+    // (`setEditorValue`), which rebuilds every marker with the new factory.
+    view.dispatch({
+        effects: [setMarkerFactory.of(marker('after')), setBreakpoints.of([0])],
+    });
 
     const gutter = view.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
     expect(gutter).toContain('after');

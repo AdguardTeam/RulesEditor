@@ -2,7 +2,12 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { undo, undoDepth } from '@codemirror/commands';
+import {
+    isolateHistory,
+    redo,
+    undo,
+    undoDepth,
+} from '@codemirror/commands';
 import { search, searchPanelOpen } from '@codemirror/search';
 import { EditorState, Prec } from '@codemirror/state';
 import { type EditorView, keymap, showDialog } from '@codemirror/view';
@@ -15,7 +20,7 @@ import {
 
 import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
-import { WasmLoadError } from '../src/lib/errors';
+import { MissingBreakpointFieldError, WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
 
 import { mountEditor, pressKey, stubRangeClientRects } from './helpers';
@@ -43,6 +48,58 @@ const pressCtrlKey = (view: EditorView, key: string): KeyboardEvent => {
     return pressKey(view.contentDOM, key, { ctrl: true });
 };
 
+/**
+ * Mounts an editor with the enabled-rule gutter and full highlighting.
+ *
+ * @param conf Config overrides merged into the default config.
+ *
+ * @returns The mounted editor view. Destroy it when the test is done.
+ */
+const mountBreakpointEditor = (
+    conf: Parameters<typeof mountEditor>[1] = {},
+): Promise<EditorView> => mountEditor(
+    initEditor,
+    {
+        highlight: 'full',
+        withBreakpoints: true,
+        ...conf,
+        hotkeys: { mode: 'mac', ...conf.hotkeys },
+    },
+    wasm,
+);
+
+/**
+ * Mounts an editor with the enabled-rule gutter, inserts a document, marks
+ * the given lines, and puts the cursor on one of them.
+ *
+ * The inserted document is isolated in the undo history, so an undo in a test
+ * reverts only the command the test runs.
+ *
+ * @param doc The document text.
+ * @param markedLines 1-based numbers of the lines to mark as enabled.
+ * @param cursorLine 1-based number of the line to put the cursor on.
+ *
+ * @returns The mounted editor view. Destroy it when the test is done.
+ */
+const mountMarkedEditor = async (
+    doc: string,
+    markedLines: readonly number[] = [],
+    cursorLine = 1,
+): Promise<EditorView> => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({
+        changes: { from: 0, insert: doc },
+        annotations: isolateHistory.of('after'),
+    });
+    view.dispatch({
+        effects: markedLines.map(
+            (number) => toggleBreakpoint.of(view.state.doc.line(number).from),
+        ),
+    });
+    view.dispatch({ selection: { anchor: view.state.doc.line(cursorLine).from } });
+    return view;
+};
+
 test('mounts an editor and highlights a comment', async () => {
     const view = await mountEditor(
         initEditor,
@@ -60,11 +117,7 @@ test('mounts an editor and highlights a comment', async () => {
 });
 
 test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: false, rule: '||b.com^' },
@@ -78,17 +131,13 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
 });
 
 test('setEditorValue does not restore an enabled marker on an empty rule', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: true, rule: '' },
     ], {});
-    // The load path uses the same predicate as the comment toggle: an empty
-    // line cannot hold an enabled marker.
+    // A load skips an empty line: unlike an ordinary edit that empties a
+    // line, it does not keep a marker there, so the flag is lost.
     expect(getRulesFromEditor(view)).toEqual([
         { enabled: true, rule: '||a.com^' },
         { enabled: false, rule: '' },
@@ -97,11 +146,7 @@ test('setEditorValue does not restore an enabled marker on an empty rule', async
 });
 
 test('setEditorValue clears markers from the previous content', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     setEditorValue(view, [{ enabled: false, rule: '||b.com^' }], {});
     expect(getRulesFromEditor(view)).toEqual([
@@ -111,11 +156,7 @@ test('setEditorValue clears markers from the previous content', async () => {
 });
 
 test('setEditorValue creates no undo step', async () => {
-    const view = await mountEditor(
-        initEditor,
-        { highlight: 'full', hotkeys: { mode: 'mac' }, withBreakpoints: true },
-        wasm,
-    );
+    const view = await mountBreakpointEditor();
     setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
@@ -126,6 +167,94 @@ test('setEditorValue creates no undo step', async () => {
     expect(undo(view)).toBe(false);
     expect(view.state.doc.toString()).toBe('||a.com^');
     expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('setEditorValue clears the undo history', async () => {
+    const view = await mountBreakpointEditor();
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    expect(undoDepth(view.state)).toBe(1);
+
+    setEditorValue(view, [{ enabled: true, rule: '||b.com^' }], {});
+
+    // A load clears the history instead of leaving an earlier edit that an
+    // undo could replay onto the loaded document.
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe('||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('setEditorValue restores markers before onChange runs', async () => {
+    const seen: { enabled: boolean; rule: string }[][] = [];
+    const view = await mountBreakpointEditor({
+        onChange: (editorView) => {
+            seen.push(getRulesFromEditor(editorView));
+        },
+    });
+
+    setEditorValue(view, [
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '||b.com^' },
+    ], {});
+
+    // The text replacement and the marker restore are one transaction, so a
+    // consumer that reads the editor from `onChange` sees the loaded markers.
+    expect(seen).toEqual([[
+        { enabled: true, rule: '||a.com^' },
+        { enabled: false, rule: '||b.com^' },
+    ]]);
+    view.destroy();
+});
+
+test('setEditorValue restores an enabled marker on a comment rule', async () => {
+    const view = await mountBreakpointEditor();
+    setEditorValue(view, [{ enabled: true, rule: '! ||a.com^' }], {});
+
+    // The comment toggle leaves a marker on a commented rule, so the flag must
+    // survive the round-trip instead of being dropped as a comment.
+    expect(getRulesFromEditor(view)).toEqual([{ enabled: true, rule: '! ||a.com^' }]);
+    view.destroy();
+});
+
+test('setEditorValue restores markers on the normalized CRLF document', async () => {
+    const view = await mountBreakpointEditor();
+    // Splitting a CRLF list on `\n` leaves a `\r` on every rule but the last.
+    // CodeMirror normalizes the line breaks on insert, so the marker positions
+    // must come from the normalized document rather than the raw rule lengths.
+    setEditorValue(view, [
+        { enabled: true, rule: 'a\r' },
+        { enabled: true, rule: 'b\r' },
+        { enabled: false, rule: 'c\r' },
+        { enabled: true, rule: 'd' },
+    ], {});
+
+    expect(view.state.doc.toString()).toBe('a\nb\nc\nd');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2, 4]);
+
+    // A marker left past the end of the document would throw here.
+    view.dispatch({ changes: { from: 0, to: 2 } });
+    expect(view.state.doc.toString()).toBe('b\nc\nd');
+    // `b` survives as line 1 with its marker, and `d` keeps its marker.
+    expect(enabledRuleLines(view.state)).toEqual([1, 3]);
+    view.destroy();
+});
+
+test('setEditorValue and getRulesFromEditor require the enabled-rule field', async () => {
+    const view = await mountEditor(initEditor);
+
+    // The dedicated class keeps the `RangeError` catch type, so a consumer
+    // that caught the previous error keeps working and can narrow it with
+    // `instanceof`.
+    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {}))
+        .toThrow(MissingBreakpointFieldError);
+    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {}))
+        .toThrow(RangeError);
+    expect(() => getRulesFromEditor(view)).toThrow(MissingBreakpointFieldError);
+    expect(() => getRulesFromEditor(view)).toThrow(RangeError);
+    // The message names the option that enables the field.
+    expect(() => getRulesFromEditor(view)).toThrow(/withBreakpoints/);
     view.destroy();
 });
 
@@ -467,6 +596,603 @@ test('Ctrl+D deletes the current line', async () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.doc.toString()).toBe('||a.com^\n||c.com^');
+    view.destroy();
+});
+
+test('Ctrl+D removes the marker of the deleted line and undo restores it', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1]);
+
+    pressCtrlKey(view, 'd');
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||c.com^');
+    // The marker belonged to the deleted line, not to the line that moved up.
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('Ctrl+D on a marked middle line removes its marker with the line', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [2], 2);
+
+    pressCtrlKey(view, 'd');
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Ctrl+D on the enabled last line removes its marker', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [2], 2);
+
+    pressCtrlKey(view, 'd');
+
+    // `deleteLine` removes the last line without a line break, so the removed
+    // line start is past the end of the new document.
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('Ctrl+D on the only line removes its marker', async () => {
+    const view = await mountMarkedEditor('||a.com^', [1]);
+
+    pressCtrlKey(view, 'd');
+
+    expect(view.state.doc.toString()).toBe('');
+    // The marker belonged to the deleted line: a rule typed into the emptied
+    // document must not come up enabled.
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('Ctrl+D on line 1 keeps the marker of the line that moves up', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [2]);
+
+    pressCtrlKey(view, 'd');
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||c.com^');
+    // The deletion ends at the start of line 2, which survives as line 1.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // The kept marker adds no removal, but the transaction still has to store
+    // a marker snapshot: undo must restore `||b.com^` as enabled, not `||a.com^`.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Ctrl+A then Backspace keeps the marker of the first line', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1, 2]);
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+
+    pressKey(view.contentDOM, 'Backspace', {});
+
+    expect(view.state.doc.toString()).toBe('');
+    // A document-wide delete is not a line deletion: the first line survives
+    // as the empty document and keeps its marker, while the marker of the
+    // second line is removed with its line start.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    view.destroy();
+});
+
+test('Backspace through a line break drops the marker of the joined line', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [1]);
+    // The shape of Shift+Down then Backspace: a pure delete that starts at
+    // the marked line start and ends at the next line's start.
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.line(2).from } });
+
+    pressKey(view.contentDOM, 'Backspace', {});
+
+    expect(view.state.doc.toString()).toBe('||b.com^');
+    // The marker must not move onto the rule that remains.
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('Delete on an emptied marked line drops its marker', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [1]);
+    // Emptying the line is an ordinary edit and keeps the marker.
+    view.dispatch({ changes: { from: 0, to: view.state.doc.line(1).length } });
+    expect(view.state.doc.toString()).toBe('\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // Delete then removes the empty line, and the marker must go with it
+    // instead of moving onto `||b.com^`.
+    pressKey(view.contentDOM, 'Delete', {});
+
+    expect(view.state.doc.toString()).toBe('||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('Alt+Up keeps the marker of the line that moves up', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
+    // The change starts at the start of line 1 and ends at the start of the
+    // moved line, which survives as line 1.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+// Known pre-existing limitation: a `move.line` change deletes the text of the
+// line above the moved block and reinserts it after the block, so the change
+// shape cannot tell which of the two lines moved. The line that stays behind
+// loses its marker. The expected behavior is marked as expected to fail until
+// `move.line` gets its own marker handling; it is not pinned as intended.
+test.fails('Alt+Up keeps the marker of the line that stays behind', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1, 2], 2);
+    try {
+        pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+        expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
+        // `||b.com^` moved up to line 1 and `||a.com^` moved down to line 2;
+        // both stay enabled.
+        expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    } finally {
+        view.destroy();
+    }
+});
+
+test('Enter at the start of an enabled rule keeps its marker on the pushed rule', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [2], 2);
+
+    pressKey(view.contentDOM, 'Enter', {});
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n\n||b.com^');
+    // The marker belongs to `||b.com^`, which the insertion pushes down; it
+    // must not stay on the new empty line.
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    // The carried marker is part of the transaction's marker snapshot, so
+    // undo and redo restore the rule that the marker belongs to.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('Enter at the start of an indented enabled rule keeps its marker', async () => {
+    const view = await mountMarkedEditor('||a.com^\n  ||b.com^', [2], 2);
+
+    // `insertNewlineAndIndent` replaces the leading whitespace instead of
+    // inserting a bare line break, so this is a replacement, not a pure
+    // insertion.
+    pressKey(view.contentDOM, 'Enter', {});
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n\n  ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n  ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n\n  ||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('a line break with indentation at the start of a rule keeps its marker', async () => {
+    const view = await mountMarkedEditor('a\nb', [2], 2);
+
+    // A language indent service can turn Enter at the start of an unindented
+    // line into a pure insertion of a line break plus indentation.
+    view.dispatch({
+        changes: { from: 2, insert: '\n  ' },
+        selection: { anchor: 5 },
+        userEvent: 'input',
+    });
+
+    expect(view.state.doc.toString()).toBe('a\n\n  b');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\n\n  b');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('undo and redo of Enter followed by typing restore the carried marker', async () => {
+    const view = await mountMarkedEditor('a\nb', [2], 2);
+
+    pressKey(view.contentDOM, 'Enter', {});
+    // The cursor stays at the start of the pushed-down line, and the typing
+    // joins the Enter into one undo step.
+    view.dispatch({
+        changes: { from: view.state.selection.main.head, insert: 'x' },
+        userEvent: 'input.type',
+    });
+
+    expect(view.state.doc.toString()).toBe('a\n\nxb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\n\nxb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('undo and redo of Enter restore the carried marker next to other markers', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [1, 2, 3], 2);
+
+    pressKey(view.contentDOM, 'Enter', {});
+
+    expect(view.state.doc.toString()).toBe('a\n\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([1, 3, 4]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2, 3]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\n\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([1, 3, 4]);
+    view.destroy();
+});
+
+test('undo and redo of a paste ending with a line break restore the carried marker', async () => {
+    const view = await mountMarkedEditor('a\nb', [2], 2);
+
+    view.dispatch({
+        changes: { from: 2, insert: 'x\n' },
+        selection: { anchor: 4 },
+        userEvent: 'input.paste',
+    });
+    // The pasted line break pushes `b` down, so its marker follows the rule.
+    expect(view.state.doc.toString()).toBe('a\nx\nb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    // The typing joins the paste into one undo step.
+    view.dispatch({
+        changes: { from: view.state.selection.main.head, insert: 'y' },
+        userEvent: 'input.type',
+    });
+    expect(view.state.doc.toString()).toBe('a\nx\nyb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nx\nyb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('a drop ending with a line break keeps the marker on the pushed-down rule', async () => {
+    const view = await mountMarkedEditor('a\nb', [2], 2);
+
+    view.dispatch({
+        changes: { from: 2, insert: 'x\n' },
+        selection: { anchor: 4 },
+        userEvent: 'input.drop',
+    });
+    // The dropped line break pushes `b` down, so its marker follows the rule.
+    expect(view.state.doc.toString()).toBe('a\nx\nb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('a dragged line keeps the marker on the rule at the drop point', async () => {
+    const view = await mountMarkedEditor('x\na\nb', [3], 3);
+
+    view.dispatch({
+        changes: [
+            { from: 0, to: 2 },
+            { from: view.state.doc.line(3).from, insert: 'x\n' },
+        ],
+        selection: { anchor: 2 },
+        userEvent: 'move.drop',
+    });
+    // The drop deletes the dragged `x` line and inserts it before `b`. The
+    // marker belongs to `b`, not to the dropped text.
+    expect(view.state.doc.toString()).toBe('a\nx\nb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('x\na\nb');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('Shift+Alt+Down keeps the marker on the original rule', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [1], 1);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n||a.com^\n||b.com^');
+    // `copyLineDown` inserts a duplicate of the rule instead of pushing the
+    // rule down, so the original rule keeps its marker and the duplicate gets
+    // none.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||a.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('Shift+Alt+Down on the last line keeps its marker', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Shift+Alt+Up keeps the marker on the original rule', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||b.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Shift+Alt+Down on an empty marked line keeps its marker', async () => {
+    const view = await mountMarkedEditor('a\n', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('a\n\n');
+    // The copy-line command duplicates an empty line instead of pushing a
+    // rule down, so the marker stays on its line.
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Shift+Alt+Down on a block keeps every marker on the copied lines', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1, 2], 1);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(1).from,
+            head: view.state.doc.line(2).to,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe(
+        '||a.com^\n||b.com^\n||a.com^\n||b.com^\n||c.com^',
+    );
+    // Every marker of the copied block stays on its line; the copy gets none.
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+        '||a.com^\n||b.com^\n||a.com^\n||b.com^\n||c.com^',
+    );
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    view.destroy();
+});
+
+test('Shift+Alt+Up on a block keeps every marker on the copied lines', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [2, 3], 3);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(2).from,
+            head: view.state.doc.line(3).to,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe(
+        '||a.com^\n||b.com^\n||c.com^\n||b.com^\n||c.com^',
+    );
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+    view.destroy();
+});
+
+test('Shift+Alt+Up on a block ending with an empty line keeps every marker', async () => {
+    const view = await mountMarkedEditor('a\n\nb', [1, 2], 1);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(1).from,
+            // The selection ends at the start of line 3, so the block includes
+            // the empty line 2.
+            head: view.state.doc.line(3).from,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('a\n\na\n\nb');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    view.destroy();
+});
+
+test('Shift+Alt+Down on a block starting with an empty line keeps every marker', async () => {
+    const view = await mountMarkedEditor('a\n\nb', [2, 3], 2);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(2).from,
+            head: view.state.doc.line(3).to,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true, shift: true });
+
+    expect(view.state.doc.toString()).toBe('a\n\nb\n\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+    view.destroy();
+});
+
+test('Alt+Up on an empty marked line keeps its marker on the moved line', async () => {
+    const view = await mountMarkedEditor('  \n\nb', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('\n  \nb');
+    // The empty marked line moved up to line 1; the indentation inserted by
+    // the move belongs to the line that moved down.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('undo of Alt+Up does not carry the marker to another rule', async () => {
+    const view = await mountMarkedEditor('a\nb', [1], 2);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+    expect(view.state.doc.toString()).toBe('b\na');
+    // A move swaps the line texts without telling the marker which line
+    // moved, so the marker stays on line 1; undo only has to restore it.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('undo of Alt+Up on a later line keeps the marker of the original rule', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [2], 3);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+    expect(view.state.doc.toString()).toBe('a\nc\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('undo of a whole-document delete with a trailing newline keeps the first marker', async () => {
+    const view = await mountMarkedEditor('a\nb\n', [1]);
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+
+    pressKey(view.contentDOM, 'Backspace', {});
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // The undo inserts the whole document, including the trailing line
+    // break. The carry must not move the first line's marker to the empty
+    // last line.
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\n');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('a cut without a selection drops the marker on the last line', async () => {
+    const view = await mountMarkedEditor('a\nb', [2], 2);
+
+    // The line-wise cut handler deletes the cursor's line. On the last line
+    // there is no line break to include, so the range ends at the document
+    // end; the marker must go with the line like it does on other lines. The
+    // stub clipboard data keeps the handler from falling back to its
+    // `captureCopy` path, which needs a real browser clipboard.
+    const event = new Event('cut', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'clipboardData', {
+        value: { clearData: () => {}, setData: () => {} },
+    });
+    view.contentDOM.dispatchEvent(event);
+
+    // The line break before the last line stays, so the document ends with an
+    // empty line that must not come up enabled.
+    expect(view.state.doc.toString()).toBe('a\n');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\n');
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    view.destroy();
+});
+
+test('undo of joined deletes restores every marker', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [2, 3]);
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+
+    // The deletes are adjacent and join into one undo step. Its marker
+    // snapshot is the oldest one (the effect list puts the oldest last), so
+    // one undo must restore both markers, not an intermediate set.
+    for (let i = 0; i < 5; i += 1) {
+        pressKey(view.contentDOM, 'Backspace', {});
+    }
+    expect(view.state.doc.toString()).toBe('');
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+    view.destroy();
+});
+
+test('keeps the marker when an ordinary edit empties the rule line', async () => {
+    const view = await mountMarkedEditor('||a.com^', [1]);
+
+    // Deleting the rule text is not the comment toggle: the marker stays on
+    // the emptied line.
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length } });
+    expect(view.state.doc.toString()).toBe('');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
     view.destroy();
 });
 
