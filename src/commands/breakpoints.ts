@@ -31,9 +31,40 @@ export const toggleBreakpoint = StateEffect.define<number>({
 });
 
 /**
- * Effect that replaces the marker factory of the editor that handles it.
+ * Color and inner HTML applied by a marker factory.
  */
-export const setMarkerFactory = StateEffect.define<() => HTMLElement>();
+export interface MarkerOptions {
+    /**
+     * Marker icon color; an empty string means the default.
+     */
+    color?: string;
+
+    /**
+     * Marker inner HTML; an empty string means the default.
+     */
+    innerHTML?: string;
+}
+
+/**
+ * The factory of one editor and the options it applies.
+ */
+interface MarkerConfig {
+    /**
+     * The factory that renders the markers.
+     */
+    factory: () => HTMLElement;
+
+    /**
+     * The color and inner HTML that `factory` applies.
+     */
+    options: MarkerOptions;
+}
+
+/**
+ * Effect that replaces the marker factory of the editor that handles it,
+ * together with the options the factory was built from.
+ */
+export const setMarkerFactory = StateEffect.define<MarkerConfig>();
 
 /**
  * Effect that removes every enabled marker from the editor that handles it.
@@ -59,6 +90,15 @@ const markerFactory = Facet.define<() => HTMLElement, () => HTMLElement>({
     // CodeMirror resolves facet providers highest-precedence first, so the
     // first value is the one that wins.
     combine: (factories) => factories[0] ?? defaultMarker,
+});
+
+/**
+ * Facet that holds the marker options the factory of one editor applies, so a
+ * later marker change can merge the current options instead of wrapping the
+ * current factory in another layer.
+ */
+const markerOptionsFacet = Facet.define<MarkerOptions, MarkerOptions>({
+    combine: (options) => options[0] ?? {},
 });
 
 /**
@@ -98,16 +138,11 @@ class BreakpointMarker extends GutterMarker {
 /**
  * The enabled-rule markers of one editor and the factory for new markers.
  */
-interface BreakpointState {
+interface BreakpointState extends MarkerConfig {
     /**
      * The marked lines.
      */
     markers: RangeSet<GutterMarker>;
-
-    /**
-     * The factory used to render new markers.
-     */
-    factory: () => HTMLElement;
 }
 
 /**
@@ -135,10 +170,12 @@ const breakpointField = StateField.define<BreakpointState>({
     create: (state) => ({
         markers: RangeSet.empty,
         factory: state.facet(markerFactory),
+        options: state.facet(markerOptionsFacet),
     }),
     update(value, tr) {
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
-        const factory = factoryEffect ? factoryEffect.value : value.factory;
+        const factory = factoryEffect ? factoryEffect.value.factory : value.factory;
+        const options = factoryEffect ? factoryEffect.value.options : value.options;
         let markers = value.markers.map(tr.changes);
         if (tr.effects.some((effect) => effect.is(clearBreakpoints))) {
             markers = RangeSet.empty;
@@ -194,6 +231,7 @@ const breakpointField = StateField.define<BreakpointState>({
                 filter: (from) => tr.state.doc.lineAt(from).length > 0,
             }),
             factory,
+            options,
         };
     },
 });
@@ -212,19 +250,35 @@ export function markerFactoryOf(state: EditorState): (() => HTMLElement) | undef
 }
 
 /**
+ * Returns the marker options that the factory of the editor applies.
+ *
+ * @param state The editor state.
+ *
+ * @returns The marker options, or `undefined` when the state has no breakpoint
+ *   field.
+ */
+export function markerOptionsOf(state: EditorState): MarkerOptions | undefined {
+    return state.field(breakpointField, false)?.options;
+}
+
+/**
  * Editor extension providing the enabled-rule gutter and its state field.
  *
  * @param options Gutter configuration.
  * @param options.markerFactory Factory producing a marker element for this
  *   editor. Defaults to a filled circle.
+ * @param options.markerOptions Color and inner HTML that `options.markerFactory`
+ *   applies. Defaults to the empty object.
  *
  * @returns A CodeMirror 6 extension.
  */
 export function breakpointState(options: {
     markerFactory?: () => HTMLElement;
+    markerOptions?: MarkerOptions;
 } = {}): Extension {
     return [
         options.markerFactory ? markerFactory.of(options.markerFactory) : [],
+        options.markerOptions ? markerOptionsFacet.of(options.markerOptions) : [],
         breakpointField,
         // The toggle is its own inverse, so the same effect undoes it. The
         // value is mapped to the state after the transaction, which is the

@@ -13,7 +13,12 @@ import {
     vi,
 } from 'vitest';
 
-import { enabledRuleLines, markerFactoryOf, toggleBreakpoint } from '../src/commands/breakpoints';
+import {
+    enabledRuleLines,
+    markerFactoryOf,
+    markerOptionsOf,
+    toggleBreakpoint,
+} from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
@@ -267,6 +272,25 @@ test('setEditorValue keeps the color when marker options give only innerHTML', a
     const marker = visibleMarker(view)!;
     expect(marker.style.color).toBe('blue');
     expect(marker.textContent).toBe('updated');
+    view.destroy();
+});
+
+test('setEditorValue keeps one marker factory across repeated loads', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    for (let load = 0; load < 3; load += 1) {
+        setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
+        setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    }
+
+    // The state keeps the effective options and builds one factory from them,
+    // so a load does not wrap the previous factory in another layer.
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'red', innerHTML: 'updated' });
+    expect(visibleMarker(view)?.style.color).toBe('red');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
     view.destroy();
 });
 

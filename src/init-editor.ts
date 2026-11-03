@@ -19,7 +19,8 @@ import {
     clearBreakpoints,
     enabledRuleLines,
     isBreakpointAt,
-    markerFactoryOf,
+    type MarkerOptions,
+    markerOptionsOf,
     setMarkerFactory,
     toggleBreakpoint,
 } from './commands/breakpoints';
@@ -261,11 +262,16 @@ export async function initEditor(
     }
 
     if (conf.withBreakpoints) {
+        // The factory and the options must describe the same marker: a later
+        // `setEditorValue` merges the stored options instead of reading the
+        // rendering of the current factory.
+        const markerOptions = {
+            color: conf.hotkeys.markerColor,
+            innerHTML: conf.hotkeys.markerHTML,
+        };
         extensions.push(breakpointState({
-            markerFactory: createMarker({
-                color: conf.hotkeys.markerColor,
-                innerHTML: conf.hotkeys.markerHTML,
-            }),
+            markerFactory: createMarker(markerOptions),
+            markerOptions,
         }));
     }
 
@@ -326,37 +332,6 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 }
 
 /**
- * Builds a marker factory that applies the given options to the markers of
- * the current factory.
- *
- * A non-empty option replaces that part of the current marker; an option that
- * is omitted or empty keeps the current value. The options therefore act as
- * overrides instead of describing the whole marker.
- *
- * @param current The factory of the current marker.
- * @param markerOptions Color and inner HTML to apply.
- * @param markerOptions.color Marker icon color.
- * @param markerOptions.innerHTML Marker inner HTML.
- *
- * @returns A factory producing the updated marker elements.
- */
-function mergeMarkerOptions(
-    current: () => HTMLElement,
-    markerOptions: { color?: string; innerHTML?: string },
-): () => HTMLElement {
-    return () => {
-        const marker = current();
-        if (markerOptions.color) {
-            marker.style.color = markerOptions.color;
-        }
-        if (markerOptions.innerHTML) {
-            marker.innerHTML = markerOptions.innerHTML;
-        }
-        return marker;
-    };
-}
-
-/**
  * Replaces the editor content and restores enabled-rule markers.
  *
  * The call clears the markers of `view` first, so a rule that becomes
@@ -396,20 +371,26 @@ export function setEditorValue(
     // the default icon. The check matches `createMarker`, which treats an
     // empty string as unset. A non-empty field applies to the current marker,
     // so a color-only call keeps a custom `markerHTML` and an HTML-only call
-    // keeps the current color.
+    // keeps the current color. The merged options are stored in the state and
+    // every load builds one factory from them: wrapping the previous factory
+    // would add a layer on each load.
     const restyleMarker = Boolean(markerOptions.color || markerOptions.innerHTML);
-    let nextFactory: (() => HTMLElement) | undefined;
+    let nextMarker: { factory: () => HTMLElement; options: MarkerOptions } | undefined;
     if (restyleMarker) {
-        const currentFactory = markerFactoryOf(view.state);
-        nextFactory = currentFactory
-            ? mergeMarkerOptions(currentFactory, markerOptions)
-            : createMarker(markerOptions);
+        const currentOptions = markerOptionsOf(view.state);
+        if (currentOptions) {
+            const options: MarkerOptions = {
+                color: markerOptions.color || currentOptions.color,
+                innerHTML: markerOptions.innerHTML || currentOptions.innerHTML,
+            };
+            nextMarker = { factory: createMarker(options), options };
+        }
     }
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: doc },
         effects: [
             clearBreakpoints.of(null),
-            ...(nextFactory ? [setMarkerFactory.of(nextFactory)] : []),
+            ...(nextMarker ? [setMarkerFactory.of(nextMarker)] : []),
         ],
         // A load is not a user edit. Without this annotation an undo would
         // revert the text and map the restored markers into the reverted

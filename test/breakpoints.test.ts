@@ -8,6 +8,8 @@ import {
     enabledRuleLines,
     isBreakpointAt,
     markerFactoryOf,
+    type MarkerOptions,
+    markerOptionsOf,
     setMarkerFactory,
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
@@ -33,10 +35,14 @@ const marker = (text: string) => (): HTMLElement => {
  * @param doc The initial content of the editor.
  * @param options Gutter configuration.
  * @param options.markerFactory Factory producing a marker element.
+ * @param options.markerOptions Color and inner HTML the factory applies.
  *
  * @returns An EditorView instance.
  */
-function makeView(doc: string, options: { markerFactory?: () => HTMLElement } = {}): EditorView {
+function makeView(doc: string, options: {
+    markerFactory?: () => HTMLElement;
+    markerOptions?: MarkerOptions;
+} = {}): EditorView {
     return new EditorView({
         state: EditorState.create({ doc, extensions: [breakpointState(options)] }),
         parent: document.body,
@@ -71,7 +77,9 @@ test('rebuilds existing markers when the factory changes', () => {
     view.dispatch({ effects: toggleBreakpoint.of(0) });
     expect(visibleGutterText(view)).toBe('before');
 
-    view.dispatch({ effects: setMarkerFactory.of(marker('after')) });
+    view.dispatch({
+        effects: setMarkerFactory.of({ factory: marker('after'), options: {} }),
+    });
 
     // The hidden spacer follows the new factory, so only the visible marker
     // proves the rebuild: without `rebuildMarkers` it still renders 'before'.
@@ -107,7 +115,9 @@ test('reuses the spacer element while the factory does not change', () => {
         renders += 1;
         return marker('next')();
     };
-    view.dispatch({ effects: setMarkerFactory.of(nextFactory) });
+    view.dispatch({
+        effects: setMarkerFactory.of({ factory: nextFactory, options: {} }),
+    });
     expect(spacer?.firstElementChild).not.toBe(spacerMarker);
     // The new marker must come from the new factory: a reused old factory
     // would keep the 'spacer' text.
@@ -127,4 +137,21 @@ test('enabledRuleLines reports marked lines', () => {
 test('markerFactoryOf returns undefined without the breakpoint field', () => {
     const state = EditorState.create({ doc: '' });
     expect(markerFactoryOf(state)).toBeUndefined();
+});
+
+test('markerOptionsOf follows the options installed with the factory', () => {
+    const view = makeView('', {
+        markerFactory: marker('initial'),
+        markerOptions: { color: 'red' },
+    });
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'red' });
+
+    const nextOptions = { color: 'blue', innerHTML: '<b></b>' };
+    const nextFactory = marker('next');
+    view.dispatch({
+        effects: setMarkerFactory.of({ factory: nextFactory, options: nextOptions }),
+    });
+    expect(markerOptionsOf(view.state)).toEqual(nextOptions);
+    expect(markerFactoryOf(view.state)).toBe(nextFactory);
+    view.destroy();
 });
