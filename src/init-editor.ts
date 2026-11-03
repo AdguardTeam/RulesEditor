@@ -262,7 +262,7 @@ export async function initEditor(
     }
 
     if (conf.withBreakpoints) {
-        // The factory and the options must describe the same marker: a later
+        // The factory and its options are one facet value: a later
         // `setEditorValue` merges the stored options instead of reading the
         // rendering of the current factory.
         const markerOptions = {
@@ -270,8 +270,7 @@ export async function initEditor(
             innerHTML: conf.hotkeys.markerHTML,
         };
         extensions.push(breakpointState({
-            markerFactory: createMarker(markerOptions),
-            markerOptions,
+            marker: { factory: createMarker(markerOptions), options: markerOptions },
         }));
     }
 

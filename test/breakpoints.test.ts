@@ -7,8 +7,8 @@ import {
     breakpointState,
     enabledRuleLines,
     isBreakpointAt,
+    type MarkerConfig,
     markerFactoryOf,
-    type MarkerOptions,
     markerOptionsOf,
     setMarkerFactory,
     toggleBreakpoint,
@@ -33,18 +33,16 @@ const marker = (text: string) => (): HTMLElement => {
  * Creates an EditorView instance with the given document.
  *
  * @param doc The initial content of the editor.
- * @param options Gutter configuration.
- * @param options.markerFactory Factory producing a marker element.
- * @param options.markerOptions Color and inner HTML the factory applies.
+ * @param config Marker factory and the options it applies.
  *
  * @returns An EditorView instance.
  */
-function makeView(doc: string, options: {
-    markerFactory?: () => HTMLElement;
-    markerOptions?: MarkerOptions;
-} = {}): EditorView {
+function makeView(doc: string, config?: MarkerConfig): EditorView {
     return new EditorView({
-        state: EditorState.create({ doc, extensions: [breakpointState(options)] }),
+        state: EditorState.create({
+            doc,
+            extensions: [breakpointState(config ? { marker: config } : {})],
+        }),
         parent: document.body,
     });
 }
@@ -59,8 +57,8 @@ test('toggles a breakpoint on a line', () => {
 });
 
 test('renders markers with the factory of each editor', () => {
-    const first = makeView('||a.com^', { markerFactory: marker('first') });
-    const second = makeView('||a.com^', { markerFactory: marker('second') });
+    const first = makeView('||a.com^', { factory: marker('first'), options: {} });
+    const second = makeView('||a.com^', { factory: marker('second'), options: {} });
     first.dispatch({ effects: toggleBreakpoint.of(0) });
     second.dispatch({ effects: toggleBreakpoint.of(0) });
 
@@ -73,7 +71,7 @@ test('renders markers with the factory of each editor', () => {
 });
 
 test('rebuilds existing markers when the factory changes', () => {
-    const view = makeView('||a.com^', { markerFactory: marker('before') });
+    const view = makeView('||a.com^', { factory: marker('before'), options: {} });
     view.dispatch({ effects: toggleBreakpoint.of(0) });
     expect(visibleGutterText(view)).toBe('before');
 
@@ -94,7 +92,7 @@ test('reuses the spacer element while the factory does not change', () => {
         renders += 1;
         return marker('spacer')();
     };
-    const view = makeView('||a.com^', { markerFactory: factory });
+    const view = makeView('||a.com^', { factory, options: {} });
     const gutter = view.dom.querySelector('.cm-breakpoint-gutter');
     const spacer = gutter?.querySelector('.cm-gutterElement');
     const spacerMarker = spacer?.firstElementChild;
@@ -141,8 +139,8 @@ test('markerFactoryOf returns undefined without the breakpoint field', () => {
 
 test('markerOptionsOf follows the options installed with the factory', () => {
     const view = makeView('', {
-        markerFactory: marker('initial'),
-        markerOptions: { color: 'red' },
+        factory: marker('initial'),
+        options: { color: 'red' },
     });
     expect(markerOptionsOf(view.state)).toEqual({ color: 'red' });
 
