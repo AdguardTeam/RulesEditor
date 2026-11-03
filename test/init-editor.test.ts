@@ -275,6 +275,34 @@ test('setEditorValue keeps the color when marker options give only innerHTML', a
     view.destroy();
 });
 
+test('setEditorValue applies a mixed marker option field by field', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    // An empty string is unset, so only the non-empty field changes: the
+    // blue color and the custom HTML survive the first call.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: '',
+        innerHTML: 'updated',
+    });
+    const firstMarker = visibleMarker(view)!;
+    expect(firstMarker.style.color).toBe('blue');
+    expect(firstMarker.textContent).toBe('updated');
+
+    // The second call goes the other way: the updated HTML survives while
+    // the color changes.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: '',
+    });
+    const secondMarker = visibleMarker(view)!;
+    expect(secondMarker.style.color).toBe('red');
+    expect(secondMarker.textContent).toBe('updated');
+    view.destroy();
+});
+
 test('setEditorValue keeps one marker factory across repeated loads', async () => {
     const view = await mountEditor(initEditor, {
         withBreakpoints: true,
