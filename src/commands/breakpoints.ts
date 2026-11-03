@@ -136,6 +136,12 @@ interface BreakpointState extends MarkerConfig {
      * The marked lines.
      */
     markers: RangeSet<GutterMarker>;
+
+    /**
+     * The options the editor was created with, so a later change can reset a
+     * field to the `initEditor` value or the library default.
+     */
+    initialOptions: MarkerOptions;
 }
 
 /**
@@ -160,10 +166,14 @@ function rebuildMarkers(
 }
 
 const breakpointField = StateField.define<BreakpointState>({
-    create: (state) => ({
-        markers: RangeSet.empty,
-        ...state.facet(markerConfig),
-    }),
+    create: (state) => {
+        const config = state.facet(markerConfig);
+        return {
+            markers: RangeSet.empty,
+            ...config,
+            initialOptions: config.options,
+        };
+    },
     update(value, tr) {
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
         const factory = factoryEffect ? factoryEffect.value.factory : value.factory;
@@ -224,6 +234,7 @@ const breakpointField = StateField.define<BreakpointState>({
             }),
             factory,
             options,
+            initialOptions: value.initialOptions,
         };
     },
 });
@@ -251,6 +262,18 @@ export function markerFactoryOf(state: EditorState): (() => HTMLElement) | undef
  */
 export function markerOptionsOf(state: EditorState): MarkerOptions | undefined {
     return state.field(breakpointField, false)?.options;
+}
+
+/**
+ * Returns the marker options the editor was created with.
+ *
+ * @param state The editor state.
+ *
+ * @returns The initial marker options, or `undefined` when the state has no
+ *   breakpoint field.
+ */
+export function initialMarkerOptionsOf(state: EditorState): MarkerOptions | undefined {
+    return state.field(breakpointField, false)?.initialOptions;
 }
 
 /**

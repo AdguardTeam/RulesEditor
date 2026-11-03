@@ -18,7 +18,9 @@ import {
     breakpointState,
     clearBreakpoints,
     enabledRuleLines,
+    initialMarkerOptionsOf,
     isBreakpointAt,
+    type MarkerConfig,
     type MarkerOptions,
     markerOptionsOf,
     setMarkerFactory,
@@ -331,6 +333,27 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 }
 
 /**
+ * Resolves one marker option field against the current and initial values.
+ *
+ * @param value The requested value: `null` resets the field, an empty string
+ *   or `undefined` keeps the current value, and any other string replaces it.
+ * @param current The value the marker applies now.
+ * @param initial The value the editor was created with.
+ *
+ * @returns The value the marker should apply.
+ */
+function resolveMarkerOption(
+    value: string | null | undefined,
+    current: string | undefined,
+    initial: string | undefined,
+): string | undefined {
+    if (value === null) {
+        return initial;
+    }
+    return value || current;
+}
+
+/**
  * Replaces the editor content and restores enabled-rule markers.
  *
  * The call clears the markers of `view` first, so a rule that becomes
@@ -338,7 +361,8 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * the state of `view` only: other editors on the page keep their own color
  * and HTML. A non-empty `color` or `innerHTML` changes only that part of the
  * marker and keeps the other part; an object that gives neither keeps the
- * whole marker the editor already has.
+ * whole marker the editor already has. A field set to `null` resets that part
+ * to the value the editor was created with.
  *
  * An `enabled` flag is restored only when the rule text can hold a marker:
  * an empty or comment rule is never marked, so such a flag is lost in a
@@ -352,35 +376,52 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  *
  * @param view The editor view.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color and HTML for `view` only. A non-empty
- *   `color` or `innerHTML` changes only that part of the marker and keeps the
- *   other part. Omit the argument, or pass an object with no non-empty
- *   `color` or `innerHTML`, to keep the current marker.
- * @param markerOptions.color Marker icon color.
- * @param markerOptions.innerHTML Marker inner HTML.
+ * @param markerOptions Marker color and HTML for `view` only. Omit the
+ *   argument, or pass an object with no non-empty `color` or `innerHTML`, to
+ *   keep the current marker. A non-empty `color` or `innerHTML` changes only
+ *   that part of the marker and keeps the other part. `null` resets that part
+ *   to the value the editor was created with: the matching
+ *   {@link InitEditorConfig.hotkeys} option, or the library default when it
+ *   was omitted. The empty string means "keep", as in `initEditor`.
+ * @param markerOptions.color Marker icon color; `null` restores the color the
+ *   editor was created with.
+ * @param markerOptions.innerHTML Marker inner HTML; `null` restores the HTML
+ *   the editor was created with.
  */
 export function setEditorValue(
     view: EditorView,
     value: { enabled: boolean; rule: string }[],
-    markerOptions: { color?: string; innerHTML?: string } = {},
+    markerOptions: { color?: string | null; innerHTML?: string | null } = {},
 ): void {
     const doc = value.map((v) => v.rule).join('\n');
     // A `markerOptions` with no non-empty `color` or `innerHTML` keeps the
     // marker of the editor, so a load does not reset a custom `markerHTML` to
     // the default icon. The check matches `createMarker`, which treats an
-    // empty string as unset. A non-empty field applies to the current marker,
-    // so a color-only call keeps a custom `markerHTML` and an HTML-only call
-    // keeps the current color. The merged options are stored in the state and
-    // every load builds one factory from them: wrapping the previous factory
-    // would add a layer on each load.
-    const restyleMarker = Boolean(markerOptions.color || markerOptions.innerHTML);
-    let nextMarker: { factory: () => HTMLElement; options: MarkerOptions } | undefined;
+    // empty string as unset, while `null` asks for the value the editor was
+    // created with. A non-empty field applies to the current marker, so a
+    // color-only call keeps a custom `markerHTML` and an HTML-only call keeps
+    // the current color. The merged options are stored in the state and every
+    // load builds one factory from them: wrapping the previous factory would
+    // add a layer on each load.
+    const restyleMarker = markerOptions.color === null
+        || markerOptions.innerHTML === null
+        || Boolean(markerOptions.color || markerOptions.innerHTML);
+    let nextMarker: MarkerConfig | undefined;
     if (restyleMarker) {
         const currentOptions = markerOptionsOf(view.state);
-        if (currentOptions) {
+        const initialOptions = initialMarkerOptionsOf(view.state);
+        if (currentOptions && initialOptions) {
             const options: MarkerOptions = {
-                color: markerOptions.color || currentOptions.color,
-                innerHTML: markerOptions.innerHTML || currentOptions.innerHTML,
+                color: resolveMarkerOption(
+                    markerOptions.color,
+                    currentOptions.color,
+                    initialOptions.color,
+                ),
+                innerHTML: resolveMarkerOption(
+                    markerOptions.innerHTML,
+                    currentOptions.innerHTML,
+                    initialOptions.innerHTML,
+                ),
             };
             nextMarker = { factory: createMarker(options), options };
         }

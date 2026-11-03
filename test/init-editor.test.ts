@@ -322,6 +322,64 @@ test('setEditorValue keeps one marker factory across repeated loads', async () =
     view.destroy();
 });
 
+test('setEditorValue resets a marker field to the editor default with null', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: 'updated',
+    });
+    expect(visibleMarker(view)?.style.color).toBe('red');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    // `null` resets only that field to the value `initEditor` was called
+    // with, while the empty string keeps the current value.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: null,
+        innerHTML: '',
+    });
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: '',
+        innerHTML: null,
+    });
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'blue', innerHTML: 'custom' });
+
+    // A later load without options keeps the reset marker.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    view.destroy();
+});
+
+test('setEditorValue resets a marker field to the library default with null', async () => {
+    const view = await mountEditor(initEditor, { withBreakpoints: true });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: 'updated',
+    });
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: null,
+        innerHTML: null,
+    });
+
+    // Without `initEditor` options the reset goes to the library default: the
+    // product color and the check mark icon, not the previously set values.
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.textContent).toBe('');
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
+});
+
 test("highlight: 'none' mounts without loading WASM", async () => {
     const spy = vi.spyOn(RegistryManager, 'getGrammar');
     const view = await mountEditor(initEditor, { hotkeys: { mode: 'mac' } });

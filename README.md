@@ -233,7 +233,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker icon; other editors keep their own color. Also colors a custom `markerHTML` through `currentColor` and the inherited `color`. Default `var(--stroke-icons-product-icon-default, #67B279)`, which a page can set; an empty string means the default |
 | `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker icon; other editors keep their own HTML. Default is a check mark icon; an empty string means the default                                                                                                                                    |
 | `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                                                                                                                                                                                                     |
-| `conf.withBreakpoints`        | Enable breakpoint gutter                                                                                                                                                                                                                                                                         |
+| `conf.withBreakpoints`        | Enable the enabled-rule gutter; required by `getRulesFromEditor` and `setEditorValue`                                                                                                                                                                                                            |
 | `conf.onChange`               | Called after each document change                                                                                                                                                                                                                                                                |
 | `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                                                                                                                                                                                                      |
 | `conf.highlight`              | Highlight strategy: `'full'` (WASM TextMate, default) or `'none'` (no WASM)                                                                                                                                                                                                                      |
@@ -330,7 +330,7 @@ function getRulesFromEditor(
 function setEditorValue(
     view: EditorView,
     value: { enabled: boolean; rule: string }[],
-    markerOptions?: { color?: string; innerHTML?: string },
+    markerOptions?: { color?: string | null; innerHTML?: string | null },
 ): void
 ```
 
@@ -349,12 +349,12 @@ setEditorValue(view, [
 ]);
 ```
 
-| Parameter                 | Description                                                  |
-| ------------------------- | ------------------------------------------------------------ |
-| `value`                   | Rules with enabled flags                                     |
-| `markerOptions`           | Color and HTML of the marker for this editor only (optional) |
-| `markerOptions.color`     | Marker icon color                                            |
-| `markerOptions.innerHTML` | Marker inner HTML                                            |
+| Parameter                 | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `value`                   | Rules with enabled flags                                                 |
+| `markerOptions`           | Color and HTML of the marker for this editor only (optional)             |
+| `markerOptions.color`     | Marker icon color; `null` restores the color the editor was created with |
+| `markerOptions.innerHTML` | Marker inner HTML; `null` restores the HTML the editor was created with  |
 
 The call clears the markers of `view` first, so a rule that becomes disabled
 does not keep a stale marker. `markerOptions` changes the marker of `view`
@@ -365,6 +365,9 @@ only: other editors on the page keep their own color and HTML.
 - A non-empty `color` or `innerHTML` changes only that part of the marker and
   keeps the other part: `{ color: 'red' }` keeps a custom `markerHTML`, and
   `{ innerHTML: '<my icon>' }` keeps the current color.
+- `null` resets one part to the value the editor was created with: the
+  matching `initEditor` option, or the library default when it was omitted.
+  The empty string means "keep", as in `initEditor`.
 
 A load is not a user edit, so it creates no undo step. An `enabled` flag is
 restored only for a line that can hold a marker: an empty or comment rule stays

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `setEditorValue` accepts `null` for `markerOptions.color` or
+  `markerOptions.innerHTML` to reset that part of the marker to the value the
+  editor was created with: the matching `initEditor` option, or the library
+  default when it was omitted. The empty string still means "keep".
+
 ### Changed
 
 ### Deprecated
