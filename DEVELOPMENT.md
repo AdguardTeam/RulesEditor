@@ -27,6 +27,7 @@ pnpm install
 | `ANALYZE=true pnpm run build`   | Build with bundle analysis report                                  |
 | `pnpm run demo`                 | Start a dev server with a live editor in the browser               |
 | `pnpm test`                     | Run all Vitest tests                                               |
+| `pnpm run test:bench`           | Run the Vitest benchmarks                                          |
 | `pnpm run test:watch`           | Run Vitest in watch mode                                           |
 | `pnpm run lint`                 | Run all linters (ESLint + TypeScript + Markdown)                   |
 | `pnpm run lint:code`            | Run ESLint                                                         |

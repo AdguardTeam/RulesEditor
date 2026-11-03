@@ -146,20 +146,28 @@ interface BreakpointState {
 
 /**
  * Maps the given start-document positions through `changes` with an
- * association of `-1`, in a single pass.
+ * association of `-1`, in a single pass over both lists.
  *
  * `ChangeSet.mapPos` scans the change sections from the start, so mapping one
- * position per toggle effect is quadratic when a whole-document selection
- * toggles thousands of lines. The positions must be sorted in ascending order;
- * the toggle effects are not sorted, so `breakpointField` sorts their values
- * before calling this function.
+ * position at a time is quadratic when an edit produces many changes and many
+ * positions. The positions must be sorted in ascending order; the toggle
+ * effects are not sorted, so `breakpointField` sorts their values before
+ * calling this function.
+ *
+ * The association and the mode match `RangeSet.map` for the enabled-rule
+ * markers: a `GutterMarker` has a start side of `-1` and `BreakpointMarker`
+ * uses `MapMode.Simple`. A replacement keeps a position at its start before
+ * the inserted text and a position at its end after it. An insertion keeps a
+ * position at its start before the inserted text.
+ *
+ * Exported for the mapping equivalence test; it is not part of the public API.
  *
  * @param changes The changes to map through.
  * @param positions The sorted start-document positions.
  *
  * @returns The mapped positions, in the same order.
  */
-function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+export function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
     const mapped: number[] = [];
     let index = 0;
     let shift = 0;
@@ -451,17 +459,28 @@ const breakpointField = StateField.define<BreakpointState>({
             ? new Map<number, number>()
             : carriedLineStarts(tr, value.markers, removed);
 
-        // `RangeSet.update` rebuilds the whole set, so all removals are applied
-        // with a single update instead of one per effect: `Ctrl+A` → `Ctrl+/`
-        // dispatches one effect per selected line, and rebuilding the set per
-        // effect would make it quadratic in the number of lines.
-        let markers = removed.size > 0
-            ? value.markers.update({ filter: (from) => !removed.has(from) })
-            : value.markers;
-        if (carried.size > 0) {
-            markers = markers.update({ filter: (from) => !carried.has(from) });
+        // Collect the markers that survive the removals and the carries, then
+        // map their positions in one pass over the sorted markers and the
+        // sorted changes. `RangeSet.map` maps each point through
+        // `ChangeSet.mapPos` separately, and that method scans the change
+        // sections from the start, so a Replace All over thousands of changes
+        // and markers would cost markers × changes.
+        const survivingPositions: number[] = [];
+        const survivingMarkers: GutterMarker[] = [];
+        const cursor = value.markers.iter();
+        while (cursor.value) {
+            const { from, value: marker } = cursor;
+            if (marker && !removed.has(from) && !carried.has(from)) {
+                survivingPositions.push(from);
+                survivingMarkers.push(marker);
+            }
+            cursor.next();
         }
-        markers = markers.map(tr.changes);
+        const mappedPositions = mapPositions(tr.changes, survivingPositions);
+        let markers = RangeSet.of(
+            mappedPositions.map((pos, index) => survivingMarkers[index].range(pos)),
+            true,
+        );
         // The carried and toggled-on positions are already in new-document
         // coordinates; the added positions need mapping from the start
         // document first.

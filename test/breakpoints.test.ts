@@ -89,3 +89,31 @@ test('enabledRuleLines reports marked lines', () => {
     expect(enabledRuleLines(view.state)).toEqual([2]);
     view.destroy();
 });
+
+test('Replace All keeps, adds and removes markers in one transaction', () => {
+    const view = makeView('||a.com^\n||b.com^\n||c.com^\n||d.com^');
+    view.dispatch({
+        effects: [1, 2, 4].map((number) => toggleBreakpoint.of(view.state.doc.line(number).from)),
+    });
+    expect(enabledRuleLines(view.state)).toEqual([1, 2, 4]);
+
+    // Replace `com` on every line with longer text, remove the marker of line
+    // 2, and add a marker to line 3 in the same transaction. The kept markers
+    // must follow their lines through the length changes.
+    const changes = [1, 2, 3, 4].map((number) => {
+        const line = view.state.doc.line(number);
+        const from = line.from + line.text.indexOf('com');
+        return { from, to: from + 'com'.length, insert: 'example.org' };
+    });
+    view.dispatch({
+        changes,
+        effects: [
+            toggleBreakpoint.of(view.state.doc.line(2).from),
+            toggleBreakpoint.of(view.state.doc.line(3).from),
+        ],
+        userEvent: 'input.replace.all',
+    });
+
+    expect(enabledRuleLines(view.state)).toEqual([1, 3, 4]);
+    view.destroy();
+});
