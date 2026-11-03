@@ -202,8 +202,9 @@ Universal design principles:
   surface; everything else is internal
 - **Data Flow Clarity** — WASM loads once → grammar activates →
   tokenizer/editor consumes grammar state
-- **Minimize Coupling, Maximize Cohesion** — tokenizers share only the
-  `Token` enum and `normalizeTokens` utility
+- **Minimize Coupling, Maximize Cohesion** — the tokenizers build on shared
+  grammar access (`RegistryManager`, `WasmSource`, `SCOPE_ADBLOCK`) and
+  scope resolution (`resolveToken`) instead of reimplementing them
 - **Make Invalid States Impossible** — the `Token` enum constrains valid
   token values
 - **Observability Built-in** — less critical for a client-side library;
