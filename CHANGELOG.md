@@ -30,8 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resets a custom `markerHTML` to the default icon. A non-empty `color` or
   `innerHTML` now changes only that part of the marker and keeps the other
   part: a color-only call keeps a custom `markerHTML`, and an HTML-only call
-  keeps the current color. Before, a call with either value reset the whole
-  marker to the defaults.
+  keeps the current color. Before, such a call replaced the whole marker, and
+  the field it left out fell back to the default.
 
 ### Security
 
