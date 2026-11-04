@@ -2,7 +2,12 @@
 import { ChangeSet, type ChangeSpec, EditorState } from '@codemirror/state';
 import { bench } from 'vitest';
 
-import { breakpointState, setBreakpoints } from '../src/commands/breakpoints';
+import {
+    breakpointState,
+    isBreakpointAt,
+    setBreakpoints,
+    toggleBreakpoint,
+} from '../src/commands/breakpoints';
 
 const LINE_COUNT = 50_000;
 const lines = Array.from({ length: LINE_COUNT }, (_, index) => `||rule-${index}.example^`);
@@ -64,6 +69,64 @@ bench(
 bench(
     'Replace All without markers',
     () => replaceAll(stateWithoutMarkers),
+    {
+        time: 1000,
+        iterations: 3,
+        warmupTime: 100,
+        warmupIterations: 1,
+    },
+);
+
+/**
+ * Applies a transaction that only moves the selection and builds the next
+ * state.
+ *
+ * @param state The state to apply the transaction to.
+ */
+function moveSelection(state: EditorState): void {
+    const next = state.update({ selection: { anchor: 1 } }).state;
+    if (next.doc.length !== doc.length) {
+        throw new Error('A selection-only transaction changed the document');
+    }
+}
+
+bench(
+    'Selection-only update with 50k markers',
+    () => moveSelection(stateWithMarkers),
+    {
+        time: 1000,
+        iterations: 3,
+        warmupTime: 100,
+        warmupIterations: 1,
+    },
+);
+
+bench(
+    'Selection-only update without markers',
+    () => moveSelection(stateWithoutMarkers),
+    {
+        time: 1000,
+        iterations: 3,
+        warmupTime: 100,
+        warmupIterations: 1,
+    },
+);
+
+/**
+ * Toggles the marker of the first line off and builds the next state.
+ *
+ * @param state The state to apply the transaction to.
+ */
+function toggleMarker(state: EditorState): void {
+    const next = state.update({ effects: toggleBreakpoint.of(0) }).state;
+    if (isBreakpointAt(next, 0)) {
+        throw new Error('The toggle kept the marker');
+    }
+}
+
+bench(
+    'Marker toggle with 50k markers',
+    () => toggleMarker(stateWithMarkers),
     {
         time: 1000,
         iterations: 3,

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { EditorState } from '@codemirror/state';
+import { EditorState, RangeSet } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import {
     breakpointState,
@@ -87,6 +87,28 @@ test('enabledRuleLines reports marked lines', () => {
     const second = view.state.doc.line(2);
     view.dispatch({ effects: toggleBreakpoint.of(second.from) });
     expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('a transaction without document changes keeps the marker set', () => {
+    const view = makeView('||a.com^\n||b.com^');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // A transaction without document changes must not rebuild the set:
+    // rebuilding walks every marker, and a rule list holds thousands of them.
+    // `RangeSet.map` returned the set unchanged for an empty change set, so
+    // the field keeps that path for a selection and for a marker toggle.
+    const build = vi.spyOn(RangeSet, 'of');
+    const selected = view.state.update({ selection: { anchor: 1 } }).state;
+    expect(build).not.toHaveBeenCalled();
+    const secondLine = selected.doc.line(2).from;
+    const added = selected.update({ effects: toggleBreakpoint.of(secondLine) }).state;
+    expect(build).not.toHaveBeenCalled();
+    const removed = added.update({ effects: toggleBreakpoint.of(0) }).state;
+    expect(build).not.toHaveBeenCalled();
+    build.mockRestore();
+
+    expect(enabledRuleLines(removed)).toEqual([2]);
     view.destroy();
 });
 

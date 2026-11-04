@@ -459,6 +459,33 @@ const breakpointField = StateField.define<BreakpointState>({
             ? new Map<number, number>()
             : carriedLineStarts(tr, value.markers, removed);
 
+        // A transaction that changes no document text cannot move a marker:
+        // every start-document position already is a new-document position.
+        // Apply the removals and the additions in place, the way
+        // `RangeSet.map` returned the set unchanged for an empty change set.
+        // Walking every marker and rebuilding the set below would cost a few
+        // milliseconds per transaction on a large rule list, and a selection,
+        // a scroll, or a marker-only toggle changes nothing else.
+        if (tr.changes.empty) {
+            let { markers } = value;
+            // `carriedLineStarts` reads the change set, so it carries nothing
+            // without changes; the filter mentions it to keep this branch in
+            // step with the one below.
+            if (removed.size > 0 || carried.size > 0) {
+                markers = markers.update({
+                    filter: (from) => !removed.has(from) && !carried.has(from),
+                });
+            }
+            if (carried.size > 0 || added.length > 0) {
+                markers = markers.update({
+                    add: [...carried.values(), ...added]
+                        .map((pos) => new BreakpointMarker(factory).range(pos)),
+                    sort: true,
+                });
+            }
+            return { markers, factory };
+        }
+
         // Collect the markers that survive the removals and the carries, then
         // map their positions in one pass over the sorted markers and the
         // sorted changes. `RangeSet.map` maps each point through

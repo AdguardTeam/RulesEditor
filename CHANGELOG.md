@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Enabled-rule markers now map through an edit in one pass over the markers
   and the change sections, so a Replace All on a large rule list no longer
-  costs markers × changes.
+  costs markers × changes. A transaction without document changes keeps the
+  marker set as is instead of walking and rebuilding it.
 - The `toggleRule` callback now also runs when the comment toggle empties a
   marked comment line and removes its marker.
 - `getRulesFromEditor` and `setEditorValue` now throw a
