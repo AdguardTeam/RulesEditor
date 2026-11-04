@@ -64,8 +64,8 @@ Demo sources live in the `demo/` directory.
 Filter rule highlighting uses a TextMate grammar from the
 [AdGuard VSCode extension][adguard-vscode-extension].
 The JavaScript grammar is an intentionally minimal placeholder. The full
-grammar comes from [TypeScript-tmLanguage][typescript-tmlanguage]. To restore
-full JS highlighting, add a download entry for it to
+grammar comes from the upstream [JavaScript grammar][javascript-grammar]. To
+restore full JS highlighting, add a download entry for it to
 `scripts/update-grammars.mts` and run `pnpm run update-grammars`.
 
 To update to the latest version:
@@ -75,7 +75,7 @@ pnpm run update-grammars
 ```
 
 [adguard-vscode-extension]: https://github.com/AdguardTeam/VscodeAdblockSyntax/blob/master/syntaxes/adblock.yaml-tmlanguage
-[typescript-tmlanguage]: https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage
+[javascript-grammar]: https://github.com/microsoft/vscode/blob/main/extensions/javascript/syntaxes/JavaScript.tmLanguage.json
 
 This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
 every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
