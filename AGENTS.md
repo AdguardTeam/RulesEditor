@@ -52,7 +52,8 @@ filter rules. It provides:
 │   ├── commands/
 │   │   ├── breakpoints.ts        # Enabled-rule gutter state (CM6)
 │   │   ├── hot-keys.ts           # CM6 keymap builder
-│   │   └── multi-cursor.ts       # Ace-style multi-cursor commands
+│   │   ├── multi-cursor.ts       # Ace-style multi-cursor commands
+│   │   └── search-match-count.ts # Match position/count in the search panel
 │   ├── grammars/                 # TextMate grammar JSON files (adblock, JS)
 │   ├── highlight/
 │   │   ├── render-html.ts        # Token-list → colorized HTML + style mount

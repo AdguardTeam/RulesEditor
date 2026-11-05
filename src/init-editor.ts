@@ -31,6 +31,7 @@ import {
     setMarkerFactory,
 } from './commands/breakpoints';
 import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
+import { searchMatchCount } from './commands/search-match-count';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
 import { MissingBreakpointFieldError, WasmLoadError } from './lib/errors';
@@ -91,6 +92,15 @@ export interface InitEditorConfig {
      * selection.
      */
     withMultipleSelections?: boolean;
+
+    /**
+     * Shows the position of the selected match and the number of matches in
+     * the whole document (e.g. `3 of 12`) next to the search field of the
+     * built-in search panel. Defaults to `true`. The texts are translatable
+     * through `EditorState.phrases` (`No results`, `$1 of $2`). A custom
+     * search panel (`search({ createPanel })`) never shows the status.
+     */
+    withSearchMatchCount?: boolean;
 
     /**
      * Called after each document change. The callback observes the
@@ -225,6 +235,7 @@ export async function initEditor(
         // `search({ top: ... })` extension.
         keymap.of(searchKeymap),
         search(),
+        conf.withSearchMatchCount === false ? [] : searchMatchCount(),
         // The search panel and the editor's dialogs are editor controls, not
         // document content: a double-click or a drag on their buttons and
         // labels must not select their text. The form controls are content, so
