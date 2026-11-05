@@ -15,7 +15,9 @@
     --demo-button-border: #a4a4a4;
     --demo-button-active-bg: #e4e4e4;
 
-    /* Used by the breakpoint gutter marker SVG injected by the library. */
+    /* Product color of the breakpoint gutter marker icon. The marker element
+       takes it too, so a custom markerHTML that uses currentColor follows
+       it. */
     --stroke-icons-product-icon-default: #67b279;
 }
 

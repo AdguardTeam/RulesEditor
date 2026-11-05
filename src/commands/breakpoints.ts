@@ -62,9 +62,40 @@ export const setBreakpoints = StateEffect.define<readonly number[]>({
 const removeBreakpoints = StateEffect.define<readonly number[]>();
 
 /**
- * Effect that replaces the marker factory of the editor that handles it.
+ * Color and inner HTML applied by a marker factory.
  */
-export const setMarkerFactory = StateEffect.define<() => HTMLElement>();
+export interface MarkerOptions {
+    /**
+     * Marker icon color; an empty string means the default.
+     */
+    color?: string;
+
+    /**
+     * Marker inner HTML; an empty string means the default.
+     */
+    innerHTML?: string;
+}
+
+/**
+ * The factory of one editor and the options it applies.
+ */
+export interface MarkerConfig {
+    /**
+     * The factory that renders the markers.
+     */
+    factory: () => HTMLElement;
+
+    /**
+     * The color and inner HTML that `factory` applies.
+     */
+    options: MarkerOptions;
+}
+
+/**
+ * Effect that replaces the marker factory of the editor that handles it,
+ * together with the options the factory was built from.
+ */
+export const setMarkerFactory = StateEffect.define<MarkerConfig>();
 
 /**
  * Builds the default marker element (a filled circle).
@@ -78,20 +109,24 @@ function defaultMarker(): HTMLElement {
 }
 
 /**
- * Facet that holds the marker factory of one editor, so two editors on the
- * same page can render different marker styles.
+ * Facet that holds the marker factory of one editor together with the options
+ * it applies, so two editors on the same page can render different marker
+ * styles and a later marker change can merge the current options instead of
+ * wrapping the current factory in another layer.
  */
-const markerFactory = Facet.define<() => HTMLElement, () => HTMLElement>({
+const markerConfig = Facet.define<MarkerConfig, MarkerConfig>({
     // CodeMirror resolves facet providers highest-precedence first, so the
     // first value is the one that wins.
-    combine: (factories) => factories[0] ?? defaultMarker,
+    combine: (configs) => configs[0] ?? { factory: defaultMarker, options: {} },
 });
 
 /**
  * Gutter marker rendered for an enabled rule line.
  *
- * The marker keeps the factory of the editor it belongs to: `toDOM` receives
- * no editor state, so the factory is resolved when the marker is created.
+ * The marker captures the factory of the editor it belongs to. `toDOM` gets
+ * the view, so it could read the current factory. A factory change must
+ * replace the marker objects instead: the gutter redraws a line only when its
+ * marker changes, and an unchanged marker keeps its old DOM.
  */
 class BreakpointMarker extends GutterMarker {
     /**
@@ -132,16 +167,17 @@ class BreakpointMarker extends GutterMarker {
 /**
  * The enabled-rule markers of one editor and the factory for new markers.
  */
-interface BreakpointState {
+interface BreakpointState extends MarkerConfig {
     /**
      * The marked lines.
      */
     markers: RangeSet<GutterMarker>;
 
     /**
-     * The factory used to render new markers.
+     * The options the editor was created with, so a later change can reset a
+     * field to the `initEditor` value or the library default.
      */
-    factory: () => HTMLElement;
+    initialOptions: MarkerOptions;
 }
 
 /**
@@ -370,13 +406,18 @@ function carriedLineStarts(
 }
 
 const breakpointField = StateField.define<BreakpointState>({
-    create: (state) => ({
-        markers: RangeSet.empty,
-        factory: state.facet(markerFactory),
-    }),
+    create: (state) => {
+        const config = state.facet(markerConfig);
+        return {
+            markers: RangeSet.empty,
+            ...config,
+            initialOptions: config.options,
+        };
+    },
     update(value, tr) {
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
-        const factory = factoryEffect ? factoryEffect.value : value.factory;
+        const factory = factoryEffect ? factoryEffect.value.factory : value.factory;
+        const options = factoryEffect ? factoryEffect.value.options : value.options;
 
         // A `setBreakpoints` effect replaces the whole set with positions in
         // the new document, so the old markers need neither mapping nor
@@ -400,6 +441,8 @@ const breakpointField = StateField.define<BreakpointState>({
                     true,
                 ),
                 factory,
+                options,
+                initialOptions: value.initialOptions,
             };
         }
 
@@ -483,7 +526,12 @@ const breakpointField = StateField.define<BreakpointState>({
             markers = dedupeMarkers(markers);
         }
 
-        return { markers, factory };
+        return {
+            markers,
+            factory,
+            options,
+            initialOptions: value.initialOptions,
+        };
     },
 });
 
@@ -604,19 +652,55 @@ const deletedLineMarkers = EditorState.transactionExtender.of((tr) => {
 });
 
 /**
+ * Returns the factory that renders the markers of the editor that owns the
+ * given state.
+ *
+ * @param state The editor state.
+ *
+ * @returns The marker factory, or `undefined` when the state has no
+ *   breakpoint field.
+ */
+export function markerFactoryOf(state: EditorState): (() => HTMLElement) | undefined {
+    return state.field(breakpointField, false)?.factory;
+}
+
+/**
+ * Returns the marker options that the factory of the editor applies.
+ *
+ * @param state The editor state.
+ *
+ * @returns The marker options, or `undefined` when the state has no breakpoint
+ *   field.
+ */
+export function markerOptionsOf(state: EditorState): MarkerOptions | undefined {
+    return state.field(breakpointField, false)?.options;
+}
+
+/**
+ * Returns the marker options the editor was created with.
+ *
+ * @param state The editor state.
+ *
+ * @returns The initial marker options, or `undefined` when the state has no
+ *   breakpoint field.
+ */
+export function initialMarkerOptionsOf(state: EditorState): MarkerOptions | undefined {
+    return state.field(breakpointField, false)?.initialOptions;
+}
+
+/**
  * Editor extension providing the enabled-rule gutter and its state field.
  *
  * @param options Gutter configuration.
- * @param options.markerFactory Factory producing a marker element for this
- *   editor. Defaults to a filled circle.
+ * @param options.marker Factory that renders the markers of this editor and
+ *   the color and inner HTML it applies. Defaults to a filled circle with no
+ *   color or HTML override.
  *
  * @returns A CodeMirror 6 extension.
  */
-export function breakpointState(options: {
-    markerFactory?: () => HTMLElement;
-} = {}): Extension {
+export function breakpointState(options: { marker?: MarkerConfig } = {}): Extension {
     return [
-        options.markerFactory ? markerFactory.of(options.markerFactory) : [],
+        options.marker ? markerConfig.of(options.marker) : [],
         breakpointField,
         deletedLineMarkers,
         // A marker change is inverted by restoring the whole marker set of the

@@ -18,12 +18,23 @@ import {
     vi,
 } from 'vitest';
 
-import { enabledRuleLines, toggleBreakpoint } from '../src/commands/breakpoints';
+import {
+    enabledRuleLines,
+    markerFactoryOf,
+    markerOptionsOf,
+    toggleBreakpoint,
+} from '../src/commands/breakpoints';
 import { getRulesFromEditor, initEditor, setEditorValue } from '../src/init-editor';
 import { MissingBreakpointFieldError, WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
 
-import { mountEditor, pressKey, stubRangeClientRects } from './helpers';
+import {
+    mountEditor,
+    pressKey,
+    stubRangeClientRects,
+    visibleGutterText,
+    visibleMarker,
+} from './helpers';
 
 const wasm = readFileSync(
     resolve(__dirname, '../node_modules/vscode-oniguruma/release/onig.wasm'),
@@ -121,7 +132,7 @@ test('setEditorValue + getRulesFromEditor round-trips enabled flags', async () =
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: false, rule: '||b.com^' },
-    ], {});
+    ]);
     const rules = getRulesFromEditor(view);
     expect(rules).toEqual([
         { enabled: true, rule: '||a.com^' },
@@ -135,7 +146,7 @@ test('setEditorValue does not restore an enabled marker on an empty rule', async
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: true, rule: '' },
-    ], {});
+    ]);
     // A load skips an empty line: unlike an ordinary edit that empties a
     // line, it does not keep a marker there, so the flag is lost.
     expect(getRulesFromEditor(view)).toEqual([
@@ -147,8 +158,8 @@ test('setEditorValue does not restore an enabled marker on an empty rule', async
 
 test('setEditorValue clears markers from the previous content', async () => {
     const view = await mountBreakpointEditor();
-    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
-    setEditorValue(view, [{ enabled: false, rule: '||b.com^' }], {});
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    setEditorValue(view, [{ enabled: false, rule: '||b.com^' }]);
     expect(getRulesFromEditor(view)).toEqual([
         { enabled: false, rule: '||b.com^' },
     ]);
@@ -157,7 +168,7 @@ test('setEditorValue clears markers from the previous content', async () => {
 
 test('setEditorValue creates no undo step', async () => {
     const view = await mountBreakpointEditor();
-    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
     expect(enabledRuleLines(view.state)).toEqual([1]);
 
     // A programmatic load is not a user edit: neither the content replacement
@@ -175,7 +186,7 @@ test('setEditorValue clears the undo history', async () => {
     view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
     expect(undoDepth(view.state)).toBe(1);
 
-    setEditorValue(view, [{ enabled: true, rule: '||b.com^' }], {});
+    setEditorValue(view, [{ enabled: true, rule: '||b.com^' }]);
 
     // A load clears the history instead of leaving an earlier edit that an
     // undo could replay onto the loaded document.
@@ -197,7 +208,7 @@ test('setEditorValue restores markers before onChange runs', async () => {
     setEditorValue(view, [
         { enabled: true, rule: '||a.com^' },
         { enabled: false, rule: '||b.com^' },
-    ], {});
+    ]);
 
     // The text replacement and the marker restore are one transaction, so a
     // consumer that reads the editor from `onChange` sees the loaded markers.
@@ -210,7 +221,7 @@ test('setEditorValue restores markers before onChange runs', async () => {
 
 test('setEditorValue restores an enabled marker on a comment rule', async () => {
     const view = await mountBreakpointEditor();
-    setEditorValue(view, [{ enabled: true, rule: '! ||a.com^' }], {});
+    setEditorValue(view, [{ enabled: true, rule: '! ||a.com^' }]);
 
     // The comment toggle leaves a marker on a commented rule, so the flag must
     // survive the round-trip instead of being dropped as a comment.
@@ -228,7 +239,7 @@ test('setEditorValue restores markers on the normalized CRLF document', async ()
         { enabled: true, rule: 'b\r' },
         { enabled: false, rule: 'c\r' },
         { enabled: true, rule: 'd' },
-    ], {});
+    ]);
 
     expect(view.state.doc.toString()).toBe('a\nb\nc\nd');
     expect(enabledRuleLines(view.state)).toEqual([1, 2, 4]);
@@ -247,9 +258,9 @@ test('setEditorValue and getRulesFromEditor require the enabled-rule field', asy
     // The dedicated class keeps the `RangeError` catch type, so a consumer
     // that caught the previous error keeps working and can narrow it with
     // `instanceof`.
-    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {}))
+    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]))
         .toThrow(MissingBreakpointFieldError);
-    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {}))
+    expect(() => setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]))
         .toThrow(RangeError);
     expect(() => getRulesFromEditor(view)).toThrow(MissingBreakpointFieldError);
     expect(() => getRulesFromEditor(view)).toThrow(RangeError);
@@ -270,18 +281,239 @@ test('setEditorValue applies marker options to one editor only', async () => {
         hotkeys: { markerHTML: 'second' },
     });
     setEditorValue(first, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    second.dispatch({ changes: { from: 0, insert: '||a.com^' } });
     // The marker on the second editor is created after `setEditorValue`
     // changed the first editor's factory, so a shared factory would render
     // 'updated' here.
     second.dispatch({ effects: toggleBreakpoint.of(0) });
 
-    const firstGutter = first.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    const secondGutter = second.dom.querySelector('.cm-breakpoint-gutter')?.textContent ?? '';
-    expect(firstGutter).toContain('updated');
-    expect(secondGutter).toContain('second');
-    expect(secondGutter).not.toContain('updated');
+    // The hidden spacer renders the same factory, so only the visible gutter
+    // elements prove that each editor drew its own line marker.
+    expect(visibleGutterText(first)).toBe('updated');
+    expect(visibleGutterText(second)).toBe('second');
     first.destroy();
     second.destroy();
+});
+
+test('markerColor colors the default marker icon', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'red' },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('red');
+    // The default icon paints itself with `currentColor`, so the color of the
+    // marker element reaches the SVG path.
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
+});
+
+test('the default marker icon uses the product color', async () => {
+    const view = await mountEditor(initEditor, { withBreakpoints: true });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const marker = visibleMarker(view)!;
+    // jsdom keeps the `var()` value in `style.color`, so the fallback for a
+    // page without the variable is pinned here.
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    view.destroy();
+});
+
+test('an empty marker option means the default', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: '', markerHTML: '' },
+    });
+    view.dispatch({ changes: { from: 0, insert: '||a.com^' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    const marker = visibleMarker(view)!;
+    // `createMarker` treats an empty string as unset for both fields, so the
+    // default color and the default check mark icon apply.
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
+});
+
+test('setEditorValue keeps the editor marker when marker options give no color or innerHTML', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerHTML: 'custom' },
+    });
+
+    // An object that sets no value must not replace the factory either:
+    // otherwise every load would rebuild the gutter for nothing.
+    const factory = markerFactoryOf(view.state);
+    expect(factory).toBeDefined();
+
+    // The default parameter makes the third argument optional.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {});
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+
+    // Fields set to `undefined` keep the marker too: the check is the value,
+    // not the key's presence, and it covers both fields.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: undefined,
+        innerHTML: undefined,
+    });
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+
+    // An empty string is unset for both fields, as in `initEditor`, so it
+    // keeps the marker as well.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: '' });
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: '' });
+    expect(visibleGutterText(view)).toBe('custom');
+    expect(markerFactoryOf(view.state)).toBe(factory);
+
+    // A non-empty `color` keeps the `initEditor` HTML and changes only the
+    // color: the marker options act as overrides, not as a whole marker.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('red');
+    expect(marker.textContent).toBe('custom');
+
+    // A later load without options keeps the updated marker.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    expect(visibleMarker(view)?.style.color).toBe('red');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    view.destroy();
+});
+
+test('setEditorValue keeps the color when marker options give only innerHTML', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue' },
+    });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('blue');
+    expect(marker.textContent).toBe('updated');
+    view.destroy();
+});
+
+test('setEditorValue applies a mixed marker option field by field', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    // An empty string is unset, so only the non-empty field changes: the
+    // blue color survives and the HTML switches to 'updated'.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: '',
+        innerHTML: 'updated',
+    });
+    const firstMarker = visibleMarker(view)!;
+    expect(firstMarker.style.color).toBe('blue');
+    expect(firstMarker.textContent).toBe('updated');
+
+    // The second call goes the other way: the updated HTML survives while
+    // the color changes.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: '',
+    });
+    const secondMarker = visibleMarker(view)!;
+    expect(secondMarker.style.color).toBe('red');
+    expect(secondMarker.textContent).toBe('updated');
+    view.destroy();
+});
+
+test('setEditorValue keeps one marker factory across repeated loads', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    for (let load = 0; load < 3; load += 1) {
+        setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { color: 'red' });
+        setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], { innerHTML: 'updated' });
+    }
+
+    // The state keeps the effective options and builds one factory from them,
+    // so a load does not wrap the previous factory in another layer.
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'red', innerHTML: 'updated' });
+    expect(visibleMarker(view)?.style.color).toBe('red');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    // A layer per load would write `innerHTML` once per earlier load: one
+    // render of the stored factory must write it once.
+    const innerHTML = vi.spyOn(Element.prototype, 'innerHTML', 'set');
+    markerFactoryOf(view.state)!();
+    expect(innerHTML).toHaveBeenCalledTimes(1);
+    innerHTML.mockRestore();
+    view.destroy();
+});
+
+test('setEditorValue resets a marker field to the editor default with null', async () => {
+    const view = await mountEditor(initEditor, {
+        withBreakpoints: true,
+        hotkeys: { markerColor: 'blue', markerHTML: 'custom' },
+    });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: 'updated',
+    });
+    expect(visibleMarker(view)?.style.color).toBe('red');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    // `null` resets only that field to the value `initEditor` was called
+    // with, while the empty string keeps the current value.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: null,
+        innerHTML: '',
+    });
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('updated');
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: '',
+        innerHTML: null,
+    });
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'blue', innerHTML: 'custom' });
+
+    // A later load without options keeps the reset marker.
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }]);
+    expect(visibleMarker(view)?.style.color).toBe('blue');
+    expect(visibleMarker(view)?.textContent).toBe('custom');
+    view.destroy();
+});
+
+test('setEditorValue resets a marker field to the library default with null', async () => {
+    const view = await mountEditor(initEditor, { withBreakpoints: true });
+
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: 'red',
+        innerHTML: 'updated',
+    });
+    setEditorValue(view, [{ enabled: true, rule: '||a.com^' }], {
+        color: null,
+        innerHTML: null,
+    });
+
+    // Without `initEditor` options the reset goes to the library default: the
+    // product color and the check mark icon, not the previously set values.
+    const marker = visibleMarker(view)!;
+    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.textContent).toBe('');
+    expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    view.destroy();
 });
 
 test("highlight: 'none' mounts without loading WASM", async () => {

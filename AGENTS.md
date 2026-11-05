@@ -355,6 +355,15 @@ sync with the actual keymap.
 - Extract a helper (`mountEditor`, `pressKey`) once the same
   mount/config/teardown block repeats in several tests — keep the shared
   setup and config in one place instead of copying it into every test.
+- Gutter tests assert on the visible `.cm-gutterElement` elements, not on the
+  gutter's whole `textContent`: the gutter also holds a hidden spacer that
+  renders the same marker factory, so a whole-gutter assertion passes even
+  when no line carries a marker.
+- Pin the behavior that a test covers: a test that stays green after the
+  default value changes, after the default of an optional parameter is
+  removed, or after a stale value is reused does not cover it. Assert the
+  exact default, call an optional parameter both omitted and empty, and
+  assert the new value, not only that the element changed.
 
 ### Dependencies
 

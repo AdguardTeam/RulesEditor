@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `MissingBreakpointFieldError`, thrown by `getRulesFromEditor` and
   `setEditorValue` when the editor has no enabled-rule field.
+- `setEditorValue` accepts `null` for `markerOptions.color` or
+  `markerOptions.innerHTML` to reset that part of the marker to the value the
+  editor was created with: the matching `initEditor` option, or the library
+  default when it was omitted. The empty string still means "keep".
 
 ### Changed
 
@@ -30,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `markerColor` now changes the color of the default gutter marker icon, and
+  the `color` of `setEditorValue` does too. Two editors with different colors
+  and no `markerHTML` no longer look the same.
+- The default gutter marker icon now has the `#67B279` fallback for
+  `--stroke-icons-product-icon-default`: its path used the variable with no
+  fallback before. A custom `markerHTML` without `markerColor` now follows the
+  page variable instead of the fixed `#67B279`, so a page that sets the
+  variable themes it too.
+- `setEditorValue` keeps the marker of the editor when `markerOptions` is
+  omitted or gives no non-empty `color` or `innerHTML`, so a load no longer
+  resets a custom `markerHTML` to the default icon. A non-empty `color` or
+  `innerHTML` now changes only that part of the marker and keeps the other
+  part: a color-only call keeps a custom `markerHTML`, and an HTML-only call
+  keeps the current color. Before, such a call replaced the whole marker, and
+  the field it left out fell back to the default.
 - `Shift+Alt+Down` (`Cmd+Option+Down` on macOS) on a multi-line selection
   now keeps every enabled-rule marker of the copied block on its line. Before,
   only the first line kept its marker and the other markers moved onto the
@@ -78,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enabled-rule gutter markers now use a per-editor factory: two editors on
   one page can render different marker colors and HTML, and `setEditorValue`
   changes the markers of the editor it is called on only. The `markerColor`
-  and `markerHTML` options of `initEditor` apply to that editor.
+  and `markerHTML` options of `initEditor` apply to the editor it creates.
 
 ### Fixed
 

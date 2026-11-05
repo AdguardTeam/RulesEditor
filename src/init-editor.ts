@@ -23,6 +23,10 @@ import {
     breakpointState,
     enabledRuleLines,
     hasBreakpointField,
+    initialMarkerOptionsOf,
+    type MarkerConfig,
+    type MarkerOptions,
+    markerOptionsOf,
     setBreakpoints,
     setMarkerFactory,
 } from './commands/breakpoints';
@@ -107,12 +111,21 @@ export interface InitEditorConfig {
         /**
          * CSS color for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own color.
+         * It colors the default icon and a custom `markerHTML`: the value
+         * reaches the HTML through `currentColor` and, since `color` is an
+         * inherited property, through plain text. Defaults to
+         * `var(--stroke-icons-product-icon-default, #67B279)`: a page can set
+         * that variable to theme the default icon. An empty string means the
+         * default.
          */
         markerColor?: string;
 
         /**
          * Raw HTML for the gutter marker icon. The value is stored in this
          * editor's state, so other editors on the page keep their own HTML.
+         * The `markerColor` value reaches this HTML through `currentColor`
+         * and, since `color` is an inherited property, through plain text.
+         * Defaults to a check mark icon; an empty string means the default.
          */
         markerHTML?: string;
 
@@ -262,11 +275,15 @@ export async function initEditor(
     }
 
     if (conf.withBreakpoints) {
+        // The factory and its options are one facet value: a later
+        // `setEditorValue` merges the stored options instead of reading the
+        // rendering of the current factory.
+        const markerOptions = {
+            color: conf.hotkeys.markerColor,
+            innerHTML: conf.hotkeys.markerHTML,
+        };
         extensions.push(breakpointState({
-            markerFactory: createMarker({
-                color: conf.hotkeys.markerColor,
-                innerHTML: conf.hotkeys.markerHTML,
-            }),
+            marker: { factory: createMarker(markerOptions), options: markerOptions },
         }));
     }
 
@@ -317,7 +334,8 @@ export async function initEditor(
  *
  * @returns One entry per line with its text and enabled flag.
  *
- * @throws {MissingBreakpointFieldError} If `view` has no enabled-rule field.
+ * @throws {MissingBreakpointFieldError} If `view` has no enabled-rule field,
+ *   because it was created without `withBreakpoints: true`.
  */
 export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: string }[] {
     if (!hasBreakpointField(view.state)) {
@@ -333,11 +351,36 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
 }
 
 /**
+ * Resolves one marker option field against the current and initial values.
+ *
+ * @param value The requested value: `null` resets the field, an empty string
+ *   or `undefined` keeps the current value, and any other string replaces it.
+ * @param current The value the marker applies now.
+ * @param initial The value the editor was created with.
+ *
+ * @returns The value the marker should apply.
+ */
+function resolveMarkerOption(
+    value: string | null | undefined,
+    current: string | undefined,
+    initial: string | undefined,
+): string | undefined {
+    if (value === null) {
+        return initial;
+    }
+    return value || current;
+}
+
+/**
  * Replaces the editor content and restores enabled-rule markers.
  *
  * The call replaces the markers of `view`, so a rule that becomes disabled
  * does not keep a stale marker. The marker options are stored in the state of
- * `view` only: other editors on the page keep their own color and HTML.
+ * `view` only: other editors on the page keep their own color and HTML. A
+ * non-empty `color` or `innerHTML` changes only that part of the marker and
+ * keeps the other part; an object that gives neither keeps the whole marker
+ * the editor already has. A field set to `null` resets that part to the value
+ * the editor was created with.
  *
  * An `enabled` flag is restored for every non-empty line, including a comment
  * line: the comment toggle can leave a marker on a comment, so the flag
@@ -353,19 +396,60 @@ export function getRulesFromEditor(view: EditorView): { enabled: boolean; rule: 
  * @param view The editor view. Requires an editor created with
  *   `withBreakpoints: true`.
  * @param value Rules with enabled flags.
- * @param markerOptions Marker color/HTML overrides for `view` only.
- * @param markerOptions.color Marker text color.
- * @param markerOptions.innerHTML Marker inner HTML.
+ * @param markerOptions Marker color and HTML for `view` only. Omit the
+ *   argument, or pass an object with no non-empty `color` or `innerHTML`, to
+ *   keep the current marker. A non-empty `color` or `innerHTML` changes only
+ *   that part of the marker and keeps the other part. `null` resets that part
+ *   to the value the editor was created with: the matching
+ *   {@link InitEditorConfig.hotkeys} option, or the library default when it
+ *   was omitted. The empty string means "keep", as in `initEditor`.
+ * @param markerOptions.color Marker icon color; `null` restores the color the
+ *   editor was created with.
+ * @param markerOptions.innerHTML Marker inner HTML; `null` restores the HTML
+ *   the editor was created with.
  *
  * @throws {MissingBreakpointFieldError} If `view` has no enabled-rule field.
  */
 export function setEditorValue(
     view: EditorView,
     value: { enabled: boolean; rule: string }[],
-    markerOptions: { color?: string; innerHTML?: string },
+    markerOptions: { color?: string | null; innerHTML?: string | null } = {},
 ): void {
     if (!hasBreakpointField(view.state)) {
         throw new MissingBreakpointFieldError('setEditorValue');
+    }
+
+    // A `markerOptions` with no non-empty `color` or `innerHTML` keeps the
+    // marker of the editor, so a load does not reset a custom `markerHTML` to
+    // the default icon. The check matches `createMarker`, which treats an
+    // empty string as unset, while `null` asks for the value the editor was
+    // created with. A non-empty field applies to the current marker, so a
+    // color-only call keeps a custom `markerHTML` and an HTML-only call keeps
+    // the current color. The merged options are stored in the state and every
+    // load builds one factory from them: wrapping the previous factory would
+    // add a layer on each load.
+    const restyleMarker = markerOptions.color === null
+        || markerOptions.innerHTML === null
+        || Boolean(markerOptions.color || markerOptions.innerHTML);
+    let nextMarker: MarkerConfig | undefined;
+    if (restyleMarker) {
+        const currentOptions = markerOptionsOf(view.state);
+        const initialOptions = initialMarkerOptionsOf(view.state);
+        if (currentOptions && initialOptions) {
+            const options: MarkerOptions = {
+                color: resolveMarkerOption(
+                    markerOptions.color,
+                    currentOptions.color,
+                    initialOptions.color,
+                ),
+                innerHTML: resolveMarkerOption(
+                    markerOptions.innerHTML,
+                    currentOptions.innerHTML,
+                    initialOptions.innerHTML,
+                ),
+            };
+            nextMarker = { factory: createMarker(options), options };
+        }
     }
 
     // Build the document text first: CodeMirror normalizes the line breaks of
@@ -394,7 +478,7 @@ export function setEditorValue(
     view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: text },
         effects: [
-            setMarkerFactory.of(createMarker(markerOptions)),
+            ...(nextMarker ? [setMarkerFactory.of(nextMarker)] : []),
             setBreakpoints.of(enabled),
             historyCompartment.reconfigure(history()),
         ],
