@@ -63,8 +63,10 @@ Demo sources live in the `demo/` directory.
 
 Filter rule highlighting uses a TextMate grammar from the
 [AdGuard VSCode extension][adguard-vscode-extension].
-The JavaScript grammar is based on
-[TypeScript-tmLanguage][typescript-tmlanguage].
+The JavaScript grammar is an intentionally minimal placeholder. The full
+grammar comes from the upstream [JavaScript grammar][javascript-grammar]. To
+restore full JS highlighting, add a download entry for it to
+`scripts/update-grammars.mts` and run `pnpm run update-grammars`.
 
 To update to the latest version:
 
@@ -73,16 +75,21 @@ pnpm run update-grammars
 ```
 
 [adguard-vscode-extension]: https://github.com/AdguardTeam/VscodeAdblockSyntax/blob/master/syntaxes/adblock.yaml-tmlanguage
-[typescript-tmlanguage]: https://github.com/Microsoft/TypeScript-TmLanguage/blob/master/TypeScriptReact.tmLanguage
+[javascript-grammar]: https://github.com/microsoft/vscode/blob/main/extensions/javascript/syntaxes/JavaScript.tmLanguage.json
 
 This downloads each grammar listed in `scripts/update-grammars.mts`, optimizes
 every Oniguruma regex with `oniguruma-parser`, and verifies that any embedded
 (external) grammar is one the library knows how to resolve. To add a new
-embedded grammar, register its scope in `src/lib/constants.ts`
-(`GRAMMAR_SCOPES`) and add a download entry to the `GRAMMARS` array in
-`scripts/update-grammars.mts`.
+embedded grammar:
 
-Do not edit `src/grammars/*.json` files manually — they are generated.
+1. Register its scope in `src/lib/constants.ts` (`GRAMMAR_SCOPES`).
+2. Add a download entry to the `GRAMMARS` array in
+   `scripts/update-grammars.mts`.
+3. Import the generated grammar in `src/lib/registry.ts` and map its scope in
+   `scopeToRawJson`; otherwise the registry cannot load it.
+
+For which grammar files are generated and which are hand-maintained, see
+[the grammar rules in `AGENTS.md`](AGENTS.md#configuration--documentation).
 
 ## Commit Message Convention
 

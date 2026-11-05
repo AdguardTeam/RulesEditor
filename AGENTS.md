@@ -31,17 +31,17 @@ filter rules. It provides:
 
 ## Technical Context
 
-| Field                | Value                                                                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------- |
-| Language/Version     | TypeScript 5.2, targeting ES6                                                                   |
-| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), vscode-oniguruma (WASM — peer), vscode-textmate, style-mod |
-| Storage              | None (client-side library)                                                                      |
-| Testing              | Vitest                                                                                          |
-| Target Platform      | Browser (bundled as ESM via Rspack)                                                             |
-| Project Type         | Library / Package                                                                               |
-| Performance Goals    | N/A                                                                                             |
-| Constraints          | Requires WASM for full tokenization; must support browsers without native Oniguruma             |
-| Scale/Scope          | Consumed by AdGuard products for user rule editing UIs                                          |
+| Field                | Value                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Language/Version     | TypeScript 5.2, targeting ES6                                                                                            |
+| Primary Dependencies | CodeMirror 6 (@codemirror/* — peer), @lezer/highlight (peer), vscode-oniguruma (WASM — peer), vscode-textmate, style-mod |
+| Storage              | None (client-side library)                                                                                               |
+| Testing              | Vitest                                                                                                                   |
+| Target Platform      | Browser (bundled as ESM via Rspack)                                                                                      |
+| Project Type         | Library / Package                                                                                                        |
+| Performance Goals    | N/A                                                                                                                      |
+| Constraints          | Requires WASM for full tokenization; must support browsers without native Oniguruma                                      |
+| Scale/Scope          | Consumed by AdGuard products for user rule editing UIs                                                                   |
 
 ## Project Structure
 
@@ -193,7 +193,7 @@ Design for a library:
 Universal design principles:
 
 - **Separation of Concerns** — each module handles one aspect of the
-  system (editor init, grammar loading, tokenization, rule building)
+  system (editor init, grammar loading, tokenization, highlighting)
 - **Single Responsibility Principle** — every file, class, or function
   has one reason to change
 - **Dependency Direction** — dependencies point inward; public API
@@ -202,40 +202,42 @@ Universal design principles:
   surface; everything else is internal
 - **Data Flow Clarity** — WASM loads once → grammar activates →
   tokenizer/editor consumes grammar state
-- **Minimize Coupling, Maximize Cohesion** — rule builders are
-  self-contained; tokenizers share only the `Token` enum and
-  `normalizeTokens` utility
-- **Make Invalid States Impossible** — `RuleType` union constrains
-  builder selection; `Token` enum constrains valid token values
+- **Minimize Coupling, Maximize Cohesion** — the tokenizers build on shared
+  grammar access (`RegistryManager`, `WasmSource`, `SCOPE_ADBLOCK`) and
+  scope resolution (`resolveToken`) instead of reimplementing them
+- **Make Invalid States Impossible** — the `Token` enum constrains valid
+  token values
 - **Observability Built-in** — less critical for a client-side library;
   errors surface via thrown exceptions to the consumer
-- **Keep It Boring** — standard patterns (factory, builder, singleton
-  for WASM init)
+- **Keep It Boring** — standard patterns (factory, singleton for WASM init)
 
 This project's layers, from top to bottom:
 
 ```text
 Public API (src/index.ts — re-exports)
      ↓
-Features (initEditor, tokenizers)
+Features (init-editor.ts, commands/, highlight/, tokenizers/)
      ↓
-Shared library (lib/registry, lib/utils, lib/errors)
+Shared library (lib/constants, lib/types, lib/errors, lib/utils, lib/registry)
      ↓
-External deps (codemirror, vscode-textmate, vscode-oniguruma)
+Grammar data (src/grammars/*.tmLanguage.json)
+     ↓
+External deps (codemirror, lezer, vscode-textmate, vscode-oniguruma, style-mod)
 ```
 
-Public API re-exports features. Features may depend on shared library
-and external deps. Shared library may only depend on external deps.
+Public API re-exports features and selected shared-library symbols.
+Features may depend on other features, the shared library, and external
+deps. Shared library may depend on other shared-library modules, the
+grammar data, and external deps. No layer may depend on a layer above it.
 
 ### Code Quality
 
-Shared library (lib/registry, lib/utils, lib/errors)
-  `jsdoc/require-description` (complete sentence), and
-  `jsdoc/require-returns` on classes, class properties, functions, and
-  methods.
-
-- **Strict TypeScript** — `strict: true`, `noImplicitAny: true` in
-  tsconfig.
+- **JSDoc required** — `jsdoc/require-jsdoc` and
+  `jsdoc/require-description` on classes, class properties, functions, and
+  methods, plus `jsdoc/require-returns` on functions. Descriptions must be
+  complete sentences (`jsdoc/require-description-complete-sentence`).
+- **Strict TypeScript** — `strict: true` in `tsconfig.base.json`, which
+  enables `noImplicitAny`.
 - **Airbnb style** — ESLint extends `airbnb-typescript/base`; follow
   its conventions for imports, naming, and formatting.
 - **No modification of linter config** without explicit approval —
@@ -262,9 +264,10 @@ Shared library (lib/registry, lib/utils, lib/errors)
   module-level bindings that wrap a constructed CodeMirror value or a
   lookup tree (`tokenTags`, `scopeTree`, `scopeToRawJson`,
   `breakpointField`, `toggleBreakpoint`) keep camelCase.
-  **Exception**: generated TextMate grammar files in `src/grammars/` use
-  the standard `<scope>.tmLanguage.json` convention (e.g.
-  `adblock.tmLanguage.json`).
+  **Exception**: TextMate grammar files in `src/grammars/` use the
+  `<grammar key>.tmLanguage.json` convention, where `<grammar key>` is a
+  `GRAMMAR_SCOPES` key (e.g. `adblock.tmLanguage.json`,
+  `js.tmLanguage.json`).
 
 ### CodeMirror Integration
 
@@ -338,10 +341,11 @@ sync with the actual keymap.
 - Default environment is `node`; editor/gutter tests use `@vitest-environment
   jsdom` docblock.
 - Tests are plain `test()` calls (no `describe` blocks currently).
-- Each rule builder type has coverage for building rules and parsing
-  them back from strings.
-- Tokenizer tests verify token output against expected arrays.
-- No mocking is used — tests exercise real module code.
+- Tokenizer tests verify contiguous coverage, scope stacks, and the
+  `comment` token kind.
+- No module mocks are used — tests exercise real module code.
+- Single-method spies (`vi.spyOn`), global stubs (`vi.stubGlobal`), and
+  `vi.fn` callbacks are allowed.
 - CodeMirror resolves the platform once, when `@codemirror/view` is first
   evaluated, and jsdom leaves `navigator.platform` empty, so only the
   platform-neutral `key` map resolves there. Platform-specific bindings
@@ -408,8 +412,10 @@ vulnerabilities, supply chain risks, and long-term maintenance costs.
 - `AGENTS.md` is the canonical home for project rules; other docs
   (`DEVELOPMENT.md`, `README.md`) link to it instead of restating the same
   rule, so the copies cannot drift.
-- Grammar JSON files in `src/grammars/` are generated by
-  `pnpm run update-grammars` — do not edit them manually.
+- `src/grammars/adblock.tmLanguage.json` is generated by
+  `pnpm run update-grammars` — do not edit it manually.
+  `src/grammars/js.tmLanguage.json` is a hand-maintained placeholder; edit
+  it directly.
 
 ### Markdown Formatting
 

@@ -33,8 +33,10 @@ interface GrammarSource {
 
 /**
  * Grammars to download. To add one: register its scope in
- * {@link GRAMMAR_SCOPES} (`src/lib/constants.ts`) and add an entry here. The
- * `key` is type-checked against {@link GRAMMAR_SCOPES}, so both stay in sync.
+ * {@link GRAMMAR_SCOPES} (`src/lib/constants.ts`), add an entry here, and map
+ * the generated JSON in `scopeToRawJson` (`src/lib/registry.ts`), or the
+ * registry cannot load it. The `key` is type-checked against
+ * {@link GRAMMAR_SCOPES}, so both stay in sync.
  */
 const GRAMMARS: GrammarSource[] = [
     {
@@ -200,7 +202,9 @@ export function assertKnownScopes(scopes: string[], known: Set<string>): void {
             + 'Each embedded grammar must be downloadable and registered. To fix:\n'
             + '  1. Add the scope to GRAMMAR_SCOPES in src/lib/constants.ts.\n'
             + '  2. Add a matching download entry to the GRAMMARS array in '
-            + 'scripts/update-grammars.mts.',
+            + 'scripts/update-grammars.mts.\n'
+            + '  3. Import the generated JSON in src/lib/registry.ts and map its '
+            + 'scope in scopeToRawJson.',
         );
     }
 }
