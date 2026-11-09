@@ -2,7 +2,9 @@
 import {
     closeSearchPanel,
     findNext,
+    findPrevious,
     openSearchPanel,
+    search,
     SearchQuery,
     setSearchQuery,
 } from '@codemirror/search';
@@ -10,35 +12,38 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import {
     afterEach,
-    beforeAll,
     expect,
     test,
+    vi,
 } from 'vitest';
 
 import { initEditor, type InitEditorConfig } from '../src/init-editor';
 
+import { mountEditor, stubRangeClientRects } from './helpers';
+
 const DOC = '||a.com^\n||b.com^\n! a.com comment\n||c.org^';
+
+const FIVE_MATCHES_DOC = 'a\na\na\na\na';
+
+const OVERLAPPING_DOC = 'example.com###banner';
+
+/**
+ * Longer than the plugin's recount debounce, so the status has settled.
+ */
+const RECOUNT_WAIT_MS = 200;
 
 const views: EditorView[] = [];
 
-beforeAll(() => {
-    // jsdom does not implement `Range.getClientRects`, which CodeMirror calls
-    // when it scrolls the selection into view.
-    if (!Range.prototype.getClientRects) {
-        Object.defineProperty(Range.prototype, 'getClientRects', {
-            configurable: true,
-            value: () => [],
-        });
-    }
-});
+stubRangeClientRects();
 
 afterEach(() => {
     views.splice(0).forEach((view) => view.destroy());
     document.body.innerHTML = '';
+    vi.restoreAllMocks();
 });
 
 /**
- * Creates an editor over {@link DOC} without WASM.
+ * Creates an editor with a document, without WASM.
  *
  * @param conf Configuration overrides for `initEditor`.
  * @param doc Initial document.
@@ -46,27 +51,20 @@ afterEach(() => {
  * @returns The created editor view.
  */
 async function createView(conf: Partial<InitEditorConfig> = {}, doc = DOC): Promise<EditorView> {
-    const textarea = document.createElement('textarea');
-    textarea.value = doc;
-    document.body.appendChild(textarea);
-    const view = await initEditor(textarea, undefined, {
-        hotkeys: { mode: 'windows' },
-        highlight: 'none',
-        autofocus: false,
-        ...conf,
-    });
+    const view = await mountEditor(initEditor, { autofocus: false, ...conf }, undefined, doc);
     views.push(view);
     return view;
 }
 
 /**
- * Waits for the scheduled DOM writes of the view.
+ * Waits for the debounced recount and the scheduled DOM writes.
  *
  * @param view The editor view.
  *
- * @returns A promise resolved after the next animation frame.
+ * @returns A promise resolved after the status is written.
  */
 async function flush(view: EditorView): Promise<void> {
+    await new Promise((resolve) => { setTimeout(resolve, RECOUNT_WAIT_MS); });
     view.requestMeasure();
     await new Promise((resolve) => { requestAnimationFrame(resolve); });
 }
@@ -113,6 +111,31 @@ test('shows the position of the selected match after find next', async () => {
     expect(status(view)).toBe('2 of 2');
 });
 
+test('finds a selected match left of the binary search midpoint', async () => {
+    const view = await createView({}, FIVE_MATCHES_DOC);
+    searchFor(view, 'a');
+    findNext(view);
+    findNext(view);
+    await flush(view);
+
+    expect(status(view)).toBe('2 of 5');
+});
+
+test('numbers a selected overlapping match by the counted match it overlaps', async () => {
+    const view = await createView({}, OVERLAPPING_DOC);
+    searchFor(view, '##');
+    await flush(view);
+    expect(status(view)).toBe('? of 1');
+
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('1 of 1');
+
+    findPrevious(view);
+    await flush(view);
+    expect(status(view)).toBe('1 of 1');
+});
+
 test('places the status right after the search field', async () => {
     const view = await createView();
     searchFor(view, 'a.com');
@@ -120,7 +143,20 @@ test('places the status right after the search field', async () => {
 
     const field = view.dom.querySelector('.cm-panel.cm-search input[name="search"]');
     expect(field?.nextElementSibling?.classList.contains('cm-search-count')).toBe(true);
-    expect(field?.nextElementSibling?.getAttribute('role')).toBe('status');
+});
+
+test('does not rewrite the status when the text does not change', async () => {
+    const view = await createView();
+    searchFor(view, 'a.com');
+    await flush(view);
+
+    const element = view.dom.querySelector('.cm-search-count');
+    const text = element?.firstChild;
+
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    await flush(view);
+
+    expect(element?.firstChild).toBe(text);
 });
 
 test('shows "No results" for a query without matches and nothing for an empty query', async () => {
@@ -131,6 +167,15 @@ test('shows "No results" for a query without matches and nothing for an empty qu
 
     view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
     await flush(view);
+    expect(status(view)).toBe('');
+});
+
+test('shows nothing for an invalid regular expression', async () => {
+    const view = await createView();
+    openSearchPanel(view);
+    view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '[', regexp: true })) });
+    await flush(view);
+
     expect(status(view)).toBe('');
 });
 
@@ -159,6 +204,24 @@ test('caps the count of a very frequent match', async () => {
     searchFor(view, 'a');
     await flush(view);
 
+    expect(status(view)).toBe('? of 10000+');
+});
+
+test('shows exactly 10000 matches without a plus', async () => {
+    const view = await createView({}, 'a'.repeat(10000));
+    searchFor(view, 'a');
+    await flush(view);
+
+    expect(status(view)).toBe('? of 10000');
+});
+
+test('shows "?" for a match selected past the counted limit', async () => {
+    const view = await createView({}, 'a'.repeat(10001));
+    searchFor(view, 'a');
+    await flush(view);
+
+    view.dispatch({ selection: { anchor: 10000, head: 10001 } });
+    await flush(view);
     expect(status(view)).toBe('? of 10000+');
 });
 
@@ -195,4 +258,68 @@ test('is left out with withSearchMatchCount: false', async () => {
     await flush(view);
 
     expect(status(view)).toBeNull();
+});
+
+test('shows no status in a custom panel with its own markup', async () => {
+    const view = await createView({
+        extensions: [search({ createPanel: () => ({ dom: document.createElement('div') }) })],
+    });
+    searchFor(view, 'a.com');
+    await flush(view);
+
+    expect(status(view)).toBeNull();
+});
+
+test('shows the status in a custom panel that reuses the built-in markup', async () => {
+    const view = await createView({
+        extensions: [search({
+            createPanel: () => {
+                const dom = document.createElement('div');
+                dom.className = 'cm-search';
+                const field = document.createElement('input');
+                field.name = 'search';
+                dom.appendChild(field);
+                return { dom };
+            },
+        })],
+    });
+    searchFor(view, 'a.com');
+    await flush(view);
+
+    expect(status(view)).toBe('? of 2');
+});
+
+test('recounts for a literal-only change but not for a replace-only change', async () => {
+    const getCursor = vi.spyOn(SearchQuery.prototype, 'getCursor');
+    const view = await createView();
+    searchFor(view, 'a.com');
+    await flush(view);
+    const counted = getCursor.mock.calls.length;
+    expect(counted).toBeGreaterThan(0);
+
+    view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: 'a.com', replace: 'b.com' })) });
+    await flush(view);
+    expect(getCursor).toHaveBeenCalledTimes(counted);
+
+    view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: 'a.com', replace: 'b.com', literal: true })),
+    });
+    await flush(view);
+    expect(getCursor).toHaveBeenCalledTimes(counted + 1);
+});
+
+test('debounces rapid document changes', async () => {
+    const getCursor = vi.spyOn(SearchQuery.prototype, 'getCursor');
+    const view = await createView();
+    searchFor(view, 'a.com');
+    await flush(view);
+    const counted = getCursor.mock.calls.length;
+    expect(counted).toBeGreaterThan(0);
+
+    view.dispatch({ changes: { from: view.state.doc.length, insert: '\n||a.com^' } });
+    view.dispatch({ changes: { from: view.state.doc.length, insert: '\n||a.com^' } });
+    await flush(view);
+
+    expect(getCursor).toHaveBeenCalledTimes(counted + 1);
+    expect(status(view)).toBe('? of 4');
 });

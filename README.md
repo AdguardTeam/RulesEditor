@@ -129,12 +129,17 @@ existing `await initEditor(...)` call sites are unaffected.
 
 The search panel (`Ctrl+F` / `Cmd+F`) shows the position of the selected match
 and the number of matches next to the search field, for example `3 of 12`. The
-count covers the whole document, not only the lines currently rendered, and
-stops at 10000 matches (`10000+`). `?` stands for the position while the
-selection is not on a match, and `No results` is shown when nothing matches.
-Translate the texts with `EditorState.phrases` (`No results`, `$1 of $2`).
-Set `withSearchMatchCount: false` to leave the status out; a custom search
-panel (`search({ createPanel })`) never shows it.
+count covers the whole document, not only the lines currently rendered. It
+stops at 10000 matches: exactly 10000 shows `10000`, more shows `10000+`, and a
+match selected past the first 10000 shows `?` as its position. `?` also stands
+for the position while the selection is not on a counted match, and a non-empty
+valid query that matches nothing shows `No results` (an empty or invalid query
+leaves the status blank). Translate the texts with `EditorState.phrases`
+(`No results`, `$1 of $2`). Set `withSearchMatchCount: false` to leave the
+status out. The status is attached to the search field of the built-in panel
+markup (`.cm-panel.cm-search input[name="search"]`): a custom panel
+(`search({ createPanel })`) with its own markup shows nothing, while one that
+reuses the built-in markup gets the status.
 
 #### Multi-cursor editing
 

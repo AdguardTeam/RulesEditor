@@ -98,7 +98,8 @@ export interface InitEditorConfig {
      * the whole document (e.g. `3 of 12`) next to the search field of the
      * built-in search panel. Defaults to `true`. The texts are translatable
      * through `EditorState.phrases` (`No results`, `$1 of $2`). A custom
-     * search panel (`search({ createPanel })`) never shows the status.
+     * search panel (`search({ createPanel })`) shows the status only when it
+     * reuses the built-in panel markup.
      */
     withSearchMatchCount?: boolean;
 

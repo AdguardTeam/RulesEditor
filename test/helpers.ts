@@ -20,6 +20,7 @@ type InitEditorFn = typeof initEditor;
  * @param conf Config overrides merged into the defaults.
  * @param wasmSource Oniguruma WASM source, for tests that need highlighting
  * (requires `highlight: 'full'`).
+ * @param doc Initial document.
  *
  * @returns The mounted editor view. Destroy it when the test is done.
  */
@@ -29,8 +30,10 @@ export const mountEditor = async (
         hotkeys?: Partial<InitEditorConfig['hotkeys']>;
     } = {},
     wasmSource: WasmSource | undefined = undefined,
+    doc = '',
 ): Promise<EditorView> => {
     const textarea = document.createElement('textarea');
+    textarea.value = doc;
     document.body.appendChild(textarea);
     return initEditorFn(textarea, wasmSource, {
         highlight: 'none',
