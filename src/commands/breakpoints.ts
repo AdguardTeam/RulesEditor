@@ -121,6 +121,35 @@ const markerConfig = Facet.define<MarkerConfig, MarkerConfig>({
 });
 
 /**
+ * The range value settings of an enabled-rule marker. `RangeSet.map` reads
+ * them from `BreakpointMarker`, and the mapping equivalence test builds its
+ * reference marker from the same values. The test compares that reference with
+ * `mapPositions`, so a change to the constant that the linear path does not
+ * follow fails the test.
+ *
+ * A `GutterMarker` has a start and an end side of `-1`, and an enabled-rule
+ * marker overrides the default `MapMode.TrackBefore` with `MapMode.Simple`.
+ *
+ * Exported for the mapping equivalence test; it is not part of the public API.
+ */
+export const MARKER_MAPPING = {
+    /**
+     * The position association that a change applies to the marker.
+     */
+    startSide: -1,
+
+    /**
+     * The end side of the point range.
+     */
+    endSide: -1,
+
+    /**
+     * The mode that maps the marker through a change.
+     */
+    mapMode: MapMode.Simple,
+};
+
+/**
  * Gutter marker rendered for an enabled rule line.
  *
  * The marker captures the factory of the editor it belongs to. `toDOM` gets
@@ -135,6 +164,16 @@ class BreakpointMarker extends GutterMarker {
     readonly factory: () => HTMLElement;
 
     /**
+     * The position association that a change applies to the marker.
+     */
+    readonly startSide = MARKER_MAPPING.startSide;
+
+    /**
+     * The end side of the point range.
+     */
+    readonly endSide = MARKER_MAPPING.endSide;
+
+    /**
      * Maps the marker to the nearest position instead of dropping it when a
      * change deletes its line start. `deletedLineEffect` removes the markers
      * whose line a delete should drop, so this mode only decides where the
@@ -142,7 +181,7 @@ class BreakpointMarker extends GutterMarker {
      * marker which line moved, so a marker that survives `move.line` can land
      * on the line that took its place.
      */
-    readonly mapMode = MapMode.Simple;
+    readonly mapMode = MARKER_MAPPING.mapMode;
 
     /**
      * Creates a marker that renders its element with the given factory.
@@ -181,32 +220,48 @@ interface BreakpointState extends MarkerConfig {
 }
 
 /**
- * Maps the given start-document positions through `changes` with an
- * association of `-1`, in a single pass.
+ * Maps the given start-document positions through `changes` with a negative
+ * start side and `MapMode.Simple`, in a single pass over both lists.
  *
  * `ChangeSet.mapPos` scans the change sections from the start, so mapping one
- * position per toggle effect is quadratic when a whole-document selection
- * toggles thousands of lines. The positions must be sorted in ascending order;
- * the toggle effects are not sorted, so `breakpointField` sorts their values
- * before calling this function.
+ * position at a time is quadratic when an edit produces many changes and many
+ * positions. The positions must be sorted in ascending order; the toggle
+ * effects are not sorted, so `breakpointField` sorts their values before
+ * calling this function.
+ *
+ * A replacement keeps a position at its start before the inserted text and a
+ * position at its end after it. An insertion keeps a position at its start
+ * before the inserted text because the start side is negative. The function
+ * reads the change description, which holds no inserted text, so it does not
+ * build a `Text` for every changed range. It implements the marker mapping
+ * directly instead of reading `MARKER_MAPPING`; the equivalence test builds its
+ * reference marker from the constant, so a change to the constant that this
+ * function does not follow fails the test.
+ *
+ * Exported for the mapping equivalence test; it is not part of the public API.
  *
  * @param changes The changes to map through.
  * @param positions The sorted start-document positions.
  *
  * @returns The mapped positions, in the same order.
  */
-function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+export function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+    // An empty list needs no scan, and a transaction without added positions
+    // must not walk the change set.
+    if (positions.length === 0) {
+        return [];
+    }
     const mapped: number[] = [];
     let index = 0;
     let shift = 0;
-    changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    changes.desc.iterChangedRanges((fromA, toA, fromB, toB) => {
         while (index < positions.length && positions[index] < fromA) {
             mapped.push(positions[index] + shift);
             index += 1;
         }
         if (fromA === toA) {
             // An insertion: a position at its start stays before the inserted
-            // text.
+            // text, like `ChangeSet.mapPos` does for a negative start side.
             while (index < positions.length && positions[index] === fromA) {
                 mapped.push(fromB);
                 index += 1;
@@ -227,6 +282,91 @@ function mapPositions(changes: ChangeSet, positions: readonly number[]): number[
         index += 1;
     }
     return mapped;
+}
+
+/**
+ * The number of markers that `RangeSet` keeps in one chunk. `RangeSet.map`
+ * remaps a chunk as a unit, so a gap between changes that is longer than one
+ * chunk leaves the chunks inside the gap untouched.
+ */
+const MARKERS_PER_CHUNK = 250;
+
+/**
+ * The weighted span above which `breakpointField.update` maps the markers in
+ * one pass over the markers and the changes.
+ *
+ * `RangeSet.map` walks the chunks of the set and remaps only the chunks that
+ * the changes touch, so a few ranges stay cheap even when the set holds many
+ * markers. The linear pass walks every marker, so it pays off only when the
+ * changes are spread over a large part of the document. The check weights the
+ * number of changed ranges by the share of the document that they span:
+ * `count * span / documentLength`.
+ *
+ * The span counts the changed ranges and the gaps between them, but caps every
+ * gap at one chunk span: `RangeSet.map` does not touch the chunks inside a
+ * longer gap, so the gap must not add to the weight. Without the cap a single
+ * cursor far from a block edit stretches the span over the whole document and
+ * sends the block edit to the linear pass.
+ *
+ * On the 50,000-line document with one marker per line, the two paths cost
+ * about the same at a weight of 24, which is about 70 changed ranges spread
+ * over the document. A single keystroke, a 20-cursor edit, and a 100-cursor
+ * edit on adjacent lines stay below the cutoff. Replace All and a comment
+ * toggle on 100 marked lines spread over the document go above it. The
+ * benchmarks in `test/breakpoints.bench.ts` cover these cases, and the
+ * spread-edit test in `test/breakpoints.test.ts` pins the cutoff from above:
+ * it expects the linear pass for an edit that weighs about 39, so raising the
+ * cutoff past 39 fails it.
+ */
+const LINEAR_MAP_CHANGE_THRESHOLD = 24;
+
+/**
+ * Reports whether the linear pass over the markers and the changes is cheaper
+ * than `RangeSet.map` for this transaction.
+ *
+ * The number of changed ranges alone cannot separate a Replace All from a
+ * block edit: `RangeSet.map` remaps only the chunks that the changes touch, so
+ * many adjacent cursors stay cheap there, while the linear pass walks every
+ * marker. Weighting the count by the span that the changes cover keeps adjacent
+ * edits on the chunked path and sends spread edits to the linear pass. The span
+ * caps every gap at one chunk span, so a change far from a block does not count
+ * the untouched chunks between them.
+ *
+ * The check runs only when the set holds markers: `RangeSet.map` returns an
+ * empty set at once, so a document without enabled rules must not scan the
+ * changed ranges. The scan reads the change description, which has no inserted
+ * text, instead of the change set, which builds a `Text` for every changed
+ * range.
+ *
+ * @param markers The marker set of the transaction's start state.
+ * @param changes The changes to map through.
+ * @param documentLength The length of the start document.
+ *
+ * @returns `true` when the linear pass is cheaper.
+ */
+function needsLinearMapping(
+    markers: RangeSet<GutterMarker>,
+    changes: ChangeSet,
+    documentLength: number,
+): boolean {
+    if (markers.size === 0 || changes.empty || documentLength === 0) {
+        return false;
+    }
+    // One chunk spans about this much of the document at the current marker
+    // density. A gap longer than this leaves whole chunks untouched.
+    const chunkSpan = documentLength / Math.ceil(markers.size / MARKERS_PER_CHUNK);
+    let count = 0;
+    let span = 0;
+    let previousEnd = -1;
+    changes.desc.iterChangedRanges((fromA, toA) => {
+        if (previousEnd >= 0) {
+            span += Math.min(fromA - previousEnd, chunkSpan);
+        }
+        span += toA - fromA;
+        previousEnd = toA;
+        count += 1;
+    });
+    return (count * span) / documentLength > LINEAR_MAP_CHANGE_THRESHOLD;
 }
 
 /**
@@ -494,17 +634,44 @@ const breakpointField = StateField.define<BreakpointState>({
             ? new Map<number, number>()
             : carriedLineStarts(tr, value.markers, removed);
 
-        // `RangeSet.update` rebuilds the whole set, so all removals are applied
-        // with a single update instead of one per effect: `Ctrl+A` → `Ctrl+/`
-        // dispatches one effect per selected line, and rebuilding the set per
-        // effect would make it quadratic in the number of lines.
-        let markers = removed.size > 0
-            ? value.markers.update({ filter: (from) => !removed.has(from) })
-            : value.markers;
-        if (carried.size > 0) {
-            markers = markers.update({ filter: (from) => !carried.has(from) });
+        // `RangeSet.map` reuses the chunks that an edit does not touch, so a
+        // typed character or another edit with a few changed ranges stays
+        // cheap. The linear pass is faster when the changes are spread over the
+        // document, because mapping each marker with `ChangeSet.mapPos` scans
+        // the change sections from the start: the cost there would be markers ×
+        // changes. Decide the path on the start set, before the removals and
+        // the carries: the linear walk skips those positions itself, so it
+        // rebuilds the set once instead of filtering it first and rebuilding it
+        // again.
+        let markers: RangeSet<GutterMarker>;
+        if (needsLinearMapping(value.markers, tr.changes, tr.startState.doc.length)) {
+            // Collect the markers that survive the removals and the carries,
+            // then map their positions in one pass over the sorted markers and
+            // the sorted changes.
+            const survivingPositions: number[] = [];
+            const survivingMarkers: GutterMarker[] = [];
+            for (let cursor = value.markers.iter(); cursor.value; cursor.next()) {
+                if (removed.has(cursor.from) || carried.has(cursor.from)) {
+                    continue;
+                }
+                survivingPositions.push(cursor.from);
+                survivingMarkers.push(cursor.value);
+            }
+            markers = RangeSet.of(
+                mapPositions(tr.changes, survivingPositions)
+                    .map((pos, index) => survivingMarkers[index].range(pos)),
+                true,
+            );
+        } else {
+            // `RangeSet.update` rebuilds the whole set, so a typed character
+            // on a large rule list must not run it when nothing is dropped.
+            markers = removed.size > 0 || carried.size > 0
+                ? value.markers.update({
+                    filter: (from) => !removed.has(from) && !carried.has(from),
+                })
+                : value.markers;
+            markers = markers.map(tr.changes);
         }
-        markers = markers.map(tr.changes);
         // The carried and toggled-on positions are already in new-document
         // coordinates; the added positions need mapping from the start
         // document first.
@@ -579,7 +746,9 @@ function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | nu
     // `invertedEffects` provider stores no snapshot and an undo inserts the
     // deleted text after the marker instead of restoring the marker with it.
     let keptLineStart = false;
-    tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    // The callback needs only positions, so iterate the change description
+    // instead of the change set, which builds the inserted text.
+    tr.changes.desc.iterChangedRanges((fromA, toA, fromB, toB) => {
         // A marker at `toA` belongs to the first line that survives the
         // change, but only when the change maps it onto a line start: a
         // replacement that does not end with a line break joins the line to
