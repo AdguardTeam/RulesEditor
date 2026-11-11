@@ -5,6 +5,7 @@ import {
     type Extension,
     Facet,
     MapMode,
+    type RangeCursor,
     RangeSet,
     StateEffect,
     StateField,
@@ -50,7 +51,31 @@ export const setBreakpoints = StateEffect.define<readonly number[]>({
 });
 
 /**
- * Effect that removes the enabled markers at the given line starts.
+ * The value of the `removeBreakpoints` effect.
+ */
+interface MarkerRemoval {
+    /**
+     * The line starts whose marker the transaction removes, in the start
+     * document's coordinates.
+     */
+    positions: readonly number[];
+
+    /**
+     * The marked line starts that the transaction carries to the line start
+     * that now holds the rule, keyed by their start-document positions.
+     */
+    carried: ReadonlyMap<number, number>;
+}
+
+/**
+ * Effect that removes the enabled markers at the given line starts and passes
+ * the carried marker positions to `breakpointField`.
+ *
+ * The extender computes the carry because it has the marker set of the start
+ * state, and the field reuses the map instead of scanning the marker set a
+ * second time for the same transaction. The extender sees only the effects of
+ * the original transaction spec, so the field still reconciles the map against
+ * the removed set that it builds after all extenders ran.
  *
  * The positions are in the transaction's start (pre-change) coordinates, like
  * `toggleBreakpoint`. The effect has no `map` on purpose: `deletedLineMarkers`
@@ -59,7 +84,7 @@ export const setBreakpoints = StateEffect.define<readonly number[]>({
  * document length. A position past that length would throw a `RangeError`, and
  * a removed line start has no position to map to anyway.
  */
-const removeBreakpoints = StateEffect.define<readonly number[]>();
+const removeBreakpoints = StateEffect.define<MarkerRemoval>();
 
 /**
  * Color and inner HTML applied by a marker factory.
@@ -121,6 +146,35 @@ const markerConfig = Facet.define<MarkerConfig, MarkerConfig>({
 });
 
 /**
+ * The range value settings of an enabled-rule marker. `RangeSet.map` reads
+ * them from `BreakpointMarker`, and the mapping equivalence test builds its
+ * reference marker from the same values. The test compares that reference with
+ * `mapPositions`, so a change to the constant that the linear path does not
+ * follow fails the test.
+ *
+ * A `GutterMarker` has a start and an end side of `-1`, and an enabled-rule
+ * marker overrides the default `MapMode.TrackBefore` with `MapMode.Simple`.
+ *
+ * Exported for the mapping equivalence test; it is not part of the public API.
+ */
+export const MARKER_MAPPING = {
+    /**
+     * The position association that a change applies to the marker.
+     */
+    startSide: -1,
+
+    /**
+     * The end side of the point range.
+     */
+    endSide: -1,
+
+    /**
+     * The mode that maps the marker through a change.
+     */
+    mapMode: MapMode.Simple,
+};
+
+/**
  * Gutter marker rendered for an enabled rule line.
  *
  * The marker captures the factory of the editor it belongs to. `toDOM` gets
@@ -135,6 +189,16 @@ class BreakpointMarker extends GutterMarker {
     readonly factory: () => HTMLElement;
 
     /**
+     * The position association that a change applies to the marker.
+     */
+    readonly startSide = MARKER_MAPPING.startSide;
+
+    /**
+     * The end side of the point range.
+     */
+    readonly endSide = MARKER_MAPPING.endSide;
+
+    /**
      * Maps the marker to the nearest position instead of dropping it when a
      * change deletes its line start. `deletedLineEffect` removes the markers
      * whose line a delete should drop, so this mode only decides where the
@@ -142,7 +206,7 @@ class BreakpointMarker extends GutterMarker {
      * marker which line moved, so a marker that survives `move.line` can land
      * on the line that took its place.
      */
-    readonly mapMode = MapMode.Simple;
+    readonly mapMode = MARKER_MAPPING.mapMode;
 
     /**
      * Creates a marker that renders its element with the given factory.
@@ -181,32 +245,48 @@ interface BreakpointState extends MarkerConfig {
 }
 
 /**
- * Maps the given start-document positions through `changes` with an
- * association of `-1`, in a single pass.
+ * Maps the given start-document positions through `changes` with a negative
+ * start side and `MapMode.Simple`, in a single pass over both lists.
  *
  * `ChangeSet.mapPos` scans the change sections from the start, so mapping one
- * position per toggle effect is quadratic when a whole-document selection
- * toggles thousands of lines. The positions must be sorted in ascending order;
- * the toggle effects are not sorted, so `breakpointField` sorts their values
- * before calling this function.
+ * position at a time is quadratic when an edit produces many changes and many
+ * positions. The positions must be sorted in ascending order; the toggle
+ * effects are not sorted, so `breakpointField` sorts their values before
+ * calling this function.
+ *
+ * A replacement keeps a position at its start before the inserted text and a
+ * position at its end after it. An insertion keeps a position at its start
+ * before the inserted text because the start side is negative. The function
+ * reads the change description, which holds no inserted text, so it does not
+ * build a `Text` for every changed range. It implements the marker mapping
+ * directly instead of reading `MARKER_MAPPING`; the equivalence test builds its
+ * reference marker from the constant, so a change to the constant that this
+ * function does not follow fails the test.
+ *
+ * Exported for the mapping equivalence test; it is not part of the public API.
  *
  * @param changes The changes to map through.
  * @param positions The sorted start-document positions.
  *
  * @returns The mapped positions, in the same order.
  */
-function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+export function mapPositions(changes: ChangeSet, positions: readonly number[]): number[] {
+    // An empty list needs no scan, and a transaction without added positions
+    // must not walk the change set.
+    if (positions.length === 0) {
+        return [];
+    }
     const mapped: number[] = [];
     let index = 0;
     let shift = 0;
-    changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    changes.desc.iterChangedRanges((fromA, toA, fromB, toB) => {
         while (index < positions.length && positions[index] < fromA) {
             mapped.push(positions[index] + shift);
             index += 1;
         }
         if (fromA === toA) {
             // An insertion: a position at its start stays before the inserted
-            // text.
+            // text, like `ChangeSet.mapPos` does for a negative start side.
             while (index < positions.length && positions[index] === fromA) {
                 mapped.push(fromB);
                 index += 1;
@@ -227,6 +307,129 @@ function mapPositions(changes: ChangeSet, positions: readonly number[]): number[
         index += 1;
     }
     return mapped;
+}
+
+/**
+ * The number of markers that `RangeSet` keeps in one chunk. `RangeSet.map`
+ * remaps a chunk as a unit, so a gap between changes that is longer than one
+ * chunk leaves the chunks inside the gap untouched.
+ */
+const MARKERS_PER_CHUNK = 250;
+
+/**
+ * Returns the approximate document span of one marker chunk at the current
+ * marker density.
+ *
+ * A gap longer than this holds more markers than one chunk, so seeking across
+ * it costs no more than walking it and avoids a walk over an untouched region
+ * such as the gap before a distant cursor.
+ *
+ * @param markers The marker set.
+ * @param documentLength The length of the document.
+ *
+ * @returns The approximate span of one chunk.
+ */
+function chunkSpanOf(markers: RangeSet<GutterMarker>, documentLength: number): number {
+    return documentLength / Math.max(1, Math.ceil(markers.size / MARKERS_PER_CHUNK));
+}
+
+/**
+ * Moves the marker cursor to the first marker at or after `pos`.
+ *
+ * A step-by-step walk is linear in the markers inside the gap, and `goto`
+ * rescans the chunks from the first chunk. The function jumps when the gap is
+ * longer than one chunk span, so a distant change costs one chunk scan
+ * instead of a walk over every marker between the changes.
+ *
+ * @param cursor The marker cursor to move.
+ * @param pos The position to move to.
+ * @param chunkSpan The approximate span of one marker chunk.
+ */
+function seekCursor(cursor: RangeCursor<GutterMarker>, pos: number, chunkSpan: number): void {
+    if (cursor.value && cursor.from < pos && pos - cursor.from > chunkSpan) {
+        cursor.goto(pos);
+    }
+    while (cursor.value && cursor.from < pos) {
+        cursor.next();
+    }
+}
+
+/**
+ * The weighted span above which `breakpointField.update` maps the markers in
+ * one pass over the markers and the changes.
+ *
+ * `RangeSet.map` walks the chunks of the set and remaps only the chunks that
+ * the changes touch, so a few ranges stay cheap even when the set holds many
+ * markers. The linear pass walks every marker, so it pays off only when the
+ * changes are spread over a large part of the document. The check weights the
+ * number of changed ranges by the share of the document that they span:
+ * `count * span / documentLength`.
+ *
+ * The span counts the changed ranges and the gaps between them, but caps every
+ * gap at one chunk span: `RangeSet.map` does not touch the chunks inside a
+ * longer gap, so the gap must not add to the weight. Without the cap a single
+ * cursor far from a block edit stretches the span over the whole document and
+ * sends the block edit to the linear pass.
+ *
+ * On the 50,000-line document with one marker per line, the two paths cost
+ * about the same at a weight of 24, which is about 70 changed ranges spread
+ * over the document. A single keystroke, a 20-cursor edit, and a 100-cursor
+ * edit on adjacent lines stay below the cutoff. Replace All and a comment
+ * toggle on 100 marked lines spread over the document go above it. The
+ * benchmarks in `test/breakpoints.bench.ts` cover these cases, and the
+ * spread-edit test in `test/breakpoints.test.ts` pins the cutoff from above:
+ * it expects the linear pass for an edit that weighs about 39, so raising the
+ * cutoff past 39 fails it.
+ */
+const LINEAR_MAP_CHANGE_THRESHOLD = 24;
+
+/**
+ * Reports whether the linear pass over the markers and the changes is cheaper
+ * than `RangeSet.map` for this transaction.
+ *
+ * The number of changed ranges alone cannot separate a Replace All from a
+ * block edit: `RangeSet.map` remaps only the chunks that the changes touch, so
+ * many adjacent cursors stay cheap there, while the linear pass walks every
+ * marker. Weighting the count by the span that the changes cover keeps adjacent
+ * edits on the chunked path and sends spread edits to the linear pass. The span
+ * caps every gap at one chunk span, so a change far from a block does not count
+ * the untouched chunks between them.
+ *
+ * The check runs only when the set holds markers: `RangeSet.map` returns an
+ * empty set at once, so a document without enabled rules must not scan the
+ * changed ranges. The scan reads the change description, which has no inserted
+ * text, instead of the change set, which builds a `Text` for every changed
+ * range.
+ *
+ * @param markers The marker set of the transaction's start state.
+ * @param changes The changes to map through.
+ * @param documentLength The length of the start document.
+ *
+ * @returns `true` when the linear pass is cheaper.
+ */
+function needsLinearMapping(
+    markers: RangeSet<GutterMarker>,
+    changes: ChangeSet,
+    documentLength: number,
+): boolean {
+    if (markers.size === 0 || changes.empty || documentLength === 0) {
+        return false;
+    }
+    // One chunk spans about this much of the document at the current marker
+    // density. A gap longer than this leaves whole chunks untouched.
+    const chunkSpan = chunkSpanOf(markers, documentLength);
+    let count = 0;
+    let span = 0;
+    let previousEnd = -1;
+    changes.desc.iterChangedRanges((fromA, toA) => {
+        if (previousEnd >= 0) {
+            span += Math.min(fromA - previousEnd, chunkSpan);
+        }
+        span += toA - fromA;
+        previousEnd = toA;
+        count += 1;
+    });
+    return (count * span) / documentLength > LINEAR_MAP_CHANGE_THRESHOLD;
 }
 
 /**
@@ -344,36 +547,54 @@ function carriedLineStarts(
     removed: ReadonlySet<number>,
 ): Map<number, number> {
     const carried = new Map<number, number>();
-    if (tr.isUserEvent('input.copyline')) {
-        if (!isCopyLineDown(tr)) {
-            return carried;
+    const isCopyLine = tr.isUserEvent('input.copyline');
+    if (isCopyLine && !isCopyLineDown(tr)) {
+        return carried;
+    }
+    // `markers.between` walks the chunks of the set from the first chunk on
+    // every call, so one call per changed range costs the changed ranges times
+    // the chunks. The cursor below walks the marker ranges once, in order,
+    // over the whole changed span. It seeks to the first changed range once and
+    // then only moves forward, so the walk is linear in the markers it visits
+    // and the changed ranges, not in their product.
+    let firstChange = -1;
+    tr.changes.desc.iterChangedRanges((fromA) => {
+        if (firstChange < 0) {
+            firstChange = fromA;
         }
-        tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    });
+    if (firstChange < 0) {
+        return carried;
+    }
+    const chunkSpan = chunkSpanOf(markers, tr.startState.doc.length);
+    const cursor = markers.iter(firstChange);
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+        if (isCopyLine) {
             if (fromA !== toA || fromB === toB) {
                 return;
             }
+            seekCursor(cursor, fromA, chunkSpan);
             // The copied block occupies `[fromA, fromA + inserted.length)` in
             // the start document, and the copy keeps the same offsets. A
             // marker at the end of the block belongs to the line that follows
-            // it, so the last position to keep is one before that end.
+            // it, so the last position to keep is one before that end. Blocks
+            // of a multi-cursor copy are ordered by their start, so a cursor
+            // that has already passed a marker cannot meet it again here; the
+            // carry value is the marker's own position either way.
             const blockEnd = fromA + inserted.length;
-            markers.between(fromA, blockEnd - 1, (from) => {
-                if (!removed.has(from)) {
-                    carried.set(from, from);
+            while (cursor.value && cursor.from <= blockEnd - 1) {
+                if (!removed.has(cursor.from)) {
+                    carried.set(cursor.from, cursor.from);
                 }
-            });
-        });
-        return carried;
-    }
-    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+                cursor.next();
+            }
+            return;
+        }
         if (removed.has(fromA)) {
             return;
         }
-        let marked = false;
-        markers.between(fromA, fromA, () => {
-            marked = true;
-        });
-        if (!marked) {
+        seekCursor(cursor, fromA, chunkSpan);
+        if (!cursor.value || cursor.from !== fromA) {
             return;
         }
         const line = tr.startState.doc.lineAt(fromA);
@@ -403,6 +624,41 @@ function carriedLineStarts(
         }
     });
     return carried;
+}
+
+/**
+ * Splits the toggle effects of a transaction into the marked line starts that
+ * the transaction turns off and the unmarked line starts that it turns on.
+ *
+ * Two toggles of the same position in one transaction cancel each other out.
+ *
+ * @param tr The transaction to inspect.
+ * @param markers The marker set of the transaction's start state.
+ *
+ * @returns The positions to remove and the positions to add.
+ */
+function splitToggles(
+    tr: Transaction,
+    markers: RangeSet<GutterMarker>,
+): { removed: number[]; added: number[] } {
+    const toggled = new Set<number>();
+    for (const effect of tr.effects) {
+        if (effect.is(toggleBreakpoint) && !toggled.delete(effect.value)) {
+            toggled.add(effect.value);
+        }
+    }
+    const removed: number[] = [];
+    const added: number[] = [];
+    [...toggled]
+        .sort((a, b) => a - b)
+        .forEach((pos) => {
+            let has = false;
+            markers.between(pos, pos, () => {
+                has = true;
+            });
+            (has ? removed : added).push(pos);
+        });
+    return { removed, added };
 }
 
 const breakpointField = StateField.define<BreakpointState>({
@@ -452,32 +708,16 @@ const breakpointField = StateField.define<BreakpointState>({
         // moves or deletes must not be mapped onto another line first. Two
         // toggles of the same position in one transaction cancel each other
         // out, so the set keeps the positions toggled an odd number of times.
+        const removalEffect = tr.effects
+            .filter((effect): effect is StateEffect<MarkerRemoval> => effect.is(removeBreakpoints))
+            .at(-1);
         const removed = new Set<number>();
-        for (const effect of tr.effects) {
-            if (effect.is(removeBreakpoints)) {
-                effect.value.forEach((pos) => removed.add(pos));
-            }
+        if (removalEffect) {
+            removalEffect.value.positions.forEach((pos) => removed.add(pos));
         }
-        const toggled = new Set<number>();
-        for (const effect of tr.effects) {
-            if (effect.is(toggleBreakpoint) && !toggled.delete(effect.value)) {
-                toggled.add(effect.value);
-            }
-        }
-        const added: number[] = [];
-        [...toggled]
-            .sort((a, b) => a - b)
-            .forEach((pos) => {
-                let has = false;
-                value.markers.between(pos, pos, () => {
-                    has = true;
-                });
-                if (has) {
-                    removed.add(pos);
-                } else {
-                    added.push(pos);
-                }
-            });
+        const toggled = splitToggles(tr, value.markers);
+        toggled.removed.forEach((pos) => removed.add(pos));
+        const { added } = toggled;
 
         // An insertion at a marked line start that ends with a line break
         // (Enter or a paste at the start of the line) pushes the rule down.
@@ -486,25 +726,58 @@ const breakpointField = StateField.define<BreakpointState>({
         // line. `insertNewlineAndIndent` replaces the leading whitespace of an
         // indented line, so a replacement of the indent carries too.
         //
+        // The extender computes the carry and passes it through
+        // `removeBreakpoints`, so the field maps the marker set only once per
+        // transaction. A transaction extender sees only the effects of the
+        // original transaction spec, while this update reads the effects that
+        // every extender added. A toggle effect added by another extender is
+        // therefore missing from the extender's `removed` set, and the carry
+        // must not bring back a marker that this update removes.
+        //
         // History replays the edit as an undo or a redo transaction and
-        // restores the marker from its stored snapshot, so the carry runs only
-        // on the edit itself. Without the guard, an undo that puts text ending
-        // in a line break back looks like Enter and moves the marker again.
-        const carried = tr.isUserEvent('undo') || tr.isUserEvent('redo')
-            ? new Map<number, number>()
-            : carriedLineStarts(tr, value.markers, removed);
+        // restores the marker from its stored snapshot; the extender skips
+        // those transactions, so the carry is empty there.
+        const carried = new Map<number, number>(removalEffect?.value.carried ?? []);
+        removed.forEach((pos) => carried.delete(pos));
 
-        // `RangeSet.update` rebuilds the whole set, so all removals are applied
-        // with a single update instead of one per effect: `Ctrl+A` → `Ctrl+/`
-        // dispatches one effect per selected line, and rebuilding the set per
-        // effect would make it quadratic in the number of lines.
-        let markers = removed.size > 0
-            ? value.markers.update({ filter: (from) => !removed.has(from) })
-            : value.markers;
-        if (carried.size > 0) {
-            markers = markers.update({ filter: (from) => !carried.has(from) });
+        // `RangeSet.map` reuses the chunks that an edit does not touch, so a
+        // typed character or another edit with a few changed ranges stays
+        // cheap. The linear pass is faster when the changes are spread over the
+        // document, because mapping each marker with `ChangeSet.mapPos` scans
+        // the change sections from the start: the cost there would be markers ×
+        // changes. Decide the path on the start set, before the removals and
+        // the carries: the linear walk skips those positions itself, so it
+        // rebuilds the set once instead of filtering it first and rebuilding it
+        // again.
+        let markers: RangeSet<GutterMarker>;
+        if (needsLinearMapping(value.markers, tr.changes, tr.startState.doc.length)) {
+            // Collect the markers that survive the removals and the carries,
+            // then map their positions in one pass over the sorted markers and
+            // the sorted changes.
+            const survivingPositions: number[] = [];
+            const survivingMarkers: GutterMarker[] = [];
+            for (let cursor = value.markers.iter(); cursor.value; cursor.next()) {
+                if (removed.has(cursor.from) || carried.has(cursor.from)) {
+                    continue;
+                }
+                survivingPositions.push(cursor.from);
+                survivingMarkers.push(cursor.value);
+            }
+            markers = RangeSet.of(
+                mapPositions(tr.changes, survivingPositions)
+                    .map((pos, index) => survivingMarkers[index].range(pos)),
+                true,
+            );
+        } else {
+            // `RangeSet.update` rebuilds the whole set, so a typed character
+            // on a large rule list must not run it when nothing is dropped.
+            markers = removed.size > 0 || carried.size > 0
+                ? value.markers.update({
+                    filter: (from) => !removed.has(from) && !carried.has(from),
+                })
+                : value.markers;
+            markers = markers.map(tr.changes);
         }
-        markers = markers.map(tr.changes);
         // The carried and toggled-on positions are already in new-document
         // coordinates; the added positions need mapping from the start
         // document first.
@@ -522,7 +795,7 @@ const breakpointField = StateField.define<BreakpointState>({
         // Only the kept-at-`toA` case in `deletedLineEffect` produces the
         // duplicate, so the whole set is deduplicated only when that effect is
         // present.
-        if (tr.effects.some((effect) => effect.is(removeBreakpoints)) && markers.size > 1) {
+        if (removalEffect && markers.size > 1) {
             markers = dedupeMarkers(markers);
         }
 
@@ -548,6 +821,13 @@ const breakpointField = StateField.define<BreakpointState>({
  * transaction makes the removal part of the delete's undo step, so an undo
  * restores the line and its marker together.
  *
+ * The effect also carries `carriedLineStarts`, so `breakpointField` reuses the
+ * map instead of scanning the marker set a second time for the same
+ * transaction. The extender sees only the original transaction spec, so it
+ * passes the deletion positions to the carry. `breakpointField` then drops the
+ * entries that its final removed set covers, which includes toggles added by
+ * another extender.
+ *
  * @param tr The transaction to inspect.
  *
  * @returns The removal effect, or `null` when the transaction does not touch a
@@ -555,7 +835,7 @@ const breakpointField = StateField.define<BreakpointState>({
  *   marker snapshot for an undo of a carried marker, of a marker that survives
  *   at a line start, or of the markers of a copied block.
  */
-function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | null {
+function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
     const { doc } = tr.startState;
     const { markers } = tr.startState.field(breakpointField);
     if (markers.size === 0) {
@@ -579,7 +859,9 @@ function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | nu
     // `invertedEffects` provider stores no snapshot and an undo inserts the
     // deleted text after the marker instead of restoring the marker with it.
     let keptLineStart = false;
-    tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    // The callback needs only positions, so iterate the change description
+    // instead of the change set, which builds the inserted text.
+    tr.changes.desc.iterChangedRanges((fromA, toA, fromB, toB) => {
         // A marker at `toA` belongs to the first line that survives the
         // change, but only when the change maps it onto a line start: a
         // replacement that does not end with a line break joins the line to
@@ -628,9 +910,13 @@ function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | nu
     // marker effect: the `invertedEffects` provider stores the snapshot only
     // for a transaction that changes markers, and a joined undo would
     // otherwise lose the carried marker.
+    //
+    // The extender cannot see the toggle effects that another extender adds,
+    // so the carry starts from the deletion positions only. `breakpointField`
+    // reconciles the map against the final removed set.
     const carried = carriedLineStarts(tr, markers, positions);
     return positions.size > 0 || keptLineStart || carried.size > 0
-        ? removeBreakpoints.of([...positions])
+        ? removeBreakpoints.of({ positions: [...positions], carried })
         : null;
 }
 

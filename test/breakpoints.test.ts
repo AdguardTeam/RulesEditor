@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
-import { EditorState } from '@codemirror/state';
+import {
+    ChangeDesc,
+    ChangeSet,
+    EditorState,
+    RangeSet,
+    type RangeValue,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import {
     breakpointState,
@@ -46,6 +52,78 @@ function makeView(doc: string, config?: MarkerConfig): EditorView {
         }),
         parent: document.body,
     });
+}
+
+/**
+ * Reports whether a range set holds enabled-rule markers.
+ *
+ * The markers carry the `factory` of their editor, so this tells the marker
+ * set apart from the empty set and the other range sets that the view maps
+ * during a dispatch.
+ *
+ * @param set The range set to inspect.
+ *
+ * @returns `true` if the set holds an enabled-rule marker.
+ */
+function holdsBreakpointMarkers(set: RangeSet<RangeValue>): boolean {
+    for (let cursor = set.iter(); cursor.value; cursor.next()) {
+        if ('factory' in cursor.value) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Runs a transaction and counts the `RangeSet.map` calls that remapped the
+ * enabled-rule marker set.
+ *
+ * A `view.dispatch` update also maps an empty set, so a call counts only when
+ * it maps a non-empty change set on a set that holds enabled-rule markers. The
+ * spy is restored in `finally`, so a failing assertion leaves no spy behind for
+ * the next test.
+ *
+ * @param run The callback that creates the transaction.
+ *
+ * @returns The number of `RangeSet.map` calls on the marker set.
+ */
+function markerSetMapCalls(run: () => void): number {
+    const map = vi.spyOn(RangeSet.prototype, 'map');
+    try {
+        run();
+        return map.mock.calls.filter(
+            ([changeSet], index) => !changeSet.empty
+                && holdsBreakpointMarkers(map.mock.contexts[index] as RangeSet<RangeValue>),
+        ).length;
+    } finally {
+        map.mockRestore();
+    }
+}
+
+/**
+ * Creates an editor state with an enabled marker on every line of a generated
+ * rule list.
+ *
+ * @param lineCount The number of rules and markers.
+ *
+ * @returns The state and the start offset of every line.
+ */
+function stateWithMarkedLines(lineCount: number): {
+    state: EditorState;
+    lineStarts: number[];
+} {
+    const rules = Array.from({ length: lineCount }, (_, index) => `||rule-${index}.com^`);
+    const lineStarts: number[] = [];
+    let lineStart = 0;
+    rules.forEach((rule) => {
+        lineStarts.push(lineStart);
+        lineStart += rule.length + 1;
+    });
+    const { state } = EditorState.create({
+        doc: rules.join('\n'),
+        extensions: [breakpointState()],
+    }).update({ effects: setBreakpoints.of(lineStarts) });
+    return { state, lineStarts };
 }
 
 test('toggles a breakpoint on a line', () => {
@@ -136,6 +214,244 @@ test('enabledRuleLines reports marked lines', () => {
     const second = view.state.doc.line(2);
     view.dispatch({ effects: toggleBreakpoint.of(second.from) });
     expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('a selection-only transaction keeps the marker set', () => {
+    const view = makeView('||a.com^\n||b.com^');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // A selection-only transaction must not rebuild the set: rebuilding walks
+    // every marker, and a rule list holds thousands of them. `RangeSet.map`
+    // still runs on the empty change set and returns the same set.
+    const build = vi.spyOn(RangeSet, 'of');
+    const rebuild = vi.spyOn(RangeSet.prototype, 'update');
+    const selected = view.state.update({ selection: { anchor: 1 } }).state;
+    expect(build).not.toHaveBeenCalled();
+    expect(rebuild).not.toHaveBeenCalled();
+    build.mockRestore();
+    rebuild.mockRestore();
+
+    expect(enabledRuleLines(selected)).toEqual([1]);
+    view.destroy();
+});
+
+test('Replace All keeps, adds and removes markers in one transaction', () => {
+    const rules = Array.from({ length: 100 }, (_, index) => `||rule-${index}.com^`);
+    const view = makeView(rules.join('\n'));
+    view.dispatch({
+        effects: [1, 2, 4].map((number) => toggleBreakpoint.of(view.state.doc.line(number).from)),
+    });
+    expect(enabledRuleLines(view.state)).toEqual([1, 2, 4]);
+
+    // Insert a line break at the start of line 1 to push its rule down, replace
+    // `com` on every line with longer text, remove the marker of line 2, and
+    // add a marker to line 3 in the same transaction. The kept markers must
+    // follow their lines through the length changes, the carried marker must
+    // move with the pushed-down rule, and the removed and added markers must
+    // follow their effects. The changed ranges take the linear pass, not
+    // `RangeSet.map`.
+    const changes = [
+        { from: 0, insert: '\n' },
+        ...rules.map((rule, index) => {
+            const line = view.state.doc.line(index + 1);
+            const from = line.from + rule.indexOf('com');
+            return { from, to: from + 'com'.length, insert: 'example.org' };
+        }),
+    ];
+    // The DOM update maps an empty set during `view.dispatch`, so the helper
+    // ignores the calls on empty sets: a call on the marker set means the
+    // chunked path ran and the test no longer covers the linear pass.
+    const mapCalls = markerSetMapCalls(() => {
+        view.dispatch({
+            changes,
+            effects: [
+                toggleBreakpoint.of(view.state.doc.line(2).from),
+                toggleBreakpoint.of(view.state.doc.line(3).from),
+            ],
+            userEvent: 'input.replace.all',
+        });
+    });
+    expect(mapCalls).toBe(0);
+
+    expect(enabledRuleLines(view.state)).toEqual([2, 4, 5]);
+    view.destroy();
+});
+
+test('a small edit maps the marker set with the chunked path', () => {
+    const view = makeView('||a.com^\n||b.com^');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // One changed range stays below the linear cutoff, so `RangeSet.map`
+    // remaps the marker set and reuses the chunks that the edit does not
+    // touch. A call on the marker set proves that the chunked path ran.
+    const mapCalls = markerSetMapCalls(() => {
+        view.dispatch({
+            changes: { from: 1, to: 2, insert: 'x' },
+            userEvent: 'input.type',
+        });
+    });
+    expect(mapCalls).toBe(1);
+
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('a block edit with many adjacent ranges keeps the chunked path', () => {
+    const { state, lineStarts } = stateWithMarkedLines(500);
+
+    // A hundred adjacent cursors span a small share of the document, so the
+    // weighted cutoff keeps them on the chunked path even though the count is
+    // above the threshold. A call on the marker set proves that path ran.
+    const changes = lineStarts.slice(0, 100).map((from) => ({ from: from + 2, insert: 'x' }));
+    let next = state;
+    const mapCalls = markerSetMapCalls(() => {
+        next = state.update({ changes, userEvent: 'input.type' }).state;
+    });
+    expect(mapCalls).toBe(1);
+
+    expect(enabledRuleLines(next)).toHaveLength(lineStarts.length);
+});
+
+test('a distant cursor does not send a block edit to the linear pass', () => {
+    const { state, lineStarts } = stateWithMarkedLines(3000);
+
+    // A block of 64 adjacent cursors plus one at the last line. The first
+    // change start and the last change end span the whole document, but the
+    // gap between the block and the distant cursor holds chunks that
+    // `RangeSet.map` does not touch, so the block edit must stay on the chunked
+    // path.
+    const changes = [
+        ...lineStarts.slice(0, 64).map((from) => ({ from: from + 2, insert: 'x' })),
+        { from: lineStarts[lineStarts.length - 1] + 2, insert: 'x' },
+    ];
+    let next = state;
+    const mapCalls = markerSetMapCalls(() => {
+        next = state.update({ changes, userEvent: 'input.type' }).state;
+    });
+    expect(mapCalls).toBe(1);
+
+    expect(enabledRuleLines(next)).toHaveLength(lineStarts.length);
+});
+
+test('a carry seeks across a chunk gap to a marked line start', () => {
+    const { state, lineStarts } = stateWithMarkedLines(2000);
+
+    // The two line-break insertions are farther apart than one marker chunk,
+    // so the carry seeks to the last change instead of stepping over every
+    // unchanged marker. The seek must land on the marker at the change start:
+    // a missed marker would stay on the empty line above the pushed-down rule.
+    const last = lineStarts[lineStarts.length - 1];
+    const next = state.update({
+        changes: [
+            { from: lineStarts[10], insert: '\n' },
+            { from: last, insert: '\n' },
+        ],
+        userEvent: 'input',
+    }).state;
+
+    expect(next.doc.lines).toBe(2002);
+    expect(enabledRuleLines(next)).toHaveLength(2000);
+    // Line 11 is the empty line that the first insertion adds; its rule moved
+    // to line 12.
+    expect(isBreakpointAt(next, next.doc.line(11).from)).toBe(false);
+    expect(isBreakpointAt(next, next.doc.line(12).from)).toBe(true);
+    // Line 2001 is the empty line that the second insertion adds; the last
+    // rule moved to line 2002.
+    expect(isBreakpointAt(next, next.doc.line(2001).from)).toBe(false);
+    expect(isBreakpointAt(next, next.doc.line(2002).from)).toBe(true);
+});
+
+test('a toggle from another extender removes a carried marker', () => {
+    // A transaction extender sees the original transaction, so its toggle is
+    // missing from the carry that `deletedLineEffect` computes. The field must
+    // reconcile the carry against the removed set that it builds after every
+    // extender ran.
+    const extender = EditorState.transactionExtender.of((tr) => (
+        tr.docChanged && !tr.isUserEvent('undo') && !tr.isUserEvent('redo')
+            ? { effects: [toggleBreakpoint.of(2)] }
+            : null
+    ));
+    const state = EditorState.create({
+        doc: 'a\nb',
+        extensions: [breakpointState(), extender],
+    });
+    const marked = state.update({ effects: toggleBreakpoint.of(2) }).state;
+    expect(enabledRuleLines(marked)).toEqual([2]);
+
+    // Enter at the start of line 2 carries its marker down, and the external
+    // extender turns the marker off in the same transaction. The marker must
+    // not come back on the pushed-down line.
+    const next = marked.update({
+        changes: { from: 2, insert: '\n' },
+        userEvent: 'input',
+    }).state;
+    expect(next.doc.toString()).toBe('a\n\nb');
+    expect(enabledRuleLines(next)).toEqual([]);
+});
+
+test('two separated block edits stay on the chunked path', () => {
+    const { state, lineStarts } = stateWithMarkedLines(3000);
+
+    // Two blocks of 50 cursors, one at the top and one at the bottom. The gap
+    // between the blocks counts at most one chunk span, so the untouched
+    // chunks in between do not send the edit to the linear pass.
+    const changes = [
+        ...lineStarts.slice(0, 50).map((from) => ({ from: from + 2, insert: 'x' })),
+        ...lineStarts.slice(lineStarts.length - 50).map((from) => ({
+            from: from + 2,
+            insert: 'x',
+        })),
+    ];
+    let next = state;
+    const mapCalls = markerSetMapCalls(() => {
+        next = state.update({ changes, userEvent: 'input.type' }).state;
+    });
+    expect(mapCalls).toBe(1);
+
+    expect(enabledRuleLines(next)).toHaveLength(lineStarts.length);
+});
+
+test('a spread edit above the cutoff takes the linear pass', () => {
+    const { state, lineStarts } = stateWithMarkedLines(3000);
+
+    // Forty cursors every 75 lines weigh about 39: above the cutoff of 24 and
+    // below 64. A call on the marker set means the chunked path ran, so the
+    // test pins the cutoff: it passes at 24 and fails at 64, which would send
+    // this edit back to the chunked path.
+    const changes = lineStarts
+        .filter((_from, index) => index % 75 === 0)
+        .map((from) => ({ from: from + 2, insert: 'x' }));
+    let next = state;
+    const mapCalls = markerSetMapCalls(() => {
+        next = state.update({ changes, userEvent: 'input.type' }).state;
+    });
+    expect(changes).toHaveLength(40);
+    expect(mapCalls).toBe(0);
+    expect(enabledRuleLines(next)).toHaveLength(lineStarts.length);
+});
+
+test('a document change without markers does not scan the changed ranges', () => {
+    const rules = Array.from({ length: 10 }, (_, index) => `||rule-${index}.com^`);
+    const view = makeView(rules.join('\n'));
+
+    // The field must skip the changed-range scan when the marker set is empty.
+    // The field's scan reads a `ChangeDesc`; the view reads the `ChangeSet`
+    // directly, so only a `ChangeDesc` call would come from the field.
+    const iter = vi.spyOn(ChangeDesc.prototype, 'iterChangedRanges');
+    view.dispatch({
+        changes: rules.map((rule, index) => {
+            const line = view.state.doc.line(index + 1);
+            const from = line.from + rule.indexOf('com');
+            return { from, to: from + 'com'.length, insert: 'example.org' };
+        }),
+        userEvent: 'input.replace.all',
+    });
+    const descCalls = iter.mock.calls.filter(
+        (_call, index) => !(iter.mock.contexts[index] instanceof ChangeSet),
+    );
+    expect(descCalls).toHaveLength(0);
+    iter.mockRestore();
     view.destroy();
 });
 

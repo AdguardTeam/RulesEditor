@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replace All on a large rule list with enabled rules no longer takes
+  seconds.
+- Editing a large rule list with many enabled rules no longer computes the
+  carried markers twice per change or walks the marker set once per changed
+  range to find them.
 - The `toggleRule` callback now also runs when the comment toggle empties a
   marked comment line and removes its marker.
 - `getRulesFromEditor` and `setEditorValue` now throw a
