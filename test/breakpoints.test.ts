@@ -334,6 +334,62 @@ test('a distant cursor does not send a block edit to the linear pass', () => {
     expect(enabledRuleLines(next)).toHaveLength(lineStarts.length);
 });
 
+test('a carry seeks across a chunk gap to a marked line start', () => {
+    const { state, lineStarts } = stateWithMarkedLines(2000);
+
+    // The two line-break insertions are farther apart than one marker chunk,
+    // so the carry seeks to the last change instead of stepping over every
+    // unchanged marker. The seek must land on the marker at the change start:
+    // a missed marker would stay on the empty line above the pushed-down rule.
+    const last = lineStarts[lineStarts.length - 1];
+    const next = state.update({
+        changes: [
+            { from: lineStarts[10], insert: '\n' },
+            { from: last, insert: '\n' },
+        ],
+        userEvent: 'input',
+    }).state;
+
+    expect(next.doc.lines).toBe(2002);
+    expect(enabledRuleLines(next)).toHaveLength(2000);
+    // Line 11 is the empty line that the first insertion adds; its rule moved
+    // to line 12.
+    expect(isBreakpointAt(next, next.doc.line(11).from)).toBe(false);
+    expect(isBreakpointAt(next, next.doc.line(12).from)).toBe(true);
+    // Line 2001 is the empty line that the second insertion adds; the last
+    // rule moved to line 2002.
+    expect(isBreakpointAt(next, next.doc.line(2001).from)).toBe(false);
+    expect(isBreakpointAt(next, next.doc.line(2002).from)).toBe(true);
+});
+
+test('a toggle from another extender removes a carried marker', () => {
+    // A transaction extender sees the original transaction, so its toggle is
+    // missing from the carry that `deletedLineEffect` computes. The field must
+    // reconcile the carry against the removed set that it builds after every
+    // extender ran.
+    const extender = EditorState.transactionExtender.of((tr) => (
+        tr.docChanged && !tr.isUserEvent('undo') && !tr.isUserEvent('redo')
+            ? { effects: [toggleBreakpoint.of(2)] }
+            : null
+    ));
+    const state = EditorState.create({
+        doc: 'a\nb',
+        extensions: [breakpointState(), extender],
+    });
+    const marked = state.update({ effects: toggleBreakpoint.of(2) }).state;
+    expect(enabledRuleLines(marked)).toEqual([2]);
+
+    // Enter at the start of line 2 carries its marker down, and the external
+    // extender turns the marker off in the same transaction. The marker must
+    // not come back on the pushed-down line.
+    const next = marked.update({
+        changes: { from: 2, insert: '\n' },
+        userEvent: 'input',
+    }).state;
+    expect(next.doc.toString()).toBe('a\n\nb');
+    expect(enabledRuleLines(next)).toEqual([]);
+});
+
 test('two separated block edits stay on the chunked path', () => {
     const { state, lineStarts } = stateWithMarkedLines(3000);
 

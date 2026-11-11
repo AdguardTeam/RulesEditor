@@ -45,7 +45,20 @@ function replaceAllSpecs(): ChangeSpec[] {
     });
 }
 
+/**
+ * Builds the changes of a Replace All that replaces the leading `||` of every
+ * line, so every changed range starts on a marked line start. The carry then
+ * inspects every marker of a changed line instead of only the marked lines
+ * next to a change.
+ *
+ * @returns The change specifications.
+ */
+function markedStartSpecs(): ChangeSpec[] {
+    return markerPositions.map((from) => ({ from, to: from + 2, insert: '@@' }));
+}
+
 const changes = ChangeSet.of(replaceAllSpecs(), doc.length);
+const markedStartChanges = ChangeSet.of(markedStartSpecs(), doc.length);
 const stateWithMarkers = EditorState.create({
     doc,
     extensions: [breakpointState()],
@@ -64,6 +77,18 @@ const stateWithoutMarkers = EditorState.create({
  */
 function replaceAll(state: EditorState): EditorState {
     return state.update({ changes, userEvent: 'input.replace.all' }).state;
+}
+
+/**
+ * Applies the Replace All transaction that starts on every marked line and
+ * builds the next state.
+ *
+ * @param state The state to apply the transaction to.
+ *
+ * @returns The state after the transaction.
+ */
+function replaceAllOnMarkedStarts(state: EditorState): EditorState {
+    return state.update({ changes: markedStartChanges, userEvent: 'input.replace.all' }).state;
 }
 
 /**
@@ -217,6 +242,12 @@ bench('Replace All with 50k markers', () => {
 }, BENCH_OPTIONS);
 bench('Replace All without markers', () => {
     replaceAll(stateWithoutMarkers);
+}, BENCH_OPTIONS);
+bench('Replace All on marked line starts with 50k markers', () => {
+    replaceAllOnMarkedStarts(stateWithMarkers);
+}, BENCH_OPTIONS);
+bench('Replace All on marked line starts without markers', () => {
+    replaceAllOnMarkedStarts(stateWithoutMarkers);
 }, BENCH_OPTIONS);
 bench('Single keystroke with 50k markers', () => {
     typeCharacter(stateWithMarkers);

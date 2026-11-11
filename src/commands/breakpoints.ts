@@ -5,6 +5,7 @@ import {
     type Extension,
     Facet,
     MapMode,
+    type RangeCursor,
     RangeSet,
     StateEffect,
     StateField,
@@ -50,7 +51,31 @@ export const setBreakpoints = StateEffect.define<readonly number[]>({
 });
 
 /**
- * Effect that removes the enabled markers at the given line starts.
+ * The value of the `removeBreakpoints` effect.
+ */
+interface MarkerRemoval {
+    /**
+     * The line starts whose marker the transaction removes, in the start
+     * document's coordinates.
+     */
+    positions: readonly number[];
+
+    /**
+     * The marked line starts that the transaction carries to the line start
+     * that now holds the rule, keyed by their start-document positions.
+     */
+    carried: ReadonlyMap<number, number>;
+}
+
+/**
+ * Effect that removes the enabled markers at the given line starts and passes
+ * the carried marker positions to `breakpointField`.
+ *
+ * The extender computes the carry because it has the marker set of the start
+ * state, and the field reuses the map instead of scanning the marker set a
+ * second time for the same transaction. The extender sees only the effects of
+ * the original transaction spec, so the field still reconciles the map against
+ * the removed set that it builds after all extenders ran.
  *
  * The positions are in the transaction's start (pre-change) coordinates, like
  * `toggleBreakpoint`. The effect has no `map` on purpose: `deletedLineMarkers`
@@ -59,7 +84,7 @@ export const setBreakpoints = StateEffect.define<readonly number[]>({
  * document length. A position past that length would throw a `RangeError`, and
  * a removed line start has no position to map to anyway.
  */
-const removeBreakpoints = StateEffect.define<readonly number[]>();
+const removeBreakpoints = StateEffect.define<MarkerRemoval>();
 
 /**
  * Color and inner HTML applied by a marker factory.
@@ -292,6 +317,44 @@ export function mapPositions(changes: ChangeSet, positions: readonly number[]): 
 const MARKERS_PER_CHUNK = 250;
 
 /**
+ * Returns the approximate document span of one marker chunk at the current
+ * marker density.
+ *
+ * A gap longer than this holds more markers than one chunk, so seeking across
+ * it costs no more than walking it and avoids a walk over an untouched region
+ * such as the gap before a distant cursor.
+ *
+ * @param markers The marker set.
+ * @param documentLength The length of the document.
+ *
+ * @returns The approximate span of one chunk.
+ */
+function chunkSpanOf(markers: RangeSet<GutterMarker>, documentLength: number): number {
+    return documentLength / Math.max(1, Math.ceil(markers.size / MARKERS_PER_CHUNK));
+}
+
+/**
+ * Moves the marker cursor to the first marker at or after `pos`.
+ *
+ * A step-by-step walk is linear in the markers inside the gap, and `goto`
+ * rescans the chunks from the first chunk. The function jumps when the gap is
+ * longer than one chunk span, so a distant change costs one chunk scan
+ * instead of a walk over every marker between the changes.
+ *
+ * @param cursor The marker cursor to move.
+ * @param pos The position to move to.
+ * @param chunkSpan The approximate span of one marker chunk.
+ */
+function seekCursor(cursor: RangeCursor<GutterMarker>, pos: number, chunkSpan: number): void {
+    if (cursor.value && cursor.from < pos && pos - cursor.from > chunkSpan) {
+        cursor.goto(pos);
+    }
+    while (cursor.value && cursor.from < pos) {
+        cursor.next();
+    }
+}
+
+/**
  * The weighted span above which `breakpointField.update` maps the markers in
  * one pass over the markers and the changes.
  *
@@ -354,7 +417,7 @@ function needsLinearMapping(
     }
     // One chunk spans about this much of the document at the current marker
     // density. A gap longer than this leaves whole chunks untouched.
-    const chunkSpan = documentLength / Math.ceil(markers.size / MARKERS_PER_CHUNK);
+    const chunkSpan = chunkSpanOf(markers, documentLength);
     let count = 0;
     let span = 0;
     let previousEnd = -1;
@@ -484,36 +547,54 @@ function carriedLineStarts(
     removed: ReadonlySet<number>,
 ): Map<number, number> {
     const carried = new Map<number, number>();
-    if (tr.isUserEvent('input.copyline')) {
-        if (!isCopyLineDown(tr)) {
-            return carried;
+    const isCopyLine = tr.isUserEvent('input.copyline');
+    if (isCopyLine && !isCopyLineDown(tr)) {
+        return carried;
+    }
+    // `markers.between` walks the chunks of the set from the first chunk on
+    // every call, so one call per changed range costs the changed ranges times
+    // the chunks. The cursor below walks the marker ranges once, in order,
+    // over the whole changed span. It seeks to the first changed range once and
+    // then only moves forward, so the walk is linear in the markers it visits
+    // and the changed ranges, not in their product.
+    let firstChange = -1;
+    tr.changes.desc.iterChangedRanges((fromA) => {
+        if (firstChange < 0) {
+            firstChange = fromA;
         }
-        tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    });
+    if (firstChange < 0) {
+        return carried;
+    }
+    const chunkSpan = chunkSpanOf(markers, tr.startState.doc.length);
+    const cursor = markers.iter(firstChange);
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+        if (isCopyLine) {
             if (fromA !== toA || fromB === toB) {
                 return;
             }
+            seekCursor(cursor, fromA, chunkSpan);
             // The copied block occupies `[fromA, fromA + inserted.length)` in
             // the start document, and the copy keeps the same offsets. A
             // marker at the end of the block belongs to the line that follows
-            // it, so the last position to keep is one before that end.
+            // it, so the last position to keep is one before that end. Blocks
+            // of a multi-cursor copy are ordered by their start, so a cursor
+            // that has already passed a marker cannot meet it again here; the
+            // carry value is the marker's own position either way.
             const blockEnd = fromA + inserted.length;
-            markers.between(fromA, blockEnd - 1, (from) => {
-                if (!removed.has(from)) {
-                    carried.set(from, from);
+            while (cursor.value && cursor.from <= blockEnd - 1) {
+                if (!removed.has(cursor.from)) {
+                    carried.set(cursor.from, cursor.from);
                 }
-            });
-        });
-        return carried;
-    }
-    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+                cursor.next();
+            }
+            return;
+        }
         if (removed.has(fromA)) {
             return;
         }
-        let marked = false;
-        markers.between(fromA, fromA, () => {
-            marked = true;
-        });
-        if (!marked) {
+        seekCursor(cursor, fromA, chunkSpan);
+        if (!cursor.value || cursor.from !== fromA) {
             return;
         }
         const line = tr.startState.doc.lineAt(fromA);
@@ -543,6 +624,41 @@ function carriedLineStarts(
         }
     });
     return carried;
+}
+
+/**
+ * Splits the toggle effects of a transaction into the marked line starts that
+ * the transaction turns off and the unmarked line starts that it turns on.
+ *
+ * Two toggles of the same position in one transaction cancel each other out.
+ *
+ * @param tr The transaction to inspect.
+ * @param markers The marker set of the transaction's start state.
+ *
+ * @returns The positions to remove and the positions to add.
+ */
+function splitToggles(
+    tr: Transaction,
+    markers: RangeSet<GutterMarker>,
+): { removed: number[]; added: number[] } {
+    const toggled = new Set<number>();
+    for (const effect of tr.effects) {
+        if (effect.is(toggleBreakpoint) && !toggled.delete(effect.value)) {
+            toggled.add(effect.value);
+        }
+    }
+    const removed: number[] = [];
+    const added: number[] = [];
+    [...toggled]
+        .sort((a, b) => a - b)
+        .forEach((pos) => {
+            let has = false;
+            markers.between(pos, pos, () => {
+                has = true;
+            });
+            (has ? removed : added).push(pos);
+        });
+    return { removed, added };
 }
 
 const breakpointField = StateField.define<BreakpointState>({
@@ -592,32 +708,16 @@ const breakpointField = StateField.define<BreakpointState>({
         // moves or deletes must not be mapped onto another line first. Two
         // toggles of the same position in one transaction cancel each other
         // out, so the set keeps the positions toggled an odd number of times.
+        const removalEffect = tr.effects
+            .filter((effect): effect is StateEffect<MarkerRemoval> => effect.is(removeBreakpoints))
+            .at(-1);
         const removed = new Set<number>();
-        for (const effect of tr.effects) {
-            if (effect.is(removeBreakpoints)) {
-                effect.value.forEach((pos) => removed.add(pos));
-            }
+        if (removalEffect) {
+            removalEffect.value.positions.forEach((pos) => removed.add(pos));
         }
-        const toggled = new Set<number>();
-        for (const effect of tr.effects) {
-            if (effect.is(toggleBreakpoint) && !toggled.delete(effect.value)) {
-                toggled.add(effect.value);
-            }
-        }
-        const added: number[] = [];
-        [...toggled]
-            .sort((a, b) => a - b)
-            .forEach((pos) => {
-                let has = false;
-                value.markers.between(pos, pos, () => {
-                    has = true;
-                });
-                if (has) {
-                    removed.add(pos);
-                } else {
-                    added.push(pos);
-                }
-            });
+        const toggled = splitToggles(tr, value.markers);
+        toggled.removed.forEach((pos) => removed.add(pos));
+        const { added } = toggled;
 
         // An insertion at a marked line start that ends with a line break
         // (Enter or a paste at the start of the line) pushes the rule down.
@@ -626,13 +726,19 @@ const breakpointField = StateField.define<BreakpointState>({
         // line. `insertNewlineAndIndent` replaces the leading whitespace of an
         // indented line, so a replacement of the indent carries too.
         //
+        // The extender computes the carry and passes it through
+        // `removeBreakpoints`, so the field maps the marker set only once per
+        // transaction. A transaction extender sees only the effects of the
+        // original transaction spec, while this update reads the effects that
+        // every extender added. A toggle effect added by another extender is
+        // therefore missing from the extender's `removed` set, and the carry
+        // must not bring back a marker that this update removes.
+        //
         // History replays the edit as an undo or a redo transaction and
-        // restores the marker from its stored snapshot, so the carry runs only
-        // on the edit itself. Without the guard, an undo that puts text ending
-        // in a line break back looks like Enter and moves the marker again.
-        const carried = tr.isUserEvent('undo') || tr.isUserEvent('redo')
-            ? new Map<number, number>()
-            : carriedLineStarts(tr, value.markers, removed);
+        // restores the marker from its stored snapshot; the extender skips
+        // those transactions, so the carry is empty there.
+        const carried = new Map<number, number>(removalEffect?.value.carried ?? []);
+        removed.forEach((pos) => carried.delete(pos));
 
         // `RangeSet.map` reuses the chunks that an edit does not touch, so a
         // typed character or another edit with a few changed ranges stays
@@ -689,7 +795,7 @@ const breakpointField = StateField.define<BreakpointState>({
         // Only the kept-at-`toA` case in `deletedLineEffect` produces the
         // duplicate, so the whole set is deduplicated only when that effect is
         // present.
-        if (tr.effects.some((effect) => effect.is(removeBreakpoints)) && markers.size > 1) {
+        if (removalEffect && markers.size > 1) {
             markers = dedupeMarkers(markers);
         }
 
@@ -715,6 +821,13 @@ const breakpointField = StateField.define<BreakpointState>({
  * transaction makes the removal part of the delete's undo step, so an undo
  * restores the line and its marker together.
  *
+ * The effect also carries `carriedLineStarts`, so `breakpointField` reuses the
+ * map instead of scanning the marker set a second time for the same
+ * transaction. The extender sees only the original transaction spec, so it
+ * passes the deletion positions to the carry. `breakpointField` then drops the
+ * entries that its final removed set covers, which includes toggles added by
+ * another extender.
+ *
  * @param tr The transaction to inspect.
  *
  * @returns The removal effect, or `null` when the transaction does not touch a
@@ -722,7 +835,7 @@ const breakpointField = StateField.define<BreakpointState>({
  *   marker snapshot for an undo of a carried marker, of a marker that survives
  *   at a line start, or of the markers of a copied block.
  */
-function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | null {
+function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
     const { doc } = tr.startState;
     const { markers } = tr.startState.field(breakpointField);
     if (markers.size === 0) {
@@ -797,9 +910,13 @@ function deletedLineEffect(tr: Transaction): StateEffect<readonly number[]> | nu
     // marker effect: the `invertedEffects` provider stores the snapshot only
     // for a transaction that changes markers, and a joined undo would
     // otherwise lose the carried marker.
+    //
+    // The extender cannot see the toggle effects that another extender adds,
+    // so the carry starts from the deletion positions only. `breakpointField`
+    // reconciles the map against the final removed set.
     const carried = carriedLineStarts(tr, markers, positions);
     return positions.size > 0 || keptLineStart || carried.size > 0
-        ? removeBreakpoints.of([...positions])
+        ? removeBreakpoints.of({ positions: [...positions], carried })
         : null;
 }
 
