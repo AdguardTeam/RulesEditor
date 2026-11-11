@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [2.0.4] - 2026-11-11
+
+### Added
+
 - The search panel shows the position of the selected match and the number of
   matches in the whole document (e.g. `3 of 12`) next to the search field.
   A match selected with Find next or Find previous is numbered even when it
@@ -38,10 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `instanceof`. `setEditorValue` used to replace the text of such an
   editor; `getRulesFromEditor` threw the generic CodeMirror "field is not
   present" error instead.
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 
@@ -96,8 +106,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   comment toggle empties it.
 - A `Ctrl+A` → `Ctrl+/` toggle on a large document no longer maps each line
   through the whole change set, so the toggle and its undo stay fast.
-
-### Security
 
 ## [2.0.3] - 2026-10-22
 
@@ -389,7 +397,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `initEditor()`, `simpleTokenizer()` and `getTokenizer()` methods.
 
-[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3...HEAD
+[Unreleased]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.4...HEAD
+[2.0.4]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.2...v2.0.3
 [2.0.3-beta.2]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.1...v2.0.3-beta.2
 [2.0.3-beta.1]: https://github.com/AdguardTeam/RulesEditor/compare/v2.0.3-beta.0...v2.0.3-beta.1
