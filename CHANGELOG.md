@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The search panel shows the position of the selected match and the number of
+  matches in the whole document (e.g. `3 of 12`) next to the search field.
+  A match selected with Find next or Find previous is numbered even when it
+  overlaps another match, and the count updates after a short pause in typing.
+  Turn it off with the `withSearchMatchCount: false` option of `initEditor`.
+  The texts are translatable through `EditorState.phrases`.
 - `MissingBreakpointFieldError`, thrown by `getRulesFromEditor` and
   `setEditorValue` when the editor has no enabled-rule field.
 - `setEditorValue` accepts `null` for `markerOptions.color` or

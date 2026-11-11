@@ -16,6 +16,7 @@ and a WASM-backed tokenizer for custom rule rendering.
     - [Editor](#editor)
         - [Theming](#theming)
         - [Highlighting strategy](#highlighting-strategy)
+        - [Search match count](#search-match-count)
         - [Multi-cursor editing](#multi-cursor-editing)
     - [Tokenizing a Rule](#tokenizing-a-rule)
     - [Inspecting a Line (scope debugging)](#inspecting-a-line-scope-debugging)
@@ -123,6 +124,23 @@ const plain = await initEditor(textarea, undefined, {
 
 `initEditor` still returns a `Promise<EditorView>` for every strategy, so
 existing `await initEditor(...)` call sites are unaffected.
+
+#### Search match count
+
+The search panel (`Ctrl+F` / `Cmd+F`) shows the position of the selected match
+and the number of matches next to the search field, for example `3 of 12`. The
+count covers the whole document, not only the lines currently rendered. It
+stops at 10000 matches: exactly 10000 shows `10000`, more shows `10000+`, and a
+match selected past the first 10000 shows `?` as its position. `?` also stands
+for the position while the selection is not a match, a selection that only
+covers part of one included, and a non-empty valid query that matches nothing
+shows `No results` (an empty or invalid query leaves the status blank).
+Translate the texts with `EditorState.phrases` (`No results`, `$1 of $2`). Set
+`withSearchMatchCount: false` to leave the status out. The status is attached
+to the search field of the built-in panel markup
+(`.cm-panel.cm-search input[name="search"]`): a custom panel
+(`search({ createPanel })`) with its own markup shows nothing, while one that
+reuses the built-in markup gets the status.
 
 #### Multi-cursor editing
 
@@ -239,6 +257,7 @@ A `WasmSource` is a URL/string (fetched at runtime), `Response`,
 | `conf.hotkeys.markerColor`    | CSS color for this editor's breakpoint marker icon; other editors keep their own color. Also colors a custom `markerHTML` through `currentColor` and the inherited `color`. Default `var(--stroke-icons-product-icon-default, #67B279)`, which a page can set; an empty string means the default |
 | `conf.hotkeys.markerHTML`     | Custom innerHTML for this editor's breakpoint marker icon; other editors keep their own HTML. Default is a check mark icon; an empty string means the default                                                                                                                                    |
 | `conf.withMultipleSelections` | Enable multi-cursor editing (default `true`)                                                                                                                                                                                                                                                     |
+| `conf.withSearchMatchCount`   | Show the selected match position and the match count of the whole document (`3 of 12`) in the search panel (default `true`)                                                                                                                                                                      |
 | `conf.withBreakpoints`        | Enable the enabled-rule gutter; required by `getRulesFromEditor` and `setEditorValue`                                                                                                                                                                                                            |
 | `conf.onChange`               | Called after each document change                                                                                                                                                                                                                                                                |
 | `conf.extensions`             | Extra CodeMirror 6 extensions appended last                                                                                                                                                                                                                                                      |
