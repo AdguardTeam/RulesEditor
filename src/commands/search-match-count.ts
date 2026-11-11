@@ -83,26 +83,34 @@ function collectMatches(state: EditorState, query: SearchQuery): MatchList | nul
  * Finds the 1-based number of the match the main selection covers or
  * overlaps, as after a find-next jump. Find next and find previous select an
  * overlapping occurrence when one exists, while the counting cursor skips it,
- * so the selection gets the number of the counted match it overlaps.
+ * so a selection that is itself a match gets the number of the counted match
+ * it overlaps. A selection that merely touches a match stays unnumbered.
  *
  * @param matches The counted matches.
  * @param state The editor state.
+ * @param query The search query, used to tell whether the selection is a
+ *   match itself.
  *
- * @returns The match number, or `null` when the selection is not on a counted
- *   match.
+ * @returns The match number, or `null` when the selection is not a match.
  */
-function selectedMatchNumber(matches: MatchList, state: EditorState): number | null {
+function selectedMatchNumber(
+    matches: MatchList,
+    state: EditorState,
+    query: SearchQuery,
+): number | null {
     const { from, to } = state.selection.main;
     const { ranges } = matches;
 
     // The ranges are sorted by start, so a binary search finds the last range
-    // starting at or before the end of the selection.
+    // starting at or before the selection start: a match that Find next
+    // selects starts there, and one that Find previous selects overlaps a
+    // range that starts at or before it.
     let low = 0;
     let high = ranges.length - 1;
     let candidate = -1;
     while (low <= high) {
         const middle = (low + high) >> 1;
-        if (ranges[middle].from <= to) {
+        if (ranges[middle].from <= from) {
             candidate = middle;
             low = middle + 1;
         } else {
@@ -119,8 +127,12 @@ function selectedMatchNumber(matches: MatchList, state: EditorState): number | n
     }
 
     // A caret does not cover a match, but a zero-width match is still found
-    // by the exact check above.
-    return from < to && range.from < to && range.to > from ? candidate + 1 : null;
+    // by the exact check above. A wider selection gets the number only when
+    // it is a match itself that starts inside the counted range.
+    const own = query.getCursor(state, from, to).next();
+    const isOwnMatch = !own.done && own.value.from === from && own.value.to === to;
+
+    return isOwnMatch && range.from < to && range.to > from ? candidate + 1 : null;
 }
 
 /**
@@ -128,10 +140,11 @@ function selectedMatchNumber(matches: MatchList, state: EditorState): number | n
  *
  * @param matches The counted matches, or `null` for an empty or invalid query.
  * @param state The editor state, used for the phrases.
+ * @param query The search query, used to number the selected match.
  *
  * @returns The status text; an empty string for an empty or invalid query.
  */
-function formatStatus(matches: MatchList | null, state: EditorState): string {
+function formatStatus(matches: MatchList | null, state: EditorState, query: SearchQuery): string {
     if (matches === null) {
         return '';
     }
@@ -142,7 +155,7 @@ function formatStatus(matches: MatchList | null, state: EditorState): string {
     const total = matches.truncated
         ? `${MAX_COUNTED_MATCHES}+`
         : String(matches.ranges.length);
-    const position = selectedMatchNumber(matches, state);
+    const position = selectedMatchNumber(matches, state, query);
 
     return state.phrase(POSITION_PHRASE, position ?? UNKNOWN_POSITION, total);
 }
@@ -297,7 +310,7 @@ class SearchMatchCountPlugin {
             field.after(this.element);
         }
 
-        const text = formatStatus(this.matches, this.view.state);
+        const text = formatStatus(this.matches, this.view.state, getSearchQuery(this.view.state));
         if (this.element.textContent !== text) {
             this.element.textContent = text;
         }
@@ -310,10 +323,10 @@ class SearchMatchCountPlugin {
  * the whole document, not only the rendered lines, and counting stops at 10000
  * matches: exactly 10000 shows `10000`, more shows `10000+`, and a match
  * selected past the first 10000 shows `?` as its position. `?` also stands for
- * the position when the selection is not on a counted match, and a non-empty
- * valid query without matches shows `No results` (an empty or invalid query
- * leaves the status blank). The texts are translatable through
- * `EditorState.phrases` (`No results`, `$1 of $2`).
+ * the position when the selection is not a match, including a selection that
+ * only covers part of one, and a non-empty valid query without matches shows
+ * `No results` (an empty or invalid query leaves the status blank). The texts
+ * are translatable through `EditorState.phrases` (`No results`, `$1 of $2`).
  *
  * The status is attached to the search field of the built-in panel markup
  * (`.cm-panel.cm-search input[name="search"]`). A custom panel

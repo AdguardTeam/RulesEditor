@@ -12,6 +12,7 @@ import { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import {
     afterEach,
+    beforeEach,
     expect,
     test,
     vi,
@@ -27,18 +28,36 @@ const FIVE_MATCHES_DOC = 'a\na\na\na\na';
 
 const OVERLAPPING_DOC = 'example.com###banner';
 
+const ADJACENT_DOC = '||example.com^';
+
+/**
+ * Debounce of the plugin before it recounts, mirrored here so a test can
+ * check a moment before it elapses.
+ */
+const RECOUNT_DELAY_MS = 100;
+
 /**
  * Longer than the plugin's recount debounce, so the status has settled.
  */
-const RECOUNT_WAIT_MS = 200;
+const RECOUNT_WAIT_MS = RECOUNT_DELAY_MS + 100;
+
+/**
+ * Longer than a frame, so a measure scheduled by `view.requestMeasure` runs.
+ */
+const FRAME_WAIT_MS = 20;
 
 const views: EditorView[] = [];
 
 stubRangeClientRects();
 
+beforeEach(() => {
+    vi.useFakeTimers();
+});
+
 afterEach(() => {
     views.splice(0).forEach((view) => view.destroy());
     document.body.innerHTML = '';
+    vi.useRealTimers();
     vi.restoreAllMocks();
 });
 
@@ -64,9 +83,9 @@ async function createView(conf: Partial<InitEditorConfig> = {}, doc = DOC): Prom
  * @returns A promise resolved after the status is written.
  */
 async function flush(view: EditorView): Promise<void> {
-    await new Promise((resolve) => { setTimeout(resolve, RECOUNT_WAIT_MS); });
+    await vi.advanceTimersByTimeAsync(RECOUNT_WAIT_MS);
     view.requestMeasure();
-    await new Promise((resolve) => { requestAnimationFrame(resolve); });
+    await vi.advanceTimersByTimeAsync(FRAME_WAIT_MS);
 }
 
 /**
@@ -134,6 +153,54 @@ test('numbers a selected overlapping match by the counted match it overlaps', as
     findPrevious(view);
     await flush(view);
     expect(status(view)).toBe('1 of 1');
+});
+
+test('numbers adjacent one-character matches from the selection start', async () => {
+    const view = await createView({}, ADJACENT_DOC);
+    searchFor(view, '|');
+    await flush(view);
+    expect(status(view)).toBe('? of 2');
+
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('1 of 2');
+
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('2 of 2');
+});
+
+test('numbers adjacent multi-character matches from the selection start', async () => {
+    const view = await createView({}, 'aaaa');
+    searchFor(view, 'aa');
+    await flush(view);
+    expect(status(view)).toBe('? of 2');
+
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('1 of 2');
+
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('2 of 2');
+});
+
+test('shows "?" for a selection that is not a match', async () => {
+    const view = await createView();
+    searchFor(view, 'a.com');
+    findNext(view);
+    await flush(view);
+    expect(status(view)).toBe('1 of 2');
+
+    // `.co` covers part of the first match only.
+    view.dispatch({ selection: { anchor: 3, head: 6 } });
+    await flush(view);
+    expect(status(view)).toBe('? of 2');
+
+    // Select All covers every match.
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+    await flush(view);
+    expect(status(view)).toBe('? of 2');
 });
 
 test('places the status right after the search field', async () => {
@@ -318,6 +385,16 @@ test('debounces rapid document changes', async () => {
 
     view.dispatch({ changes: { from: view.state.doc.length, insert: '\n||a.com^' } });
     view.dispatch({ changes: { from: view.state.doc.length, insert: '\n||a.com^' } });
+
+    // Both edits are in the same tick and the debounce has not elapsed, so
+    // the document is not scanned again and the status still describes the
+    // old count.
+    await vi.advanceTimersByTimeAsync(RECOUNT_DELAY_MS - 1);
+    expect(getCursor).toHaveBeenCalledTimes(counted);
+    expect(status(view)).toBe('? of 2');
+
+    // Past the delay the two edits cost one scan.
+    await vi.advanceTimersByTimeAsync(1);
     await flush(view);
 
     expect(getCursor).toHaveBeenCalledTimes(counted + 1);
