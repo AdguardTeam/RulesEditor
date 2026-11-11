@@ -126,13 +126,24 @@ function selectedMatchNumber(
         return candidate + 1;
     }
 
+    // The candidate starts at or before the selection start, so a selection
+    // that begins at or after the candidate end cannot overlap it: it is not
+    // a match the counting cursor skipped, and scanning it would only cost
+    // time on every selection change.
+    if (range.to <= from) {
+        return null;
+    }
+
     // A caret does not cover a match, but a zero-width match is still found
     // by the exact check above. A wider selection gets the number only when
-    // it is a match itself that starts inside the counted range.
-    const own = query.getCursor(state, from, to).next();
+    // it is a match itself that starts inside the counted range. The cursor
+    // runs to the end of the line rather than to the selection end, so a
+    // regexp that looks past the selection (`$`, a lookahead, a word
+    // boundary) still sees the text it matches against.
+    const own = query.getCursor(state, from, state.doc.lineAt(to).to).next();
     const isOwnMatch = !own.done && own.value.from === from && own.value.to === to;
 
-    return isOwnMatch && range.from < to && range.to > from ? candidate + 1 : null;
+    return isOwnMatch ? candidate + 1 : null;
 }
 
 /**

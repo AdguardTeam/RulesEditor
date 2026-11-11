@@ -203,6 +203,53 @@ test('shows "?" for a selection that is not a match', async () => {
     expect(status(view)).toBe('? of 2');
 });
 
+test('shows "?" for a selection that is a prefix of a regexp match', async () => {
+    const view = await createView({}, '||example.com^$third-party');
+    openSearchPanel(view);
+    view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: '\\$[a-z-]+', regexp: true })),
+    });
+    await flush(view);
+    expect(status(view)).toBe('? of 1');
+
+    // `$third` is only the start of the counted match `$third-party`.
+    view.dispatch({ selection: { anchor: 14, head: 20 } });
+    await flush(view);
+    expect(status(view)).toBe('? of 1');
+});
+
+test('numbers a regexp match that a selection ends before, with a lookahead', async () => {
+    const view = await createView({}, 'aaaa');
+    openSearchPanel(view);
+    view.dispatch({
+        effects: setSearchQuery.of(new SearchQuery({ search: 'aa(?=a)', regexp: true })),
+    });
+    await flush(view);
+    expect(status(view)).toBe('? of 1');
+
+    // The match ends at offset 3, and only the text past the selection shows
+    // that the lookahead succeeds.
+    view.dispatch({ selection: { anchor: 1, head: 3 } });
+    await flush(view);
+    expect(status(view)).toBe('1 of 1');
+});
+
+test('does not scan a selection that starts after the counted match', async () => {
+    const getCursor = vi.spyOn(SearchQuery.prototype, 'getCursor');
+    const view = await createView();
+    searchFor(view, 'c.org');
+    await flush(view);
+    expect(status(view)).toBe('? of 1');
+    const counted = getCursor.mock.calls.length;
+
+    // The selection lies entirely after the only match.
+    view.dispatch({ selection: { anchor: view.state.doc.length - 1, head: view.state.doc.length } });
+    await flush(view);
+
+    expect(getCursor).toHaveBeenCalledTimes(counted);
+    expect(status(view)).toBe('? of 1');
+});
+
 test('places the status right after the search field', async () => {
     const view = await createView();
     searchFor(view, 'a.com');
