@@ -4,6 +4,7 @@ import {
     EditorState,
     type Extension,
     MapMode,
+    type Range,
     type RangeCursor,
     RangeSet,
     StateEffect,
@@ -239,6 +240,23 @@ class BreakpointMarker extends GutterMarker {
     constructor(factory: () => HTMLElement) {
         super();
         this.factory = factory;
+    }
+
+    /**
+     * Compares this marker with another marker.
+     *
+     * The gutter redraws a line only when its marker changes, and an unchanged
+     * marker keeps its old DOM. Two markers of the same factory render the
+     * same DOM, so they are equal even when they are different objects. A
+     * factory change replaces the marker objects instead, because every marker
+     * captures the factory that renders it.
+     *
+     * @param other The marker to compare with.
+     *
+     * @returns `true` when `other` is a marker of this factory.
+     */
+    public eq(other: GutterMarker): boolean {
+        return other instanceof BreakpointMarker && other.factory === this.factory;
     }
 
     /**
@@ -830,6 +848,17 @@ const breakpointField = StateField.define<BreakpointState>({
         // present.
         if (removalEffect && markers.size > 1) {
             markers = dedupeMarkers(markers);
+        }
+
+        // A factory change must replace every marker object: a marker captures
+        // the factory that renders it, and the gutter redraws a line only when
+        // its marker changes.
+        if (factoryEffect) {
+            const rebuilt: Range<GutterMarker>[] = [];
+            markers.between(0, tr.newDoc.length, (from) => {
+                rebuilt.push(new BreakpointMarker(factory).range(from));
+            });
+            markers = RangeSet.of(rebuilt, true);
         }
 
         return {

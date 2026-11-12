@@ -28,6 +28,7 @@ import {
 import {
     MARKER_COLOR,
     MARKER_ICON_PATH,
+    visibleGutterElements,
     visibleGutterText,
     visibleMarker,
 } from './helpers';
@@ -138,6 +139,23 @@ function markerSetMapCalls(run: () => void): number {
 }
 
 /**
+ * Returns the marker element of every marked line, in line order.
+ *
+ * @param view The editor view.
+ *
+ * @returns The marker elements of the visible gutter elements.
+ */
+function markerNodes(view: EditorView): HTMLElement[] {
+    return visibleGutterElements(view).map((element) => {
+        const markerElement = element.firstElementChild;
+        if (!(markerElement instanceof HTMLElement)) {
+            throw new Error('The gutter element has no marker element.');
+        }
+        return markerElement;
+    });
+}
+
+/**
  * Creates an editor state with an enabled marker on every line of a generated
  * rule list.
  *
@@ -169,6 +187,37 @@ test('toggles a breakpoint on a line', () => {
     expect(isBreakpointAt(view.state, line.from)).toBe(false);
     view.dispatch({ effects: toggleBreakpoint.of(line.from) });
     expect(isBreakpointAt(view.state, line.from)).toBe(true);
+    view.destroy();
+});
+
+test('a toggle redraws only the marker of the toggled line', () => {
+    const rules = Array.from({ length: 31 }, (_, index) => `||rule-${index}.com^`);
+    let renders = 0;
+    const factory = (): HTMLElement => {
+        renders += 1;
+        const element = document.createElement('div');
+        element.textContent = 'rule';
+        return element;
+    };
+    const view = makeView(rules.join('\n'), { factory, options: {} });
+    // Mark every line except the first one, so the toggle below adds one marker
+    // at the top of a set that already spans the document.
+    view.dispatch({
+        effects: rules.slice(1).map(
+            (_, index) => toggleBreakpoint.of(view.state.doc.line(index + 2).from),
+        ),
+    });
+    expect(enabledRuleLines(view.state)).toHaveLength(30);
+
+    // Reset the counter after the initial draw of the markers and the spacer.
+    renders = 0;
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // Only the marker that the toggle adds needs a new DOM element. The other
+    // 30 markers reuse the rendered elements of the same factory, so a marker
+    // factory call per marked line would redraw every line.
+    expect(enabledRuleLines(view.state)).toHaveLength(31);
+    expect(renders).toBe(1);
     view.destroy();
 });
 
@@ -338,6 +387,39 @@ test('reuses the spacer element while the factory does not change', () => {
     // would keep the 'spacer' text.
     expect(spacer?.textContent).toBe('next');
     expect(renders).toBe(2);
+    view.destroy();
+});
+
+test('a factory change redraws every marked line', () => {
+    const rules = Array.from({ length: 5 }, (_, index) => `||rule-${index}.com^`);
+    const view = makeView(rules.join('\n'), { factory: marker('before'), options: {} });
+    view.dispatch({
+        effects: rules.map((_, index) => toggleBreakpoint.of(view.state.doc.line(index + 1).from)),
+    });
+    const before = markerNodes(view);
+    expect(before).toHaveLength(5);
+    expect(visibleGutterText(view)).toBe('beforebeforebeforebeforebefore');
+
+    const created: HTMLElement[] = [];
+    const nextFactory = (): HTMLElement => {
+        const element = document.createElement('div');
+        element.textContent = 'after';
+        created.push(element);
+        return element;
+    };
+    view.dispatch({
+        effects: setMarkerFactory.of({ factory: nextFactory, options: {} }),
+    });
+
+    // A marker captures its factory, so the field must rebuild every marker
+    // with the new factory. The gutter then redraws every marked line.
+    const after = markerNodes(view);
+    expect(after).toHaveLength(5);
+    expect(visibleGutterText(view)).toBe('afterafterafterafterafter');
+    after.forEach((node, index) => {
+        expect(node).not.toBe(before[index]);
+        expect(created).toContain(node);
+    });
     view.destroy();
 });
 

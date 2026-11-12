@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The enabled-rule gutter module now owns the default marker factory, its
   product color, and its check mark icon.
+- The enabled-rule gutter reuses the rendered marker DOM of a line when its
+  marker did not change, so toggling a rule no longer redraws the markers
+  below it, and undo, redo or loading a rule list no longer redraws every
+  marker. A marker factory change still redraws every marked line.
 
 ### Deprecated
 

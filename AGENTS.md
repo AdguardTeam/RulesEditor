@@ -319,6 +319,14 @@ sync with the actual keymap.
   also applies to other editors on the page. The base-theme layer is what
   keeps the rule below consumer themes and overridable; state the whole scope
   in the code comment, the README and the CHANGELOG when the rule changes.
+- **Keep marker equality in sync with the rendered DOM** — the gutter reuses
+  its elements positionally and keeps the old DOM of a marker when
+  `GutterMarker.compare` holds: identity, or the same `constructor` and
+  `eq`. A `GutterMarker` subclass whose markers of one factory render the
+  same DOM MUST implement `eq` in terms of that factory, not identity.
+  Anything that changes what a marker renders (the factory) MUST replace the
+  marker objects in the state field: a marker that captures the old factory
+  is never equal to one that captures the new factory.
 - **Document precedence** — built-in keymaps are registered before
   `conf.extensions`. The AdGuard bindings run at `Prec.high`, so a
   `Prec.high` consumer binding cannot shadow them (at equal precedence the
