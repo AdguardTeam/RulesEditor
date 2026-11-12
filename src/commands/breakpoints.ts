@@ -3,7 +3,6 @@ import {
     type ChangeSet,
     EditorState,
     type Extension,
-    Facet,
     MapMode,
     type RangeCursor,
     RangeSet,
@@ -117,33 +116,57 @@ export interface MarkerConfig {
 }
 
 /**
+ * Default color of the gutter marker icon.
+ *
+ * The CSS variable keeps the icon in the product color; the fallback applies
+ * on a page that does not define the variable.
+ */
+const DEFAULT_MARKER_COLOR = 'var(--stroke-icons-product-icon-default, #67B279)';
+
+/**
+ * Default inner HTML of the gutter marker icon (a check mark).
+ *
+ * The path paints itself with `currentColor`, so the `color` of the marker
+ * element colors the icon.
+ */
+const DEFAULT_MARKER_HTML = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 16 16" fill="none"><path fill-rule="evenodd" clip-rule="evenodd" d="M13.9888 3.24536C14.4056 3.60773 14.4497 4.23936 14.0873 4.65614L7.13182 12.6561C6.94683 12.8689 6.68062 12.9937 6.39875 12.9998C6.11688 13.0059 5.84553 12.8927 5.65154 12.6881L1.94039 8.77448C1.56037 8.37373 1.57718 7.74079 1.97793 7.36077C2.37868 6.98075 3.01163 6.99756 3.39165 7.39831L6.34505 10.5128L12.578 3.34389C12.9404 2.92711 13.572 2.88299 13.9888 3.24536Z" fill="currentColor"/></svg>';
+
+/**
+ * Creates the marker DOM factory used for enabled rules in the gutter.
+ *
+ * The default icon paints itself with `currentColor`, so `options.color`
+ * colors it. A custom `innerHTML` takes the color through `currentColor`
+ * and, since `color` is an inherited property, through plain text. An empty
+ * string means the default for both fields.
+ *
+ * @param options Color and inner HTML for the marker.
+ *
+ * @returns A factory producing marker elements.
+ */
+export const createMarker = (options: MarkerOptions) => (): HTMLElement => {
+    const marker = document.createElement('div');
+    marker.style.color = options.color || DEFAULT_MARKER_COLOR;
+    marker.style.marginLeft = '-12px';
+    marker.style.marginTop = '4px';
+    marker.innerHTML = options.innerHTML || DEFAULT_MARKER_HTML;
+    return marker;
+};
+
+/**
+ * Builds the marker config of an editor that has no marker option.
+ *
+ * @returns The default factory and its empty options.
+ */
+const createDefaultMarkerConfig = (): MarkerConfig => ({
+    factory: createMarker({}),
+    options: {},
+});
+
+/**
  * Effect that replaces the marker factory of the editor that handles it,
  * together with the options the factory was built from.
  */
 export const setMarkerFactory = StateEffect.define<MarkerConfig>();
-
-/**
- * Builds the default marker element (a filled circle).
- *
- * @returns The default marker DOM element.
- */
-function defaultMarker(): HTMLElement {
-    const el = document.createElement('div');
-    el.textContent = '\u25CF';
-    return el;
-}
-
-/**
- * Facet that holds the marker factory of one editor together with the options
- * it applies, so two editors on the same page can render different marker
- * styles and a later marker change can merge the current options instead of
- * wrapping the current factory in another layer.
- */
-const markerConfig = Facet.define<MarkerConfig, MarkerConfig>({
-    // CodeMirror resolves facet providers highest-precedence first, so the
-    // first value is the one that wins.
-    combine: (configs) => configs[0] ?? { factory: defaultMarker, options: {} },
-});
 
 /**
  * The range value settings of an enabled-rule marker. `RangeSet.map` reads
@@ -661,15 +684,25 @@ function splitToggles(
     return { removed, added };
 }
 
+/**
+ * Builds the initial value of the enabled-rule field.
+ *
+ * `StateField.create` and the `breakpointField.init` provider both need this
+ * value: the init provider supplies it when `breakpointState` installs the
+ * field, while `StateField.define` still requires a `create` callback.
+ *
+ * @param config The marker factory and the options it applies.
+ *
+ * @returns The initial breakpoint state.
+ */
+const createBreakpointState = (config: MarkerConfig): BreakpointState => ({
+    markers: RangeSet.empty,
+    ...config,
+    initialOptions: config.options,
+});
+
 const breakpointField = StateField.define<BreakpointState>({
-    create: (state) => {
-        const config = state.facet(markerConfig);
-        return {
-            markers: RangeSet.empty,
-            ...config,
-            initialOptions: config.options,
-        };
-    },
+    create: () => createBreakpointState(createDefaultMarkerConfig()),
     update(value, tr) {
         const factoryEffect = tr.effects.find((effect) => effect.is(setMarkerFactory));
         const factory = factoryEffect ? factoryEffect.value.factory : value.factory;
@@ -977,17 +1010,28 @@ export function initialMarkerOptionsOf(state: EditorState): MarkerOptions | unde
 /**
  * Editor extension providing the enabled-rule gutter and its state field.
  *
+ * Each call returns a new `StateField.init` provider. CodeMirror re-creates
+ * the field value when the provider object changes, so a new call installed
+ * through `StateEffect.reconfigure` or a compartment reconfigure starts with
+ * an empty marker set and the marker options of that call. Install the
+ * extension once and change the factory with `setMarkerFactory`; a
+ * reconfigure of another compartment keeps the markers.
+ *
+ * When the state carries several instances, the first init provider wins, so
+ * a config-less instance added before a marked one, or at a higher
+ * precedence, replaces the marker options.
+ *
  * @param options Gutter configuration.
  * @param options.marker Factory that renders the markers of this editor and
- *   the color and inner HTML it applies. Defaults to a filled circle with no
- *   color or HTML override.
+ *   the color and inner HTML it applies. Defaults to `createMarker({})`: the
+ *   product color and the check mark icon.
  *
  * @returns A CodeMirror 6 extension.
  */
 export function breakpointState(options: { marker?: MarkerConfig } = {}): Extension {
+    const config = options.marker ?? createDefaultMarkerConfig();
     return [
-        options.marker ? markerConfig.of(options.marker) : [],
-        breakpointField,
+        breakpointField.init(() => createBreakpointState(config)),
         deletedLineMarkers,
         // A marker change is inverted by restoring the whole marker set of the
         // transaction's start state. Restoring positions one by one cannot
@@ -1013,7 +1057,7 @@ export function breakpointState(options: { marker?: MarkerConfig } = {}): Extens
         gutter({
             class: 'cm-breakpoint-gutter',
             markers: (view) => view.state.field(breakpointField).markers,
-            // The field, not the facet, is the runtime source of the factory:
+            // The field is the runtime source of the factory:
             // `setMarkerFactory` changes it after the editor is created.
             initialSpacer: (view) => new BreakpointMarker(
                 view.state.field(breakpointField).factory,

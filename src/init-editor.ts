@@ -21,6 +21,7 @@ import {
 
 import {
     breakpointState,
+    createMarker,
     enabledRuleLines,
     hasBreakpointField,
     initialMarkerOptionsOf,
@@ -30,7 +31,7 @@ import {
     setBreakpoints,
     setMarkerFactory,
 } from './commands/breakpoints';
-import { configureAceParityKeys, configureHotKeys, createMarker } from './commands/hot-keys';
+import { configureAceParityKeys, configureHotKeys } from './commands/hot-keys';
 import { searchMatchCount } from './commands/search-match-count';
 import { createTextmateLanguage } from './highlight/textmate-language';
 import { SCOPE_ADBLOCK } from './lib/constants';
@@ -287,9 +288,9 @@ export async function initEditor(
     }
 
     if (conf.withBreakpoints) {
-        // The factory and its options are one facet value: a later
-        // `setEditorValue` merges the stored options instead of reading the
-        // rendering of the current factory.
+        // The factory and its options are stored together as the field init
+        // value: a later `setEditorValue` merges the stored options instead of
+        // reading the rendering of the current factory.
         const markerOptions = {
             color: conf.hotkeys.markerColor,
             innerHTML: conf.hotkeys.markerHTML,

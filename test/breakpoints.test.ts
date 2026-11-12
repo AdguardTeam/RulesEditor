@@ -2,7 +2,9 @@
 import {
     ChangeDesc,
     ChangeSet,
+    Compartment,
     EditorState,
+    Prec,
     RangeSet,
     type RangeValue,
 } from '@codemirror/state';
@@ -11,7 +13,9 @@ import { expect, test, vi } from 'vitest';
 
 import {
     breakpointState,
+    createMarker,
     enabledRuleLines,
+    initialMarkerOptionsOf,
     isBreakpointAt,
     type MarkerConfig,
     markerFactoryOf,
@@ -21,7 +25,12 @@ import {
     toggleBreakpoint,
 } from '../src/commands/breakpoints';
 
-import { visibleGutterText } from './helpers';
+import {
+    MARKER_COLOR,
+    MARKER_ICON_PATH,
+    visibleGutterText,
+    visibleMarker,
+} from './helpers';
 
 /**
  * Builds a marker factory that renders the given text.
@@ -52,6 +61,34 @@ function makeView(doc: string, config?: MarkerConfig): EditorView {
         }),
         parent: document.body,
     });
+}
+
+/**
+ * Creates an editor whose gutter and a spare extension sit in separate
+ * compartments, so a test can reconfigure one without the other.
+ *
+ * @param config Marker factory and the options it applies.
+ *
+ * @returns The view, the gutter compartment, and the spare compartment.
+ */
+function makeCompartmentView(config?: MarkerConfig): {
+    view: EditorView;
+    gutter: Compartment;
+    spare: Compartment;
+} {
+    const gutter = new Compartment();
+    const spare = new Compartment();
+    const view = new EditorView({
+        state: EditorState.create({
+            doc: '||a.com^',
+            extensions: [
+                gutter.of(breakpointState(config ? { marker: config } : {})),
+                spare.of([]),
+            ],
+        }),
+        parent: document.body,
+    });
+    return { view, gutter, spare };
 }
 
 /**
@@ -133,6 +170,101 @@ test('toggles a breakpoint on a line', () => {
     view.dispatch({ effects: toggleBreakpoint.of(line.from) });
     expect(isBreakpointAt(view.state, line.from)).toBe(true);
     view.destroy();
+});
+
+test('renders the default marker when no marker config is given', () => {
+    const view = makeView('||a.com^');
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+
+    // A config-less editor still gets a working marker: the product color and
+    // the default check mark icon.
+    const markerElement = visibleMarker(view);
+    if (markerElement === null) {
+        throw new Error('The gutter has no visible marker.');
+    }
+    expect(markerElement.style.color).toBe(MARKER_COLOR);
+    // A literal path, not the source constant: a change to the default icon
+    // must fail here.
+    expect(markerElement.querySelector('path')?.getAttribute('d')).toBe(MARKER_ICON_PATH);
+    expect(markerElement.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+    expect(markerOptionsOf(view.state)).toEqual({});
+    expect(initialMarkerOptionsOf(view.state)).toEqual({});
+    view.destroy();
+});
+
+test('createMarker applies the default color, icon, and margins', () => {
+    // An empty string means "use the default" for both fields.
+    const markerElement = createMarker({ color: '', innerHTML: '' })();
+    expect(markerElement.style.color).toBe(MARKER_COLOR);
+    expect(markerElement.style.marginLeft).toBe('-12px');
+    expect(markerElement.style.marginTop).toBe('4px');
+    expect(markerElement.querySelector('path')?.getAttribute('d')).toBe(MARKER_ICON_PATH);
+    expect(markerElement.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
+});
+
+test('reconfiguring another compartment keeps the markers', () => {
+    const factory = marker('before');
+    const { view, spare } = makeCompartmentView({ factory, options: { color: 'red' } });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // The gutter extension stays in the state, so CodeMirror keeps the field
+    // value: the marker set, the factory, and its options survive.
+    view.dispatch({ effects: spare.reconfigure(EditorView.lineWrapping) });
+
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+    expect(markerFactoryOf(view.state)).toBe(factory);
+    expect(markerOptionsOf(view.state)).toEqual({ color: 'red' });
+    expect(initialMarkerOptionsOf(view.state)).toEqual({ color: 'red' });
+    expect(visibleGutterText(view)).toBe('before');
+    view.destroy();
+});
+
+test('re-supplying breakpointState resets the markers', () => {
+    const { view, gutter } = makeCompartmentView({
+        factory: marker('first'),
+        options: {},
+    });
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    // A new `breakpointState()` call returns a new init provider. CodeMirror
+    // re-creates the field value when the provider object changes, so the
+    // marker set starts empty and the new marker options apply.
+    const nextFactory = marker('second');
+    view.dispatch({
+        effects: gutter.reconfigure(breakpointState({
+            marker: { factory: nextFactory, options: { color: 'blue' } },
+        })),
+    });
+    expect(enabledRuleLines(view.state)).toEqual([]);
+    expect(markerFactoryOf(view.state)).toBe(nextFactory);
+    expect(initialMarkerOptionsOf(view.state)).toEqual({ color: 'blue' });
+
+    view.dispatch({ effects: toggleBreakpoint.of(0) });
+    expect(visibleGutterText(view)).toBe('second');
+    view.destroy();
+});
+
+test('the first breakpointState init provider sets the marker options', () => {
+    const marked = breakpointState({
+        marker: { factory: marker('marked'), options: { color: 'red' } },
+    });
+    // Each instance supplies its own init value. CodeMirror uses the first
+    // provider, so a config-less instance wins when it comes first.
+    const ordered = EditorState.create({
+        doc: '',
+        extensions: [breakpointState(), marked],
+    });
+    expect(markerOptionsOf(ordered)).toEqual({});
+
+    // A higher precedence puts the config-less provider first even when the
+    // marked instance comes earlier in the extension list.
+    const higher = EditorState.create({
+        doc: '',
+        extensions: [marked, Prec.high(breakpointState())],
+    });
+    expect(markerOptionsOf(higher)).toEqual({});
 });
 
 test('renders markers with the factory of each editor', () => {
@@ -460,12 +592,18 @@ test('markerFactoryOf returns undefined without the breakpoint field', () => {
     expect(markerFactoryOf(state)).toBeUndefined();
 });
 
+test('initialMarkerOptionsOf returns undefined without the breakpoint field', () => {
+    const state = EditorState.create({ doc: '' });
+    expect(initialMarkerOptionsOf(state)).toBeUndefined();
+});
+
 test('markerOptionsOf follows the options installed with the factory', () => {
     const view = makeView('', {
         factory: marker('initial'),
         options: { color: 'red' },
     });
     expect(markerOptionsOf(view.state)).toEqual({ color: 'red' });
+    expect(initialMarkerOptionsOf(view.state)).toEqual({ color: 'red' });
 
     const nextOptions = { color: 'blue', innerHTML: '<b></b>' };
     const nextFactory = marker('next');
@@ -474,5 +612,8 @@ test('markerOptionsOf follows the options installed with the factory', () => {
     });
     expect(markerOptionsOf(view.state)).toEqual(nextOptions);
     expect(markerFactoryOf(view.state)).toBe(nextFactory);
+    // A factory change keeps the options that the editor was created with, so
+    // a later reset can restore them.
+    expect(initialMarkerOptionsOf(view.state)).toEqual({ color: 'red' });
     view.destroy();
 });

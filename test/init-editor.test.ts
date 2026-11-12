@@ -29,6 +29,8 @@ import { MissingBreakpointFieldError, WasmLoadError } from '../src/lib/errors';
 import { RegistryManager } from '../src/lib/registry';
 
 import {
+    MARKER_COLOR,
+    MARKER_ICON_PATH,
     mountEditor,
     pressKey,
     stubRangeClientRects,
@@ -307,6 +309,7 @@ test('markerColor colors the default marker icon', async () => {
     expect(marker.style.color).toBe('red');
     // The default icon paints itself with `currentColor`, so the color of the
     // marker element reaches the SVG path.
+    expect(marker.querySelector('path')?.getAttribute('d')).toBe(MARKER_ICON_PATH);
     expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
     view.destroy();
 });
@@ -318,8 +321,8 @@ test('the default marker icon uses the product color', async () => {
 
     const marker = visibleMarker(view)!;
     // jsdom keeps the `var()` value in `style.color`, so the fallback for a
-    // page without the variable is pinned here.
-    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    // page without the variable is pinned through the `MARKER_COLOR` literal.
+    expect(marker.style.color).toBe(MARKER_COLOR);
     view.destroy();
 });
 
@@ -334,7 +337,8 @@ test('an empty marker option means the default', async () => {
     const marker = visibleMarker(view)!;
     // `createMarker` treats an empty string as unset for both fields, so the
     // default color and the default check mark icon apply.
-    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.style.color).toBe(MARKER_COLOR);
+    expect(marker.querySelector('path')?.getAttribute('d')).toBe(MARKER_ICON_PATH);
     expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
     view.destroy();
 });
@@ -510,8 +514,9 @@ test('setEditorValue resets a marker field to the library default with null', as
     // Without `initEditor` options the reset goes to the library default: the
     // product color and the check mark icon, not the previously set values.
     const marker = visibleMarker(view)!;
-    expect(marker.style.color).toBe('var(--stroke-icons-product-icon-default, #67B279)');
+    expect(marker.style.color).toBe(MARKER_COLOR);
     expect(marker.textContent).toBe('');
+    expect(marker.querySelector('path')?.getAttribute('d')).toBe(MARKER_ICON_PATH);
     expect(marker.querySelector('path')?.getAttribute('fill')).toBe('currentColor');
     view.destroy();
 });

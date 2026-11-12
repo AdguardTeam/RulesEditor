@@ -12,6 +12,28 @@ import type { WasmSource } from '../src/lib/registry';
 type InitEditorFn = typeof initEditor;
 
 /**
+ * CSS color of the default enabled-rule marker.
+ *
+ * Copied from the product asset instead of imported from the source, so a
+ * change to the source default fails the tests that use it.
+ */
+export const MARKER_COLOR = 'var(--stroke-icons-product-icon-default, #67B279)';
+
+/**
+ * Path data of the default enabled-rule marker icon (a check mark).
+ *
+ * Copied from the product asset instead of imported from the source, so a
+ * change to the default icon fails the tests that use it. The path uses
+ * spaces as separators, so joining the chunks restores it byte for byte.
+ */
+export const MARKER_ICON_PATH = [
+    'M13.9888 3.24536C14.4056 3.60773 14.4497 4.23936 14.0873 4.65614L7.13182 12.6561C6.94683',
+    '12.8689 6.68062 12.9937 6.39875 12.9998C6.11688 13.0059 5.84553 12.8927 5.65154 12.6881L1.94039',
+    '8.77448C1.56037 8.37373 1.57718 7.74079 1.97793 7.36077C2.37868 6.98075 3.01163 6.99756 3.39165',
+    '7.39831L6.34505 10.5128L12.578 3.34389C12.9404 2.92711 13.572 2.88299 13.9888 3.24536Z',
+].join(' ');
+
+/**
  * Mounts an editor with the default test config: no WASM (no highlighting)
  * and the Windows hotkey mode.
  *

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The enabled-rule gutter module now owns the default marker factory, its
+  product color, and its check mark icon.
+
 ### Deprecated
 
 ### Removed
