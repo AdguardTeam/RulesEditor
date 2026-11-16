@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `setEditorValue` accepts `null` for `markerOptions.color` or
   `markerOptions.innerHTML` to reset that part of the marker to the value the
   editor was created with: the matching `initEditor` option, or the library
-  default when it was omitted. The empty string still means "keep".
+  default when it was omitted. The empty string means "keep".
 
 ### Changed
 
@@ -75,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   page variable instead of the fixed `#67B279`, so a page that sets the
   variable themes it too.
 - `setEditorValue` keeps the marker of the editor when `markerOptions` is
-  omitted or gives no non-empty `color` or `innerHTML`, so a load no longer
+  omitted or sets neither field (only `undefined` or `''`), so a load no longer
   resets a custom `markerHTML` to the default icon. A non-empty `color` or
   `innerHTML` now changes only that part of the marker and keeps the other
   part: a color-only call keeps a custom `markerHTML`, and an HTML-only call

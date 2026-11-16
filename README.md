@@ -411,14 +411,14 @@ setEditorValue(view, [
 `markerOptions` changes the marker of `view` only: other editors on the page
 keep their own color and HTML.
 
-- Omit `markerOptions`, or pass an object with no non-empty `color` or
-  `innerHTML`, to keep the whole current marker.
+- Omit `markerOptions`, or pass an object that sets neither field (only
+  `undefined` or `''`), to keep the whole current marker.
 - A non-empty `color` or `innerHTML` changes only that part of the marker and
   keeps the other part: `{ color: 'red' }` keeps a custom `markerHTML`, and
   `{ innerHTML: '<my icon>' }` keeps the current color.
 - `null` resets one part to the value the editor was created with: the
   matching `initEditor` option, or the library default when it was omitted.
-  The empty string means "keep", as in `initEditor`.
+  The empty string means "keep".
 
 The load clears the undo history: a programmatic load creates no undo step,
 and an undo cannot replay an edit made before the load onto the loaded

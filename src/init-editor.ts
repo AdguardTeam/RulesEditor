@@ -391,9 +391,9 @@ function resolveMarkerOption(
  * does not keep a stale marker. The marker options are stored in the state of
  * `view` only: other editors on the page keep their own color and HTML. A
  * non-empty `color` or `innerHTML` changes only that part of the marker and
- * keeps the other part; an object that gives neither keeps the whole marker
- * the editor already has. A field set to `null` resets that part to the value
- * the editor was created with.
+ * keeps the other part; an object that sets neither field (only `undefined` or
+ * `''`) keeps the whole marker the editor already has. A field set to `null`
+ * resets that part to the value the editor was created with.
  *
  * An `enabled` flag is restored for every non-empty line, including a comment
  * line: the comment toggle can leave a marker on a comment, so the flag
@@ -410,12 +410,12 @@ function resolveMarkerOption(
  *   `withBreakpoints: true`.
  * @param value Rules with enabled flags.
  * @param markerOptions Marker color and HTML for `view` only. Omit the
- *   argument, or pass an object with no non-empty `color` or `innerHTML`, to
- *   keep the current marker. A non-empty `color` or `innerHTML` changes only
- *   that part of the marker and keeps the other part. `null` resets that part
- *   to the value the editor was created with: the matching
+ *   argument, or pass an object that sets neither field (only `undefined` or
+ *   `''`), to keep the current marker. A non-empty `color` or `innerHTML`
+ *   changes only that part of the marker and keeps the other part. `null`
+ *   resets that part to the value the editor was created with: the matching
  *   {@link InitEditorConfig.hotkeys} option, or the library default when it
- *   was omitted. The empty string means "keep", as in `initEditor`.
+ *   was omitted. The empty string means "keep".
  * @param markerOptions.color Marker icon color; `null` restores the color the
  *   editor was created with.
  * @param markerOptions.innerHTML Marker inner HTML; `null` restores the HTML
@@ -432,15 +432,15 @@ export function setEditorValue(
         throw new MissingBreakpointFieldError('setEditorValue');
     }
 
-    // A `markerOptions` with no non-empty `color` or `innerHTML` keeps the
-    // marker of the editor, so a load does not reset a custom `markerHTML` to
-    // the default icon. The check matches `createMarker`, which treats an
-    // empty string as unset, while `null` asks for the value the editor was
-    // created with. A non-empty field applies to the current marker, so a
-    // color-only call keeps a custom `markerHTML` and an HTML-only call keeps
-    // the current color. The merged options are stored in the state and every
-    // load builds one factory from them: wrapping the previous factory would
-    // add a layer on each load.
+    // A `markerOptions` that sets neither field (only `undefined` or `''`)
+    // keeps the marker of the editor, so a load does not reset a custom
+    // `markerHTML` to the default icon. The check matches `createMarker`,
+    // which treats an empty string as unset, while `null` asks for the value
+    // the editor was created with. A non-empty field applies to the current
+    // marker, so a color-only call keeps a custom `markerHTML` and an HTML-only
+    // call keeps the current color. The merged options are stored in the state
+    // and every load builds one factory from them: wrapping the previous
+    // factory would add a layer on each load.
     const restyleMarker = markerOptions.color === null
         || markerOptions.innerHTML === null
         || Boolean(markerOptions.color || markerOptions.innerHTML);
