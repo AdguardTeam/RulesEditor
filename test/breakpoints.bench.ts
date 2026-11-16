@@ -1,3 +1,4 @@
+import { moveLineUp } from '@codemirror/commands';
 import { ChangeSet, type ChangeSpec, EditorState } from '@codemirror/state';
 import { bench } from 'vitest';
 
@@ -215,6 +216,43 @@ function commentLines(state: EditorState): EditorState {
 }
 
 /**
+ * The changes of one Alt+Up on the second line.
+ *
+ * The command builds the transaction itself, so the benchmark captures the
+ * changes from a real run and applies them to both states.
+ */
+const MOVE_LINE_UP_CHANGES = (() => {
+    const { state } = stateWithMarkers.update({
+        selection: { anchor: markerPositions[1] },
+    });
+    let moveChanges: ChangeSet | null = null;
+    moveLineUp({
+        state,
+        dispatch: (tr) => {
+            moveChanges = tr.changes;
+        },
+    });
+    if (!moveChanges) {
+        throw new Error('moveLineUp produced no changes');
+    }
+    return moveChanges;
+})();
+
+/**
+ * Applies one Alt+Up and builds the next state.
+ *
+ * @param state The state to apply the transaction to.
+ *
+ * @returns The state after the transaction.
+ */
+function moveLine(state: EditorState): EditorState {
+    return state.update({
+        changes: MOVE_LINE_UP_CHANGES,
+        userEvent: 'move.line',
+    }).state;
+}
+
+/**
  * Applies a transaction that only moves the selection and builds the next
  * state.
  *
@@ -284,4 +322,10 @@ bench('Selection-only update without markers', () => {
 }, BENCH_OPTIONS);
 bench('Marker toggle with 50k markers', () => {
     toggleMarker(stateWithMarkers);
+}, BENCH_OPTIONS);
+bench('Alt+Up with 50k markers', () => {
+    moveLine(stateWithMarkers);
+}, BENCH_OPTIONS);
+bench('Alt+Up without markers', () => {
+    moveLine(stateWithoutMarkers);
 }, BENCH_OPTIONS);

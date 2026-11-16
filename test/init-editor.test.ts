@@ -9,7 +9,7 @@ import {
     undoDepth,
 } from '@codemirror/commands';
 import { search, searchPanelOpen } from '@codemirror/search';
-import { EditorState, Prec } from '@codemirror/state';
+import { EditorSelection, EditorState, Prec } from '@codemirror/state';
 import { type EditorView, keymap, showDialog } from '@codemirror/view';
 import {
     beforeEach,
@@ -111,6 +111,52 @@ const mountMarkedEditor = async (
     });
     view.dispatch({ selection: { anchor: view.state.doc.line(cursorLine).from } });
     return view;
+};
+
+/**
+ * Dispatches a drag of a line block to a line start.
+ *
+ * The transaction has the shape of CodeMirror's `move.drop`: it deletes the
+ * dragged text and inserts the same text at the drop position. All positions
+ * refer to the start document, like a real drop transaction does.
+ *
+ * @param view The editor view to dispatch the drag on.
+ * @param fromLine 1-based number of the first dragged line.
+ * @param toLine 1-based number of the first line after the dragged block.
+ * @param dropLine 1-based number of the line to drop before.
+ */
+const dragLines = (
+    view: EditorView,
+    fromLine: number,
+    toLine: number,
+    dropLine: number,
+): void => {
+    const { doc } = view.state;
+    const { from } = doc.line(fromLine);
+    const { from: to } = doc.line(toLine);
+    view.dispatch({
+        changes: [
+            { from, to },
+            { from: doc.line(dropLine).from, insert: doc.slice(from, to) },
+        ],
+        userEvent: 'move.drop',
+    });
+};
+
+/**
+ * Asserts the document text and the enabled-rule line numbers.
+ *
+ * @param view The editor view to inspect.
+ * @param doc The expected document text.
+ * @param lines The expected 1-based numbers of the enabled lines.
+ */
+const expectMarkedDoc = (
+    view: EditorView,
+    doc: string,
+    lines: readonly number[],
+): void => {
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(enabledRuleLines(view.state)).toEqual(lines);
 };
 
 test('mounts an editor and highlights a comment', async () => {
@@ -978,23 +1024,176 @@ test('Alt+Up keeps the marker of the line that moves up', async () => {
     view.destroy();
 });
 
-// Known pre-existing limitation: a `move.line` change deletes the text of the
-// line above the moved block and reinserts it after the block, so the change
-// shape cannot tell which of the two lines moved. The line that stays behind
-// loses its marker. The expected behavior is marked as expected to fail until
-// `move.line` gets its own marker handling; it is not pinned as intended.
-test.fails('Alt+Up keeps the marker of the line that stays behind', async () => {
-    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1, 2], 2);
-    try {
-        pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+// A line move swaps the text of a block with the neighbouring line, so the
+// positional mapping alone cannot tell which of the two lines moved. The
+// marker now follows its rule: the line that stays behind keeps its marker on
+// its new place.
+test('Alt+Up keeps the marker of the line that stays behind', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1], 2);
 
-        expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
-        // `||b.com^` moved up to line 1 and `||a.com^` moved down to line 2;
-        // both stay enabled.
-        expect(enabledRuleLines(view.state)).toEqual([1, 2]);
-    } finally {
-        view.destroy();
-    }
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
+    // `||b.com^` moved up to line 1 and `||a.com^` moved down to line 2, so
+    // the marker of `||a.com^` follows it to line 2.
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Alt+Up keeps both markers when both swapped lines are enabled', async () => {
+    const view = await mountMarkedEditor('||a.com^\n||b.com^\n||c.com^', [1, 2], 2);
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('||b.com^\n||a.com^\n||c.com^');
+    // `||b.com^` moved up to line 1 and `||a.com^` moved down to line 2; both
+    // stay enabled, and no marker is lost or duplicated.
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('||a.com^\n||b.com^\n||c.com^');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    view.destroy();
+});
+
+test('Alt+Down keeps the marker of the line that moves down', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('a\nc\nb');
+    // `b` moved down to line 3 and `c` moved up to line 2, so the marker of
+    // `b` follows it to line 3.
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('Alt+Down keeps the marker of the line that stays behind', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [3], 2);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('a\nc\nb');
+    // `b` moved down to line 3 and `c` moved up to line 2, so the marker of
+    // `c` follows it to line 2.
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('Alt+Down moves a two-line block down and keeps its markers', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\nd', [2, 4], 2);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(2).from,
+            head: view.state.doc.line(3).to,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true });
+
+    expectMarkedDoc(view, 'a\nd\nb\nc', [2, 3]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'a\nb\nc\nd', [2, 4]);
+    view.destroy();
+});
+
+test('Alt+Down leaves out a line that the selection only touches', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [3], 2);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(2).from,
+            // The selection ends at the start of line 3, so the block is line 2
+            // only and `c` stays outside the swap.
+            head: view.state.doc.line(3).from,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true });
+
+    expectMarkedDoc(view, 'a\nc\nb', [2]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'a\nb\nc', [3]);
+    view.destroy();
+});
+
+test('Alt+Up moves a block selected with cursors on adjacent lines', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\nd', [2, 3]);
+    view.dispatch({
+        selection: EditorSelection.create([
+            EditorSelection.cursor(view.state.doc.line(2).from),
+            EditorSelection.cursor(view.state.doc.line(3).from),
+        ]),
+    });
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    // The adjacent cursors merge into one block, which moves above `a`.
+    expectMarkedDoc(view, 'b\nc\na\nd', [1, 2]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'a\nb\nc\nd', [2, 3]);
+    view.destroy();
+});
+
+test('Alt+Up moves two separate blocks and keeps the markers on both', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\nd\ne', [1, 2, 3, 5]);
+    view.dispatch({
+        selection: EditorSelection.create([
+            EditorSelection.cursor(view.state.doc.line(2).from),
+            EditorSelection.cursor(view.state.doc.line(4).from),
+        ]),
+    });
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    // The cursors are two lines apart, so they stay two separate blocks. Each
+    // block swaps with the line above it: `b` and `d` move up, `a` and `c`
+    // move down. `e` is outside both swaps.
+    expectMarkedDoc(view, 'b\na\nd\nc\ne', [1, 2, 4, 5]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'a\nb\nc\nd\ne', [1, 2, 3, 5]);
+    view.destroy();
+});
+
+test('Alt+Up moves a two-line block over a marked line and keeps other markers', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\nd', [1, 4]);
+    view.dispatch({
+        selection: {
+            anchor: view.state.doc.line(2).from,
+            head: view.state.doc.line(4).from,
+        },
+    });
+
+    pressKey(view.contentDOM, 'ArrowUp', { alt: true });
+
+    expect(view.state.doc.toString()).toBe('b\nc\na\nd');
+    // `a` moved below the block, so its marker follows it to line 3. `d` is
+    // outside the swap and keeps its marker on line 4.
+    expect(enabledRuleLines(view.state)).toEqual([3, 4]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc\nd');
+    expect(enabledRuleLines(view.state)).toEqual([1, 4]);
+    view.destroy();
 });
 
 test('Enter at the start of an enabled rule keeps its marker on the pushed rule', async () => {
@@ -1157,21 +1356,176 @@ test('a drop ending with a line break keeps the marker on the pushed-down rule',
 test('a dragged line keeps the marker on the rule at the drop point', async () => {
     const view = await mountMarkedEditor('x\na\nb', [3], 3);
 
+    dragLines(view, 1, 2, 3);
+
+    // The drop deletes the dragged `x` line and inserts it before `b`. The
+    // marker belongs to `b`, not to the dropped text.
+    expectMarkedDoc(view, 'a\nx\nb', [3]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'x\na\nb', [3]);
+    view.destroy();
+});
+
+test('a partial-line drag starting at the line start keeps the marker on the line', async () => {
+    const view = await mountMarkedEditor('@@||a\n||b', [1], 1);
+
     view.dispatch({
         changes: [
             { from: 0, to: 2 },
-            { from: view.state.doc.line(3).from, insert: 'x\n' },
+            { from: view.state.doc.line(2).from, insert: '@@' },
         ],
-        selection: { anchor: 2 },
         userEvent: 'move.drop',
     });
-    // The drop deletes the dragged `x` line and inserts it before `b`. The
-    // marker belongs to `b`, not to the dropped text.
-    expect(view.state.doc.toString()).toBe('a\nx\nb');
+
+    // The deleted `@@` starts at the line start, but the line keeps its
+    // `||a` part; the marker belongs to that remaining rule.
+    expectMarkedDoc(view, '||a\n@@||b', [1]);
+    view.destroy();
+});
+
+test('a drag that leaves a marker inside a line drops it', async () => {
+    const view = await mountMarkedEditor('ab\nc\nd', [3], 3);
+
+    view.dispatch({
+        changes: [
+            { from: 1, to: 5 },
+            { from: 0, insert: 'b\nc\n' },
+        ],
+        userEvent: 'move.drop',
+    });
+
+    // The drag merges `d` into the last inserted line, so the line of its rule
+    // no longer starts at a line start; the marker would otherwise sit inside
+    // `ad` and the gutter would show nothing there.
+    expectMarkedDoc(view, 'b\nc\nad', []);
+    view.destroy();
+});
+
+test('a drag of a two-line block without the final line break keeps the marker of the drop-point rule', async () => {
+    const view = await mountMarkedEditor('x\na\nb\nc', [1], 1);
+
+    view.dispatch({
+        changes: [
+            { from: 2, to: 5 },
+            { from: 0, insert: 'a\nb' },
+        ],
+        userEvent: 'move.drop',
+    });
+
+    // The inserted `a\nb` has no final line break, so the last inserted line
+    // merges with `x`; the marker of `x` belongs to that merged line.
+    expectMarkedDoc(view, 'a\nbx\n\nc', [2]);
+    view.destroy();
+});
+
+test('an aborted drag of whole lines keeps every dragged marker', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\nd', [2, 3], 2);
+
+    // The drop lands at the start of the dragged range, so the changes touch
+    // and `ChangeSet` reports them as one replacement unless the individual
+    // iteration splits the deletion and the insertion again.
+    dragLines(view, 2, 4, 2);
+
+    expectMarkedDoc(view, 'a\nb\nc\nd', [2, 3]);
+    view.destroy();
+});
+
+test('a drag moves an unmarked line before an enabled rule from below', async () => {
+    const view = await mountMarkedEditor('a\nb\nx\n', [2], 2);
+
+    dragLines(view, 3, 4, 2);
+
+    expect(view.state.doc.toString()).toBe('a\nx\nb\n');
+    // The unmarked `x` line moved above `b`, and the marker of `b` follows
+    // the rule down to line 3.
     expect(enabledRuleLines(view.state)).toEqual([3]);
 
     expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nx\n');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('a move.drop that does not pair its changes keeps the positional mapping', async () => {
+    const view = await mountMarkedEditor('a\nb\nc', [2], 2);
+
+    // The deleted and inserted texts differ, so `draggedMarkers` returns no
+    // map and `deletedLineEffect` keeps the marker from being dropped. The
+    // positional mapping then leaves it on the line that follows the deleted
+    // text.
+    view.dispatch({
+        changes: [{ from: 2, to: 4 }, { from: 0, insert: 'z\n' }],
+        userEvent: 'move.drop',
+    });
+
+    expect(view.state.doc.toString()).toBe('z\na\nc');
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+    view.destroy();
+});
+
+test('a drag moves an enabled line before an enabled rule', async () => {
+    const view = await mountMarkedEditor('x\na\nb', [1, 3], 1);
+
+    dragLines(view, 1, 2, 3);
+
+    expect(view.state.doc.toString()).toBe('a\nx\nb');
+    // `x` moved from line 1 to line 2, so its marker follows it. The marker
+    // of `b` stays on the rule at line 3.
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+
+    expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('x\na\nb');
+    expect(enabledRuleLines(view.state)).toEqual([1, 3]);
+    view.destroy();
+});
+
+test('a drag of a two-line enabled block keeps both markers', async () => {
+    const view = await mountMarkedEditor('a\nb\nc\n', [1, 2], 1);
+
+    dragLines(view, 1, 3, 4);
+
+    expect(view.state.doc.toString()).toBe('c\na\nb\n');
+    // Both enabled lines moved down by one line, so both markers follow the
+    // block instead of staying on the lines that took their place.
+    expect(enabledRuleLines(view.state)).toEqual([2, 3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nc\n');
+    expect(enabledRuleLines(view.state)).toEqual([1, 2]);
+    view.destroy();
+});
+
+test('a drag to the document start moves the marker with the rule', async () => {
+    const view = await mountMarkedEditor('x\na\nb\n', [2], 2);
+
+    dragLines(view, 2, 3, 1);
+
+    expect(view.state.doc.toString()).toBe('a\nx\nb\n');
+    // `a` moved to the first line, so its marker follows it from line 2.
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('x\na\nb\n');
+    expect(enabledRuleLines(view.state)).toEqual([2]);
+    view.destroy();
+});
+
+test('a drag to the document end moves the marker with the rule', async () => {
+    const view = await mountMarkedEditor('x\na\nb\n', [1], 1);
+
+    dragLines(view, 1, 2, 4);
+
+    expect(view.state.doc.toString()).toBe('a\nb\nx\n');
+    // `x` moved from line 1 to line 3, so its marker follows it there.
+    expect(enabledRuleLines(view.state)).toEqual([3]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('x\na\nb\n');
+    expect(enabledRuleLines(view.state)).toEqual([1]);
+
+    expect(redo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('a\nb\nx\n');
     expect(enabledRuleLines(view.state)).toEqual([3]);
     view.destroy();
 });
@@ -1326,14 +1680,24 @@ test('Alt+Up on an empty marked line keeps its marker on the moved line', async 
     view.destroy();
 });
 
-test('undo of Alt+Up does not carry the marker to another rule', async () => {
+test('Alt+Down on an empty marked line keeps its marker on the moved line', async () => {
+    const view = await mountMarkedEditor('a\n\nb', [2], 2);
+
+    pressKey(view.contentDOM, 'ArrowDown', { alt: true });
+
+    // The empty marked line moves below `b`, and the insertion and the
+    // deletion of the command start at the same offset.
+    expectMarkedDoc(view, 'a\nb\n', [3]);
+    view.destroy();
+});
+
+test('undo of Alt+Up restores the marker of the rule that moved down', async () => {
     const view = await mountMarkedEditor('a\nb', [1], 2);
 
     pressKey(view.contentDOM, 'ArrowUp', { alt: true });
     expect(view.state.doc.toString()).toBe('b\na');
-    // A move swaps the line texts without telling the marker which line
-    // moved, so the marker stays on line 1; undo only has to restore it.
-    expect(enabledRuleLines(view.state)).toEqual([1]);
+    // `a` moved down to line 2, so its marker follows it there.
+    expect(enabledRuleLines(view.state)).toEqual([2]);
 
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('a\nb');
@@ -1341,12 +1705,13 @@ test('undo of Alt+Up does not carry the marker to another rule', async () => {
     view.destroy();
 });
 
-test('undo of Alt+Up on a later line keeps the marker of the original rule', async () => {
+test('undo of Alt+Up on a later line restores the marker of the original rule', async () => {
     const view = await mountMarkedEditor('a\nb\nc', [2], 3);
 
     pressKey(view.contentDOM, 'ArrowUp', { alt: true });
     expect(view.state.doc.toString()).toBe('a\nc\nb');
-    expect(enabledRuleLines(view.state)).toEqual([2]);
+    // `b` moved down to line 3, so its marker follows it there.
+    expect(enabledRuleLines(view.state)).toEqual([3]);
 
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('a\nb\nc');
@@ -1372,6 +1737,21 @@ test('undo of a whole-document delete with a trailing newline keeps the first ma
     expect(redo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe('');
     expect(enabledRuleLines(view.state)).toEqual([1]);
+    view.destroy();
+});
+
+test('a document-wide delete leaves one marker per line start', async () => {
+    const view = await mountMarkedEditor('a\nb\n', [1, 3]);
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } });
+
+    pressKey(view.contentDOM, 'Backspace', {});
+
+    // The deletion collapses both markers onto offset 0, and the marker that
+    // the deletion keeps at its end maps onto the same line start.
+    expectMarkedDoc(view, '', [1]);
+
+    expect(undo(view)).toBe(true);
+    expectMarkedDoc(view, 'a\nb\n', [1, 3]);
     view.destroy();
 });
 

@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Alt+Up` / `Alt+Down` and dragging lines with the mouse now keep the
+  enabled-rule markers on their rules instead of leaving them on the line that
+  takes the moved rule's place.
+
 ### Security
 
 ## [2.0.4] - 2026-11-11

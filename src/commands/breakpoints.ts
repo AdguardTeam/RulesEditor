@@ -9,6 +9,7 @@ import {
     RangeSet,
     StateEffect,
     StateField,
+    type Text,
     type Transaction,
 } from '@codemirror/state';
 import { gutter, GutterMarker } from '@codemirror/view';
@@ -65,6 +66,16 @@ interface MarkerRemoval {
      * that now holds the rule, keyed by their start-document positions.
      */
     carried: ReadonlyMap<number, number>;
+
+    /**
+     * Whether the positional mapping can put two markers on one line start.
+     *
+     * A line move permutes whole lines without merging them, so it never
+     * duplicates a marker. A delete or a drag can merge lines, keep a marker at
+     * the end of the change, and map another marker onto the same line start;
+     * the field must then deduplicate the whole set.
+     */
+    dedupe: boolean;
 }
 
 /**
@@ -78,7 +89,7 @@ interface MarkerRemoval {
  * the removed set that it builds after all extenders ran.
  *
  * The positions are in the transaction's start (pre-change) coordinates, like
- * `toggleBreakpoint`. The effect has no `map` on purpose: `deletedLineMarkers`
+ * `toggleBreakpoint`. The effect has no `map` on purpose: `deletedLineEffect`
  * adds it to a transaction through an `EditorState.transactionExtender`, and
  * CodeMirror maps an extender's effects through an empty change set of the new
  * document length. A position past that length would throw a `RangeError`, and
@@ -227,8 +238,10 @@ class BreakpointMarker extends GutterMarker {
      * change deletes its line start. `deletedLineEffect` removes the markers
      * whose line a delete should drop, so this mode only decides where the
      * remaining markers land. A move swaps line text without telling the
-     * marker which line moved, so a marker that survives `move.line` can land
-     * on the line that took its place.
+     * positional mapping which line moved, so `lineMarkerChanges` carries the
+     * markers of a line move or a drag to their new line starts. This mode
+     * still decides where a marker lands in a transaction that neither path
+     * recognizes.
      */
     readonly mapMode = MARKER_MAPPING.mapMode;
 
@@ -840,13 +853,14 @@ const breakpointField = StateField.define<BreakpointState>({
             markers = markers.update({ add: nextMarkers, sort: true });
         }
 
-        // A change that keeps a marker at its end can map it onto the same
-        // line start as the marker of the line that the change started on
-        // (for example `moveLineUp`); a line start holds at most one marker.
-        // Only the kept-at-`toA` case in `deletedLineEffect` produces the
-        // duplicate, so the whole set is deduplicated only when that effect is
-        // present.
-        if (removalEffect && markers.size > 1) {
+        // A deletion can map two markers onto the same line start: a marker
+        // that survives at the end of the change lands on the line start that
+        // the marker of the line the change started on collapses onto. A
+        // document-wide delete does the same with the marker at the end of the
+        // document. A line start holds at most one marker, so the first one
+        // wins. A move reports that it cannot duplicate a marker, so the scan
+        // runs only for the transactions that need it.
+        if (removalEffect?.value.dedupe && markers.size > 1) {
             markers = dedupeMarkers(markers);
         }
 
@@ -871,6 +885,369 @@ const breakpointField = StateField.define<BreakpointState>({
 });
 
 /**
+ * A block of lines that a `move.line` transaction swaps with one neighbouring
+ * line, derived from the transaction's changes.
+ */
+interface LineMoveBlock {
+    /**
+     * The new line number of every line that the swap touches, keyed by the
+     * line number in the start document.
+     */
+    swapped: ReadonlyMap<number, number>;
+
+    /**
+     * The first offset that the swap changes, in the start document's
+     * coordinates.
+     */
+    from: number;
+
+    /**
+     * The last offset that the swap changes, in the start document's
+     * coordinates.
+     */
+    to: number;
+}
+
+/**
+ * Builds the new line number of every line that one line move swaps.
+ *
+ * A move swaps the block with its neighbour: every block line moves one line
+ * towards the neighbour, and the neighbour moves to the other side of the
+ * block. The lines outside the swap keep their numbers.
+ *
+ * @param startNumber The first line of the block, 1-based.
+ * @param endNumber The last line of the block, 1-based.
+ * @param neighborNumber The line that swaps with the block, 1-based.
+ *
+ * @returns A map from the start-document line number to the new line number.
+ */
+function swapLineNumbers(
+    startNumber: number,
+    endNumber: number,
+    neighborNumber: number,
+): Map<number, number> {
+    const swapped = new Map<number, number>();
+    const isUp = neighborNumber < startNumber;
+    const shift = isUp ? -1 : 1;
+    for (let number = startNumber; number <= endNumber; number += 1) {
+        swapped.set(number, number + shift);
+    }
+    swapped.set(neighborNumber, isUp ? endNumber : startNumber);
+    return swapped;
+}
+
+/**
+ * Returns the direction in which a line move inserts its text.
+ *
+ * A move up inserts the line break before the neighbour's text, and a move
+ * down inserts the line break after the next line's text. When both the block
+ * and the neighbour are empty, the inserted text is a single line break, and
+ * the direction is left to the caller.
+ *
+ * @param text The inserted text.
+ *
+ * @returns The direction, or `null` when the text holds only a line break.
+ */
+function insertedLineDirection(text: Text): 'up' | 'down' | null {
+    if (text.line(1).length > 0) {
+        return 'down';
+    }
+    if (text.line(text.lines).length > 0) {
+        return 'up';
+    }
+    return null;
+}
+
+/**
+ * Returns the line swaps that a `move.line` transaction performs.
+ *
+ * `moveLineUp` and `moveLineDown` each delete one neighbouring line and insert
+ * it on the other side of the block, so one deletion and one insertion
+ * describe one swap. Reading the pair from the changes avoids a copy of
+ * CodeMirror's private selection-block logic and keeps the swap on the changes
+ * that actually ran; one pass over the changes also serves every block.
+ *
+ * A pair that does not match the shape is skipped, so a transaction with
+ * another payload leaves the markers to the ordinary mapping. A move of an
+ * empty line over another empty line inserts a single line break, which does
+ * not tell the direction apart; that swap counts as a move down.
+ *
+ * @param tr The transaction to inspect.
+ *
+ * @returns The swaps in ascending order.
+ */
+function lineMoveBlocks(tr: Transaction): LineMoveBlock[] {
+    if (!tr.isUserEvent('move.line')) {
+        return [];
+    }
+    const { doc } = tr.startState;
+    const changes: {
+        fromA: number;
+        toA: number;
+        fromB: number;
+        toB: number;
+        inserted: Text;
+    }[] = [];
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+        changes.push({
+            fromA, toA, fromB, toB, inserted,
+        });
+    }, true);
+    const blocks: LineMoveBlock[] = [];
+    for (let index = 0; index + 1 < changes.length; index += 2) {
+        const pair = [changes[index], changes[index + 1]];
+        // A move down on an empty line inserts and deletes at the same offset,
+        // so the pair order does not depend on the direction itself.
+        const deletion = pair.find(
+            (change) => change.fromB === change.toB && change.fromA < change.toA,
+        );
+        const insertion = pair.find(
+            (change) => change.fromA === change.toA && change.fromB < change.toB,
+        );
+        if (!deletion || !insertion
+            || insertion.toB - insertion.fromB !== deletion.toA - deletion.fromA) {
+            continue;
+        }
+        // The block shifts the insertion in the new document: a move down
+        // places it at the block start, a move up at the shifted block end.
+        // An empty block shifts nothing, so the inserted text decides, and an
+        // empty line that swaps with another empty line counts as a move down.
+        let direction: 'up' | 'down';
+        if (insertion.fromB < deletion.fromA) {
+            direction = 'down';
+        } else if (insertion.fromB > deletion.fromA) {
+            direction = 'up';
+        } else {
+            direction = insertedLineDirection(insertion.inserted) ?? 'down';
+        }
+        if (direction === 'up') {
+            if (doc.lineAt(deletion.fromA).from !== deletion.fromA
+                || doc.lineAt(deletion.toA).from !== deletion.toA) {
+                continue;
+            }
+            const startNumber = doc.lineAt(deletion.toA).number;
+            const endNumber = doc.lineAt(insertion.fromA).number;
+            if (startNumber < 2) {
+                continue;
+            }
+            blocks.push({
+                swapped: swapLineNumbers(startNumber, endNumber, startNumber - 1),
+                from: deletion.fromA,
+                to: insertion.fromA,
+            });
+            continue;
+        }
+        if (doc.lineAt(insertion.fromB).from !== insertion.fromB) {
+            continue;
+        }
+        const startNumber = doc.lineAt(insertion.fromB).number;
+        const endNumber = doc.lineAt(deletion.fromA).number;
+        if (endNumber >= doc.lines) {
+            continue;
+        }
+        blocks.push({
+            swapped: swapLineNumbers(startNumber, endNumber, endNumber + 1),
+            from: insertion.fromB,
+            to: deletion.toA,
+        });
+    }
+    return blocks;
+}
+
+/**
+ * Returns the markers that a `move.line` transaction moves to another line, or
+ * `null` when the transaction is not a line move or moves no marker.
+ *
+ * A marker of a swapped line follows its line: the lines of the block shift one
+ * line towards the neighbour, and the neighbour moves to the other side of the
+ * block. A marker outside the swap keeps its line, so the field maps it
+ * positionally; the scan therefore touches only the markers inside the changed
+ * ranges, which keeps Alt+Up and Alt+Down cheap on a large rule list.
+ *
+ * @param tr The transaction to inspect.
+ * @param markers The marker set of the transaction's start state.
+ *
+ * @returns The carried markers, or `null` when the transaction moves no
+ *   marker.
+ */
+function movedLineMarkers(
+    tr: Transaction,
+    markers: RangeSet<GutterMarker>,
+): MarkerRemoval | null {
+    const blocks = lineMoveBlocks(tr);
+    if (blocks.length === 0) {
+        return null;
+    }
+    const { doc } = tr.startState;
+    const carried = new Map<number, number>();
+    const chunkSpan = chunkSpanOf(markers, doc.length);
+    const cursor = markers.iter(blocks[0].from);
+    blocks.forEach((block) => {
+        seekCursor(cursor, block.from, chunkSpan);
+        while (cursor.value && cursor.from <= block.to) {
+            const { number } = doc.lineAt(cursor.from);
+            const moved = block.swapped.get(number);
+            if (moved !== undefined) {
+                carried.set(cursor.from, tr.newDoc.line(moved).from);
+            }
+            cursor.next();
+        }
+    });
+    return carried.size > 0 ? { positions: [], carried, dedupe: false } : null;
+}
+
+/**
+ * The block that a `move.drop` transaction drags, with the deletion and the
+ * insertion that carry it.
+ */
+interface DraggedBlock {
+    /**
+     * The start of the deleted range in the start document.
+     */
+    from: number;
+
+    /**
+     * The end of the deleted range in the start document.
+     */
+    to: number;
+
+    /**
+     * The start of the insertion point in the start document.
+     */
+    insertAt: number;
+
+    /**
+     * The start of the inserted text in the new document.
+     */
+    insertFrom: number;
+
+    /**
+     * The length of the inserted text.
+     */
+    insertLength: number;
+}
+
+/**
+ * Returns the block that a `move.drop` transaction drags, or `null` when the
+ * transaction is not a drag or its deletion and insertion do not pair.
+ *
+ * `dropText` dispatches exactly one deletion of the dragged text and one
+ * insertion of the same text at the drop point, so one pair describes the
+ * drag. `ChangeSet` merges the two changes into one replacement when they
+ * touch or overlap, and only the individual run of `iterChanges` reports the
+ * deletion and the insertion separately there. A deletion without an equal
+ * insertion, or the reverse, is not a drag of the selected text, so it pairs
+ * with nothing.
+ *
+ * @param tr The transaction to inspect.
+ *
+ * @returns The dragged block, or `null` when the transaction is not a paired
+ *   drag.
+ */
+function draggedBlock(tr: Transaction): DraggedBlock | null {
+    if (!tr.isUserEvent('move.drop')) {
+        return null;
+    }
+    const found: {
+        deletion?: { from: number; to: number; text: Text };
+        insertion?: {
+            from: number;
+            to: number;
+            insertAt: number;
+            text: Text;
+        };
+    } = {};
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+        if (!found.deletion && fromA < toA) {
+            found.deletion = {
+                from: fromA,
+                to: toA,
+                text: tr.startState.doc.slice(fromA, toA),
+            };
+        }
+        if (!found.insertion && fromB < toB) {
+            found.insertion = {
+                from: fromB,
+                to: toB,
+                insertAt: fromA,
+                text: inserted,
+            };
+        }
+    }, true);
+    const { deletion, insertion } = found;
+    if (!deletion || !insertion || !deletion.text.eq(insertion.text)) {
+        return null;
+    }
+    return {
+        from: deletion.from,
+        to: deletion.to,
+        insertAt: insertion.insertAt,
+        insertFrom: insertion.from,
+        insertLength: insertion.text.length,
+    };
+}
+
+/**
+ * Returns the markers that a `move.drop` transaction moves to another line and
+ * the markers that its changes would leave inside a line, or `null` when the
+ * transaction is not a paired drag or touches no marker.
+ *
+ * A marker of a fully dragged line follows its text to the matching line at the
+ * insertion point. A marker at the start of a partly dragged line stays with
+ * the part that does not move. A marker at the drop point moves to the line
+ * that holds the end of the inserted text: below the inserted block when the
+ * text ends with a line break, or the line that merges with it otherwise.
+ * Every other marker maps through the changes, and a marker that the mapping
+ * would leave inside a line is dropped: `breakpointField` stores one marker per
+ * line start.
+ *
+ * @param tr The transaction to inspect.
+ * @param markers The marker set of the transaction's start state.
+ *
+ * @returns The carried and dropped markers, or `null` when the transaction
+ *   moves no marker.
+ */
+function draggedMarkers(
+    tr: Transaction,
+    markers: RangeSet<GutterMarker>,
+): MarkerRemoval | null {
+    const block = draggedBlock(tr);
+    if (!block) {
+        return null;
+    }
+    const { doc } = tr.startState;
+    const carried = new Map<number, number>();
+    const unmapped: number[] = [];
+    markers.between(0, doc.length, (from) => {
+        const dragged = from >= block.from
+            && from < block.to
+            && (from > block.from || doc.lineAt(from).to <= block.to);
+        if (dragged) {
+            carried.set(
+                from,
+                tr.newDoc.lineAt(block.insertFrom + from - block.from).from,
+            );
+        } else if (from === block.insertAt) {
+            carried.set(
+                from,
+                tr.newDoc.lineAt(block.insertFrom + block.insertLength).from,
+            );
+        } else {
+            unmapped.push(from);
+        }
+    });
+    const positions: number[] = [];
+    mapPositions(tr.changes, unmapped).forEach((pos, index) => {
+        if (tr.newDoc.lineAt(pos).from !== pos) {
+            positions.push(unmapped[index]);
+        }
+    });
+    return positions.length > 0 || carried.size > 0
+        ? { positions, carried, dedupe: true }
+        : null;
+}
+
+/**
  * Returns the effect that removes the markers whose line the transaction
  * deletes, or keeps the marker snapshot for a marker that survives at a line
  * start or that the transaction carries to a pushed-down line.
@@ -891,18 +1268,18 @@ const breakpointField = StateField.define<BreakpointState>({
  * another extender.
  *
  * @param tr The transaction to inspect.
+ * @param markers The marker set of the transaction's start state.
  *
  * @returns The removal effect, or `null` when the transaction does not touch a
  *   marked line. The effect can list no positions when it only keeps the
  *   marker snapshot for an undo of a carried marker, of a marker that survives
  *   at a line start, or of the markers of a copied block.
  */
-function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
+function deletedLineEffect(
+    tr: Transaction,
+    markers: RangeSet<GutterMarker>,
+): StateEffect<MarkerRemoval> | null {
     const { doc } = tr.startState;
-    const { markers } = tr.startState.field(breakpointField);
-    if (markers.size === 0) {
-        return null;
-    }
     const isLineDelete = tr.isUserEvent('delete.line');
     // A cut without a selection deletes the line under the cursor. The cut
     // handler includes the line break of every line except the last one, which
@@ -911,9 +1288,11 @@ function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
     const isLineCut = tr.isUserEvent('delete.cut')
         && tr.startState.selection.ranges.every((range) => range.empty);
     // A drag deletes the dragged text and inserts it again at the drop point.
-    // Like `move.line`, the change shape cannot tell which line moved, so the
-    // marker of a dragged line is only kept from being dropped; mapping can
-    // still leave it on another line.
+    // `lineMarkerChanges` normally maps the dragged markers through
+    // `draggedMarkers`. If the change shape does not pair a deletion with an
+    // equal insertion, keep the marker of a dragged line from being dropped;
+    // the positional mapping can still leave it on another line. A line move
+    // normally goes through `movedLineMarkers` in the same way.
     const isMove = tr.isUserEvent('move.line') || tr.isUserEvent('move.drop');
     const positions = new Set<number>();
     // Whether a marker survives at `toA`. Such a transaction removes nothing,
@@ -928,8 +1307,8 @@ function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
         // change, but only when the change maps it onto a line start: a
         // replacement that does not end with a line break joins the line to
         // the previous one. This is the shape of `deleteLine` on the first
-        // line and of `moveLineUp`. `toB` is the mapped `toA` with an
-        // association of `-1`, the same mapping the marker set uses.
+        // line. `toB` is the mapped `toA` with an association of `-1`, the
+        // same mapping the marker set uses.
         const keepsLineStart = tr.newDoc.lineAt(toB).from === toB;
         markers.between(fromA, toA, (from) => {
             if (from > fromA) {
@@ -945,10 +1324,12 @@ function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
             // marker even when it does not cover the whole line: Backspace on
             // a selection through the line break, or Delete on an emptied
             // line, would otherwise map the marker onto the next rule.
-            // `move.line` also deletes a line's text and reinserts it, but the
-            // change shape cannot tell which line moved: `!isMove` only keeps
-            // its marker from being dropped, and mapping can still leave the
-            // marker on the line that takes the moved line's place.
+            // `move.line` and `move.drop` also delete a line's text and
+            // reinsert it. `lineMarkerChanges` maps a recognized move through
+            // `movedLineMarkers` or `draggedMarkers`, so `!isMove` only covers
+            // a move-shaped change that neither recognizes: it keeps the
+            // marker from being dropped even though mapping can still leave it
+            // on another line.
             const deletesBreak = fromB === toB
                 && toA > line.to
                 && (toA < doc.length || fromA > 0);
@@ -978,24 +1359,45 @@ function deletedLineEffect(tr: Transaction): StateEffect<MarkerRemoval> | null {
     // reconciles the map against the final removed set.
     const carried = carriedLineStarts(tr, markers, positions);
     return positions.size > 0 || keptLineStart || carried.size > 0
-        ? removeBreakpoints.of({ positions: [...positions], carried })
+        ? removeBreakpoints.of({
+            positions: [...positions],
+            carried,
+            dedupe: true,
+        })
         : null;
 }
 
 /**
- * Extension that drops the markers of deleted lines and records the marker
- * snapshot for a carried insertion in the same transaction as the edit, so one
- * undo restores the line and its marker together.
+ * Extension that keeps the enabled markers on their rules through a line move
+ * or a drag, and drops the markers of deleted lines in the same transaction as
+ * the edit, so one undo restores the line and its marker together.
  *
- * An extender, not a filter: it adds an effect to the transaction instead of
+ * A line move and a drag reorder whole lines without telling the positional
+ * mapping which line moved, so the extender maps every moved marker to its new
+ * line start and passes it in `removeBreakpoints.carried`. The field then
+ * filters, maps, adds and deduplicates the set like it does for any other edit,
+ * and the effect becomes part of the edit's history event, so undo restores the
+ * original flags.
+ *
+ * An extender, not a filter: it adds effects to the transaction instead of
  * rebuilding it. Undo and redo transactions already carry the marker effects
  * that history stored for them, so they are skipped.
  */
-const deletedLineMarkers = EditorState.transactionExtender.of((tr) => {
+const lineMarkerChanges = EditorState.transactionExtender.of((tr) => {
     if (!tr.docChanged || tr.isUserEvent('undo') || tr.isUserEvent('redo')) {
         return null;
     }
-    const effect = deletedLineEffect(tr);
+    const { markers } = tr.startState.field(breakpointField);
+    if (markers.size === 0) {
+        return null;
+    }
+    // Both mappers return `null` when they move nothing, so this effect never
+    // replaces the marker set with an empty one.
+    const moved = movedLineMarkers(tr, markers) ?? draggedMarkers(tr, markers);
+    if (moved) {
+        return { effects: [removeBreakpoints.of(moved)] };
+    }
+    const effect = deletedLineEffect(tr, markers);
     return effect ? { effects: [effect] } : null;
 });
 
@@ -1061,7 +1463,7 @@ export function breakpointState(options: { marker?: MarkerConfig } = {}): Extens
     const config = options.marker ?? createDefaultMarkerConfig();
     return [
         breakpointField.init(() => createBreakpointState(config)),
-        deletedLineMarkers,
+        lineMarkerChanges,
         // A marker change is inverted by restoring the whole marker set of the
         // transaction's start state. Restoring positions one by one cannot
         // express the start of a line that a deletion restored: a deleted

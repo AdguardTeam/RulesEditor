@@ -302,7 +302,9 @@ on the same page.
 - `Escape` closes the search panel
 - `Ctrl+Alt+G` / `Cmd+Alt+G` moves the cursor to a line with a given number
   ("go to line"); the previous editor's `Ctrl+L` / `Cmd+L` works as well
-- `Alt+Up` / `Alt+Down` moves the selected lines up or down
+- `Alt+Up` / `Alt+Down` moves the selected lines up or down; the
+  enabled-rule markers move with their rules, so the marker of a swapped line
+  stays on its rule instead of on the line that takes its place
 - `Shift+Alt+Up` / `Shift+Alt+Down` copies the selected lines up or down
   (`Cmd+Option+Up` / `Cmd+Option+Down` on macOS, as in the previous editor);
   the copied lines get no enabled-rule marker, and every existing marker of
@@ -323,6 +325,11 @@ on the same page.
 > supersedes "delete line" with "find previous". "Select all occurrences"
 > (`Ctrl+Shift+L` / `Cmd+Shift+L`) is left as CodeMirror binds it — it acts
 > on the current selection and does nothing while no text is selected.
+
+Dragging lines with the mouse moves the enabled-rule markers of the dragged
+rules with the text, and the rule at the drop point keeps its marker. A copy
+drag (hold `Ctrl` on Windows/Linux or `Alt` on macOS) leaves the lines and
+their markers in place.
 
 Like the search bindings (`Ctrl+F`, `F3`, `Ctrl+G`, `Escape`), the
 find & replace, save, and comment-toggle shortcuts also work while the focus
