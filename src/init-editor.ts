@@ -414,8 +414,9 @@ function resolveMarkerOption(
  *   `''`), to keep the current marker. A non-empty `color` or `innerHTML`
  *   changes only that part of the marker and keeps the other part. `null`
  *   resets that part to the value the editor was created with: the matching
- *   {@link InitEditorConfig.hotkeys} option, or the library default when it
- *   was omitted. The empty string means "keep".
+ *   {@link InitEditorConfig.hotkeys} option (`markerColor` for `color` and
+ *   `markerHTML` for `innerHTML`), or the library default when it was omitted.
+ *   The empty string means "keep".
  * @param markerOptions.color Marker icon color; `null` restores the color the
  *   editor was created with.
  * @param markerOptions.innerHTML Marker inner HTML; `null` restores the HTML
