@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js >= 22.22.2 (matches `engines.node` — required by the
+- Node.js >= 22.23.5 (matches `engines.node` — required by the
   `markdownlint-cli` toolchain via `ini@7.0.0`)
 - pnpm >= 10.33.4 < 11 (matches `engines.pnpm`)
 
