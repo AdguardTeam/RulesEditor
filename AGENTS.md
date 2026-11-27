@@ -131,6 +131,12 @@ revert it before committing (`git checkout package.json`).
   changelog entries for documentation-only changes (e.g., `AGENTS.md`,
   `DEVELOPMENT.md`, `README.md`), CI changes, or test changes.
 
+- Write each `CHANGELOG.md` entry for a user: one or two sentences about what
+  changes for them, about as long as the neighboring entries, one bullet per
+  user-visible effect. Do not narrate the old behavior or what did not change,
+  and leave out internal mechanics and follow-up tickets. When an example needs
+  a domain, use `example.com` or `example.org`.
+
 - Use ticket-prefixed commit messages — `AG-XXX <short description in present tense>`, so
   commits auto-link with the task tracker. Automated commits made by CI (e.g.
   the CHANGELOG finalization in release PRs, which has no ticket number) use
